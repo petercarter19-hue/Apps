@@ -1,0 +1,12 @@
+{
+  "name": "apps",
+  "owner": { "name": "petercarter19-hue" },
+  "description": "Claude Code mods by petercarter19-hue",
+  "plugins": [
+    {
+      "name": "context-meter",
+      "source": "./context-meter",
+      "description": "A context meter (status line and bar above the prompt) plus a Forest color theme"
+    }
+  ]
+}
