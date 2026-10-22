@@ -9,7 +9,8 @@ A Claude Code mod that shows how full the conversation's context window is, what
   - **what's in it**, by category as `/context` lists it (system prompt, tools, memory files, messages, ...)
   - **tokens by kind** for this session, the last reply and today: input, output, cache reads, cache writes, and the share served from cache
   - cost, session length and the 5-hour limit
-- **`/meter`:** opens the panel and prints the same report as text.
+- **Under each reply:** one line, always on, e.g. `Context ███░░░░░░░ 27% (271k of 1.0M) · this reply: in 44k, out 800, 90% cached`. Turn it off with the plugin's "Meter under each reply" setting.
+- **`/meter`:** three short lines (fill, what's in it, tokens). `/meter full` prints the whole report.
 - **Forest theme:** moss, pine and leaf greens with honey and rust. Pick it with `/theme`.
 
 Today's totals are kept between sessions. The meter refreshes after every reply, after a compaction, and once a minute.

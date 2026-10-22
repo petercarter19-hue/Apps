@@ -1,7 +1,15 @@
 {
   "name": "context-meter",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A context meter that shows how full the context is, what fills it, and tokens by kind (input, output, cache), plus a Forest color theme",
   "types": "./types/index.d.ts",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "underReplies": {
+      "type": "boolean",
+      "title": "Meter under each reply",
+      "description": "Show a one-line context meter beneath each of Claude's replies",
+      "default": true
+    }
+  }
 }

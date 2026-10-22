@@ -5,10 +5,10 @@ import type { SessionContextBreakdown } from 'claude-code'
 type On = Parameters<TestBody>[1]
 type Engine = Parameters<TestBody>[0]
 
-function runMeter($: Engine) {
+function runMeter($: Engine, args = 'full') {
   return $.command.run({
     command: 'meter',
-    args: '',
+    args,
     origin: { kind: 'composer' },
     presentation: { isFullscreen: false, columns: 80 },
   })
@@ -82,7 +82,7 @@ function engineAt(on: On, percent: number, statuses: string[]) {
 }
 
 async function complete($: Engine, agentId?: string) {
-  await $.turn.complete({
+  return $.turn.complete({
     answer: 'ok',
     durationMs: 1000,
     isAborted: false,
@@ -157,4 +157,38 @@ test("today's totals carry over to the next session", async ($, on) => {
 
   const { text } = await runMeter($)
   expect(text).toContain('Today (2 replies):')
+})
+
+test('/meter on its own is three short lines', async ($, on) => {
+  engineAt(on, 27, [])
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await complete($)
+
+  const { text } = await runMeter($, '')
+  expect(text).toBe(
+    [
+      'Context ███░░░░░░░ 27% · 54k of 200k · $1.50',
+      'Messages 90k · System prompt 3k',
+      'Tokens: in 1k · out 800 · cache 40k read, 3k write (90% cached)',
+    ].join('\n'),
+  )
+})
+
+test('a one-line meter shows beneath each answer', async ($, on) => {
+  engineAt(on, 27, [])
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const shown = await complete($)
+  expect(shown.text).toBe('Context ███░░░░░░░ 27% (54k of 200k) · this reply: in 44k, out 800, 90% cached')
+
+  const agent = await complete($, 'agent-1')
+  expect(agent.text).toBe('')
+})
+
+test('the line beneath answers can be turned off', { options: { underReplies: false } }, async ($, on) => {
+  engineAt(on, 27, [])
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const shown = await complete($)
+  expect(shown.text).toBe('')
 })

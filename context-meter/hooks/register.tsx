@@ -103,6 +103,39 @@ async function refresh($: EngineInterface): Promise<void> {
   $.ui.status(parts.join('  ·  '))
 }
 
+/** Two or three lines: the fill, its top three categories, and the session's tokens. */
+async function brief($: EngineInterface): Promise<string> {
+  const now = await read($, reading)
+  const inside = await read($, categories)
+  const mine = await read($, session)
+  const lines: string[] = []
+
+  if (now !== null) {
+    lines.push(
+      `Context ${bar(now.percent, 10)} ${now.percent}% · ${kilo(now.tokens)} of ${kilo(now.window)} · $${now.usd.toFixed(2)}`,
+    )
+  }
+  if (inside.length > 0) {
+    const top = inside.slice(0, 3).map(row => `${row.name} ${kilo(row.tokens)}`)
+    const rest = inside.slice(3).reduce((sum, row) => sum + row.tokens, 0)
+    if (rest > 0) top.push(`other ${kilo(rest)}`)
+    lines.push(top.join(' · '))
+  }
+  if (mine.replies > 0) {
+    lines.push(
+      `Tokens: in ${kilo(mine.input)} · out ${kilo(mine.output)} · cache ${kilo(mine.cacheRead)} read, ${kilo(mine.cacheWrite)} write (${cacheHit(mine)}% cached)`,
+    )
+  }
+  return lines.join('\n')
+}
+
+/** The one line shown under each reply: the fill and what the reply cost. */
+function underReply(now: Reading, reply: Tally | null): string {
+  const fill = `Context ${bar(now.percent, 10)} ${now.percent}% (${kilo(now.tokens)} of ${kilo(now.window)})`
+  if (reply === null) return fill
+  return `${fill} · this reply: in ${kilo(reply.input + reply.cacheRead + reply.cacheWrite)}, out ${kilo(reply.output)}, ${cacheHit(reply)}% cached`
+}
+
 async function summary($: EngineInterface): Promise<string> {
   const now = await read($, reading)
   const inside = await read($, categories)
@@ -124,12 +157,15 @@ async function summary($: EngineInterface): Promise<string> {
   return lines.join('\n')
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  const isUnderReplies = options.underReplies !== false
+
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await $.command.register({
       name: 'meter',
-      description: 'Open the context meter and show what fills the context',
+      description: 'How full the context is, in brief; /meter full for the whole report',
+      argumentHint: '[full]',
     })
     const saved = (await $.store.get(await dayKey($))) as Tally | undefined
     await update($, today, () => saved ?? EMPTY)
@@ -145,26 +181,32 @@ export const register: Register = on => {
     return result
   })
 
-  on('command.run', { command: 'meter' }, async $ => {
+  on('command.run', { command: 'meter' }, async ($, e) => {
     await refresh($)
     void $.ui.open({ id: PANE, title: 'Context meter' })
-    return { text: await summary($) }
+    return { text: e.args.trim() === 'full' ? await summary($) : await brief($) }
   })
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
+    let reply: Tally | null = null
     if (e.usage) {
-      const reply = fromUsage(e.usage)
-      await update($, session, total => add(total, reply))
-      if (e.agentId === undefined) await update($, last, () => reply)
+      const counted = fromUsage(e.usage)
+      reply = counted
+      await update($, session, total => add(total, counted))
+      if (e.agentId === undefined) await update($, last, () => counted)
 
       const key = await dayKey($)
       const saved = ((await $.store.get(key)) as Tally | undefined) ?? EMPTY
-      const day = add(saved, reply)
+      const day = add(saved, counted)
       await $.store.set(key, day)
       await update($, today, () => day)
     }
     await refresh($)
+    const now = await read($, reading)
+    if (isUnderReplies && e.agentId === undefined && e.reason === 'answer' && now !== null) {
+      return { ...result, text: underReply(now, reply) }
+    }
     return result
   })
 
