@@ -29,6 +29,8 @@ function engineAt(on: Parameters<TestBody>[1], percent: number, statuses: string
     return { value: undefined }
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', () => ({ value: { command: 'meter' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
 }
 
 test('the status line and the bar show the reading', async ($, on) => {

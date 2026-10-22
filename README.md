@@ -4,7 +4,7 @@ Claude Code mods.
 
 | Mod | What it does |
 | --- | --- |
-| [context-meter](context-meter/) | Shows how full the conversation's context window is, in the status line and as a colored bar above the prompt, plus a Forest color theme. |
+| [context-meter](context-meter/) | Shows how full the conversation's context window is, in the status line, as a colored bar above the prompt and in a side panel (`/meter`), plus a Forest color theme. |
 
 ## Install
 

@@ -5,6 +5,7 @@ import type { Reading } from '../types'
 
 const reading = atom({ plugin: 'context-meter', key: 'reading' } as const, null)
 
+const PANE = 'context-meter'
 const WARN_AT = 60
 const DANGER_AT = 80
 
@@ -49,9 +50,57 @@ async function refresh($: EngineInterface): Promise<void> {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    await $.command.register({
+      name: 'meter',
+      description: 'Open the context meter pane',
+    })
+    void $.ui.open({ id: PANE, title: 'Context meter' })
     await refresh($)
     $.clock.every(60000, () => refresh($))
     return result
+  })
+
+  on('session.attach', async ($, e, next) => {
+    const result = await next(e)
+    void $.ui.open({ id: PANE, title: 'Context meter' })
+    return result
+  })
+
+  on('command.run', { command: 'meter' }, async $ => {
+    await $.ui.open({ id: PANE, title: 'Context meter' })
+    const now = await read($, reading)
+    return {
+      text:
+        now === null
+          ? 'Context meter opened.'
+          : `Context ${bar(now.percent, 20)} ${now.percent}% (${kilo(now.tokens)} of ${kilo(now.window)})`,
+    }
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const now = await read($, reading)
+    if (now === null) {
+      return <Text dimColor>Waiting for the first reading…</Text>
+    }
+    const color = level(now.percent)
+
+    return (
+      <Box flexDirection="column">
+        <Text color={color} bold>
+          {now.percent}% full
+        </Text>
+        <Text color={color}>{bar(now.percent, 20)}</Text>
+        <Text dimColor>
+          {kilo(now.tokens)} of {kilo(now.window)} tokens
+        </Text>
+        <Text> </Text>
+        <Text>Cost: ${now.usd.toFixed(2)}</Text>
+        <Text>Session: {now.minutes} min</Text>
+        {now.fiveHour !== null && <Text>5-hour limit: {now.fiveHour}% used</Text>}
+        {now.percent >= DANGER_AT && <Text color="error">Getting full: /compact soon</Text>}
+      </Box>
+    )
   })
 
   on('turn.complete', async ($, e, next) => {

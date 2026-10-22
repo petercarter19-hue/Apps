@@ -4,6 +4,7 @@ A Claude Code mod that shows how full the conversation's context window is, so y
 
 - **Status line:** `Context ▓▓▓▓▓▓▓░░░ 72%  ·  $1.84  ·  41 min  ·  5h limit 30%`
 - **Bar above the prompt:** green under 60%, yellow from 60%, red from 80% with a nudge to `/compact`.
+- **Side panel:** a "Context meter" pane with the percentage, cost, session time and 5-hour limit. Type `/meter` to open it.
 - **Forest theme:** moss, pine and leaf greens with honey and rust. Pick it with `/theme`.
 
 The meter refreshes after every turn, after a compaction, and once a minute.
