@@ -27,6 +27,7 @@ declare module 'claude-code' {
       last: Tally | null
       today: Tally
       categories: Category[]
+      reported: boolean
     }
   }
 }

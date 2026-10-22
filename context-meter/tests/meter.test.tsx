@@ -49,7 +49,7 @@ const REPLY = {
   model: 'claude-test',
 }
 
-function engineAt(on: On, percent: number, statuses: string[]) {
+function engineAt(on: On, percent: number, statuses: string[], notices: string[] = []) {
   on('session.usage', () => ({
     value: {
       startedAt: 0,
@@ -79,6 +79,10 @@ function engineAt(on: On, percent: number, statuses: string[]) {
   on('command.register', () => ({ value: { command: 'meter' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('turn.complete', () => ({ text: '' }))
+  on('session.append', (_, e, next) => {
+    notices.push(e.message.content.map(block => ('text' in block ? block.text : '')).join(''))
+    return next(e)
+  })
 }
 
 async function complete($: Engine, agentId?: string) {
@@ -191,4 +195,48 @@ test('the line beneath answers can be turned off', { options: { underReplies: fa
 
   const shown = await complete($)
   expect(shown.text).toBe('')
+})
+
+test('a new session opens with the full report, once', async ($, on) => {
+  const notices: string[] = []
+  engineAt(on, 27, [], notices)
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  expect(notices).toHaveLength(1)
+  expect(notices[0]).toContain("What's in it:\n  Messages: 90k")
+  expect(notices[0]).not.toContain('This session')
+  expect(notices[0]).toContain('Today (0 replies):')
+})
+
+test('the report at start can be turned off', { options: { reportAtStart: false } }, async ($, on) => {
+  const notices: string[] = []
+  engineAt(on, 27, [], notices)
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  expect(notices).toEqual([])
+})
+
+test('hovering the meters reveals their details', async ($, on) => {
+  engineAt(on, 27, [])
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await complete($)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const band = await $.ui.mount({ ...BAND, surface })
+    expect(await band.find({ key: 'meter-band' })).toBeDefined()
+    expect((await band.find({ type: 'Text', text: /^Messages 90k/ }))?.text).toBe(
+      'Messages 90k · System prompt 3k',
+    )
+    await band.unmount()
+
+    const pane = await $.ui.mount({ ...PANE, surface })
+    expect((await pane.find({ type: 'Text', text: /of the window/ }))?.text).toBe(
+      ' · 45% of the window',
+    )
+    expect(await pane.find({ type: 'Text', text: /^Cache read: text reused/ })).toBeDefined()
+    await pane.unmount()
+  }
 })

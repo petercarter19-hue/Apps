@@ -10,6 +10,7 @@ const session = atom({ plugin: 'context-meter', key: 'session' } as const, EMPTY
 const last = atom({ plugin: 'context-meter', key: 'last' } as const, null)
 const today = atom({ plugin: 'context-meter', key: 'today' } as const, EMPTY)
 const categories = atom({ plugin: 'context-meter', key: 'categories' } as const, [])
+const reported = atom({ plugin: 'context-meter', key: 'reported' } as const, false)
 
 const PANE = 'context-meter'
 const WARN_AT = 60
@@ -103,6 +104,29 @@ async function refresh($: EngineInterface): Promise<void> {
   $.ui.status(parts.join('  ·  '))
 }
 
+/** What each kind of token means, revealed when the pointer rests on the token rows. */
+const MEANINGS = [
+  'Input: new text Claude read, at full price',
+  'Cache read: text reused from earlier replies, about a tenth of the price',
+  'Cache write: text saved for reuse later, a one-time premium',
+  'Output: what Claude wrote',
+]
+
+/** The details the bar above the prompt reveals on hover. */
+function bandDetails(now: Reading, inside: Category[], mine: Tally): string[] {
+  const lines: string[] = []
+  if (inside.length > 0) {
+    lines.push(inside.map(row => `${row.name} ${kilo(row.tokens)}`).join(' · '))
+  }
+  if (mine.replies > 0) {
+    lines.push(`This session (${mine.replies} replies): ${tallyLines(mine).join(' · ')}`)
+  }
+  const tail = [`$${now.usd.toFixed(2)}`, `${now.minutes} min`]
+  if (now.fiveHour !== null) tail.push(`5-hour limit ${now.fiveHour}% used`)
+  lines.push(tail.join(' · '))
+  return lines
+}
+
 /** Two or three lines: the fill, its top three categories, and the session's tokens. */
 async function brief($: EngineInterface): Promise<string> {
   const now = await read($, reading)
@@ -152,13 +176,20 @@ async function summary($: EngineInterface): Promise<string> {
     lines.push('', "What's in it:")
     for (const row of inside) lines.push(`  ${row.name}: ${kilo(row.tokens)}`)
   }
-  lines.push('', `This session (${mine.replies} replies):`, ...tallyLines(mine).map(l => `  ${l}`))
+  if (mine.replies > 0) {
+    lines.push(
+      '',
+      `This session (${mine.replies} replies):`,
+      ...tallyLines(mine).map(l => `  ${l}`),
+    )
+  }
   lines.push('', `Today (${day.replies} replies):`, ...tallyLines(day).map(l => `  ${l}`))
   return lines.join('\n')
 }
 
 export const register: Register = (on, options) => {
   const isUnderReplies = options.underReplies !== false
+  const isReportAtStart = options.reportAtStart !== false
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -172,6 +203,13 @@ export const register: Register = (on, options) => {
     void $.ui.open({ id: PANE, title: 'Context meter' })
     await refresh($)
     $.clock.every(60000, () => refresh($))
+    if (isReportAtStart && !(await read($, reported))) {
+      await update($, reported, () => true)
+      const text = await summary($)
+      await $.session
+        .append({ message: { type: 'system', content: [{ type: 'text', text }] } })
+        .catch(() => undefined)
+    }
     return result
   })
 
@@ -243,27 +281,43 @@ export const register: Register = (on, options) => {
         {inside.length > 0 && <Text> </Text>}
         {inside.length > 0 && <Text bold>What's in it</Text>}
         {inside.map(row => (
-          <Text>
-            <Text color="claude">{bar((row.tokens / biggest) * 100, 8)}</Text> {row.name}{' '}
-            <Text dimColor>{kilo(row.tokens)}</Text>
-          </Text>
+          <Box key={`cat-${row.name}`}>
+            <Text>
+              <Text color="claude">{bar((row.tokens / biggest) * 100, 8)}</Text> {row.name}{' '}
+              <Text dimColor>{kilo(row.tokens)}</Text>
+            </Text>
+            <Box display="none" hover={{ display: 'flex' }}>
+              <Text color="suggestion">
+                {' '}
+                · {Math.round((row.tokens / now.window) * 100)}% of the window
+              </Text>
+            </Box>
+          </Box>
         ))}
 
         <Text> </Text>
-        <Text bold>This session · {mine.replies} replies</Text>
-        {tallyLines(mine).map(line => (
-          <Text dimColor>{line}</Text>
-        ))}
-        {reply !== null && <Text bold>Last reply</Text>}
-        {reply !== null &&
-          tallyLines(reply).map(line => <Text dimColor>{line}</Text>)}
-        <Text bold>Today · {day.replies} replies</Text>
-        {tallyLines(day).map(line => (
-          <Text dimColor>{line}</Text>
-        ))}
+        <Box key="tokens" flexDirection="column">
+          <Text bold>This session · {mine.replies} replies</Text>
+          {tallyLines(mine).map(line => (
+            <Text dimColor>{line}</Text>
+          ))}
+          {reply !== null && <Text bold>Last reply</Text>}
+          {reply !== null && tallyLines(reply).map(line => <Text dimColor>{line}</Text>)}
+          <Text bold>Today · {day.replies} replies</Text>
+          {tallyLines(day).map(line => (
+            <Text dimColor>{line}</Text>
+          ))}
+          <Box display="none" hover={{ display: 'flex' }} flexDirection="column">
+            {MEANINGS.map(line => (
+              <Text color="suggestion">{line}</Text>
+            ))}
+          </Box>
+        </Box>
 
         <Text> </Text>
-        <Text>Cost: ${now.usd.toFixed(2)} · {now.minutes} min</Text>
+        <Text>
+          Cost: ${now.usd.toFixed(2)} · {now.minutes} min
+        </Text>
         {now.fiveHour !== null && <Text>5-hour limit: {now.fiveHour}% used</Text>}
       </Box>
     )
@@ -277,20 +331,28 @@ export const register: Register = (on, options) => {
 
     const { Box, Text } = $.ui.resolve(e)
     const color = level(now.percent)
+    const details = bandDetails(now, await read($, categories), await read($, session))
 
     return (
-      <Box>
-        <Text color="claude">Context </Text>
-        <Text color={color}>{bar(now.percent, 24)}</Text>
-        <Text color={color} bold>
-          {' '}
-          {now.percent}%
-        </Text>
-        <Text dimColor>
-          {' '}
-          ({kilo(now.tokens)} of {kilo(now.window)})
-          {now.percent >= DANGER_AT ? '  · getting full, /compact soon' : ''}
-        </Text>
+      <Box key="meter-band" flexDirection="column">
+        <Box>
+          <Text color="claude">Context </Text>
+          <Text color={color}>{bar(now.percent, 24)}</Text>
+          <Text color={color} bold>
+            {' '}
+            {now.percent}%
+          </Text>
+          <Text dimColor>
+            {' '}
+            ({kilo(now.tokens)} of {kilo(now.window)})
+            {now.percent >= DANGER_AT ? '  · getting full, /compact soon' : ''}
+          </Text>
+        </Box>
+        <Box display="none" hover={{ display: 'flex' }} flexDirection="column">
+          {details.map(line => (
+            <Text dimColor>{line}</Text>
+          ))}
+        </Box>
       </Box>
     )
   })
