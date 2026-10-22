@@ -6,7 +6,17 @@
     {
       "name": "context-meter",
       "source": "./context-meter",
-      "description": "A context meter (status line and bar above the prompt) plus a Forest color theme"
+      "description": "Shows how full the context is, what fills it, and tokens by kind (input, output, cache), plus a Forest color theme"
+    },
+    {
+      "name": "done-ping",
+      "source": "./done-ping",
+      "description": "A notification and a chime when Claude finishes a long task"
+    },
+    {
+      "name": "todo-panel",
+      "source": "./todo-panel",
+      "description": "A to-do list in a side panel that remembers between sessions; /todo to use it"
     }
   ]
 }

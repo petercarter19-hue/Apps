@@ -1,0 +1,7 @@
+{
+  "name": "todo-panel",
+  "version": "0.1.0",
+  "description": "A to-do list in a side panel that remembers between sessions; /todo to use it",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

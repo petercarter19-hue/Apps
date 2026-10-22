@@ -1,16 +1,22 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, ModelUsage, Register } from 'claude-code'
 
-import type { Reading } from '../types'
+import type { Category, Reading, Tally } from '../types'
+
+const EMPTY: Tally = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, replies: 0 }
 
 const reading = atom({ plugin: 'context-meter', key: 'reading' } as const, null)
+const session = atom({ plugin: 'context-meter', key: 'session' } as const, EMPTY)
+const last = atom({ plugin: 'context-meter', key: 'last' } as const, null)
+const today = atom({ plugin: 'context-meter', key: 'today' } as const, EMPTY)
+const categories = atom({ plugin: 'context-meter', key: 'categories' } as const, [])
 
 const PANE = 'context-meter'
 const WARN_AT = 60
 const DANGER_AT = 80
 
 function bar(percent: number, width: number): string {
-  const filled = Math.round((Math.min(percent, 100) / 100) * width)
+  const filled = Math.round((Math.max(0, Math.min(percent, 100)) / 100) * width)
   return '█'.repeat(filled) + '░'.repeat(width - filled)
 }
 
@@ -21,11 +27,52 @@ function level(percent: number): 'success' | 'warning' | 'error' {
 }
 
 function kilo(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`
   return tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : String(tokens)
 }
 
+function fromUsage(usage: ModelUsage): Tally {
+  return {
+    input: usage.input_tokens,
+    output: usage.output_tokens,
+    cacheRead: usage.cache_read_input_tokens,
+    cacheWrite: usage.cache_creation_input_tokens,
+    replies: 1,
+  }
+}
+
+function add(a: Tally, b: Tally): Tally {
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    cacheRead: a.cacheRead + b.cacheRead,
+    cacheWrite: a.cacheWrite + b.cacheWrite,
+    replies: a.replies + b.replies,
+  }
+}
+
+/** The share of input tokens the prompt cache served. */
+function cacheHit(t: Tally): number {
+  const read = t.input + t.cacheRead + t.cacheWrite
+  return read === 0 ? 0 : Math.round((t.cacheRead / read) * 100)
+}
+
+function tallyLines(t: Tally): string[] {
+  return [
+    `Input ${kilo(t.input)} · Output ${kilo(t.output)}`,
+    `Cache read ${kilo(t.cacheRead)} · Cache write ${kilo(t.cacheWrite)} · ${cacheHit(t)}% from cache`,
+  ]
+}
+
+async function dayKey($: EngineInterface): Promise<string> {
+  const d = new Date(await $.clock.now())
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `day:${d.getFullYear()}-${month}-${day}`
+}
+
 async function refresh($: EngineInterface): Promise<void> {
-  const usage = await $.session.usage()
+  const usage = await $.session.usage({ breakdown: 'summary' })
   const now = await $.clock.now()
   const fiveHour = usage.rateLimits.find(limit => limit.kind === 'five_hour')
   const next: Reading = {
@@ -38,6 +85,15 @@ async function refresh($: EngineInterface): Promise<void> {
   }
   await update($, reading, () => next)
 
+  const rows = usage.context.breakdown?.categories
+  if (rows) {
+    const used: Category[] = rows
+      .filter(row => row.kind === 'used' && row.tokens > 0)
+      .map(row => ({ name: row.name, tokens: row.tokens }))
+      .sort((a, b) => b.tokens - a.tokens)
+    await update($, categories, () => used)
+  }
+
   const parts = [
     `Context ${bar(next.percent, 10)} ${next.percent}%`,
     `$${next.usd.toFixed(2)}`,
@@ -47,13 +103,36 @@ async function refresh($: EngineInterface): Promise<void> {
   $.ui.status(parts.join('  ·  '))
 }
 
+async function summary($: EngineInterface): Promise<string> {
+  const now = await read($, reading)
+  const inside = await read($, categories)
+  const mine = await read($, session)
+  const day = await read($, today)
+  const lines: string[] = []
+
+  if (now !== null) {
+    lines.push(
+      `Context ${bar(now.percent, 20)} ${now.percent}% (${kilo(now.tokens)} of ${kilo(now.window)})`,
+    )
+  }
+  if (inside.length > 0) {
+    lines.push('', "What's in it:")
+    for (const row of inside) lines.push(`  ${row.name}: ${kilo(row.tokens)}`)
+  }
+  lines.push('', `This session (${mine.replies} replies):`, ...tallyLines(mine).map(l => `  ${l}`))
+  lines.push('', `Today (${day.replies} replies):`, ...tallyLines(day).map(l => `  ${l}`))
+  return lines.join('\n')
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await $.command.register({
       name: 'meter',
-      description: 'Open the context meter pane',
+      description: 'Open the context meter and show what fills the context',
     })
+    const saved = (await $.store.get(await dayKey($))) as Tally | undefined
+    await update($, today, () => saved ?? EMPTY)
     void $.ui.open({ id: PANE, title: 'Context meter' })
     await refresh($)
     $.clock.every(60000, () => refresh($))
@@ -67,15 +146,33 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'meter' }, async $ => {
-    await $.ui.open({ id: PANE, title: 'Context meter' })
-    const now = await read($, reading)
-    return {
-      text:
-        now === null
-          ? 'Context meter opened.'
-          : `Context ${bar(now.percent, 20)} ${now.percent}% (${kilo(now.tokens)} of ${kilo(now.window)})`,
-    }
+    await refresh($)
+    void $.ui.open({ id: PANE, title: 'Context meter' })
+    return { text: await summary($) }
   })
+
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+    if (e.usage) {
+      const reply = fromUsage(e.usage)
+      await update($, session, total => add(total, reply))
+      if (e.agentId === undefined) await update($, last, () => reply)
+
+      const key = await dayKey($)
+      const saved = ((await $.store.get(key)) as Tally | undefined) ?? EMPTY
+      const day = add(saved, reply)
+      await $.store.set(key, day)
+      await update($, today, () => day)
+    }
+    await refresh($)
+    return result
+  })
+
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    await refresh($)
+    return result
+  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
@@ -84,6 +181,11 @@ export const register: Register = on => {
       return <Text dimColor>Waiting for the first reading…</Text>
     }
     const color = level(now.percent)
+    const inside = await read($, categories)
+    const mine = await read($, session)
+    const reply = await read($, last)
+    const day = await read($, today)
+    const biggest = inside[0]?.tokens ?? 1
 
     return (
       <Box flexDirection="column">
@@ -94,26 +196,36 @@ export const register: Register = on => {
         <Text dimColor>
           {kilo(now.tokens)} of {kilo(now.window)} tokens
         </Text>
-        <Text> </Text>
-        <Text>Cost: ${now.usd.toFixed(2)}</Text>
-        <Text>Session: {now.minutes} min</Text>
-        {now.fiveHour !== null && <Text>5-hour limit: {now.fiveHour}% used</Text>}
         {now.percent >= DANGER_AT && <Text color="error">Getting full: /compact soon</Text>}
+
+        {inside.length > 0 && <Text> </Text>}
+        {inside.length > 0 && <Text bold>What's in it</Text>}
+        {inside.map(row => (
+          <Text>
+            <Text color="claude">{bar((row.tokens / biggest) * 100, 8)}</Text> {row.name}{' '}
+            <Text dimColor>{kilo(row.tokens)}</Text>
+          </Text>
+        ))}
+
+        <Text> </Text>
+        <Text bold>This session · {mine.replies} replies</Text>
+        {tallyLines(mine).map(line => (
+          <Text dimColor>{line}</Text>
+        ))}
+        {reply !== null && <Text bold>Last reply</Text>}
+        {reply !== null &&
+          tallyLines(reply).map(line => <Text dimColor>{line}</Text>)}
+        <Text bold>Today · {day.replies} replies</Text>
+        {tallyLines(day).map(line => (
+          <Text dimColor>{line}</Text>
+        ))}
+
+        <Text> </Text>
+        <Text>Cost: ${now.usd.toFixed(2)} · {now.minutes} min</Text>
+        {now.fiveHour !== null && <Text>5-hour limit: {now.fiveHour}% used</Text>}
       </Box>
     )
   })
-
-  on('turn.complete', async ($, e, next) => {
-    const result = await next(e)
-    await refresh($)
-    return result
-  })
-
-  on('session.compact', async ($, e, next) => {
-    const result = await next(e)
-    await refresh($)
-    return result
-  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const now = await read($, reading)
