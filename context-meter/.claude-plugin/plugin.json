@@ -1,6 +1,6 @@
 {
   "name": "context-meter",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A context meter that shows how full the context is, what fills it, and tokens by kind (input, output, cache), plus a Forest color theme",
   "types": "./types/index.d.ts",
   "license": "MIT",

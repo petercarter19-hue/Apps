@@ -240,3 +240,33 @@ test('hovering the meters reveals their details', async ($, on) => {
     await pane.unmount()
   }
 })
+
+test('clicking "details" opens and closes the extra lines, on every surface', async ($, on) => {
+  engineAt(on, 27, [])
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await complete($)
+
+  for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+    const band = await $.ui.mount({ ...BAND, surface })
+    expect((await band.find({ key: 'band-details' }))?.props.label).toBe('▸ details')
+    await band.press({ key: 'band-details' })
+    expect((await band.find({ key: 'band-details' }))?.props.label).toBe('▾ less')
+    await band.press({ key: 'band-details' })
+    expect((await band.find({ key: 'band-details' }))?.props.label).toBe('▸ details')
+    await band.unmount()
+
+    const pane = await $.ui.mount({ ...PANE, surface })
+    await pane.press({ key: 'pane-details' })
+    expect((await pane.find({ key: 'pane-details' }))?.props.label).toBe('▾ Hide details')
+    await pane.press({ key: 'pane-details' })
+    await pane.unmount()
+  }
+})
+
+test('the full report names the version', async ($, on) => {
+  engineAt(on, 27, [])
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const { text } = await runMeter($)
+  expect(text).toContain('context-meter 0.6.0')
+})

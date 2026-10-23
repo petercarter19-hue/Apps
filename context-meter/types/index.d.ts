@@ -28,6 +28,8 @@ declare module 'claude-code' {
       today: Tally
       categories: Category[]
       reported: boolean
+      isBandOpen: boolean
+      isPaneOpen: boolean
     }
   }
 }

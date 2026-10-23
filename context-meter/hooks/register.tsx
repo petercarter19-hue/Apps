@@ -11,6 +11,10 @@ const last = atom({ plugin: 'context-meter', key: 'last' } as const, null)
 const today = atom({ plugin: 'context-meter', key: 'today' } as const, EMPTY)
 const categories = atom({ plugin: 'context-meter', key: 'categories' } as const, [])
 const reported = atom({ plugin: 'context-meter', key: 'reported' } as const, false)
+const isBandOpen = atom({ plugin: 'context-meter', key: 'isBandOpen' } as const, false)
+const isPaneOpen = atom({ plugin: 'context-meter', key: 'isPaneOpen' } as const, false)
+
+const VERSION = '0.6.0'
 
 const PANE = 'context-meter'
 const WARN_AT = 60
@@ -184,6 +188,7 @@ async function summary($: EngineInterface): Promise<string> {
     )
   }
   lines.push('', `Today (${day.replies} replies):`, ...tallyLines(day).map(l => `  ${l}`))
+  lines.push('', `context-meter ${VERSION}`)
   return lines.join('\n')
 }
 
@@ -255,12 +260,15 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const now = await read($, reading)
     if (now === null) {
       return <Text dimColor>Waiting for the first reading…</Text>
     }
     const color = level(now.percent)
+    const isOpen = await read($, isPaneOpen)
+    const reveal = isOpen ? 'flex' : 'none'
+    const onHover = isOpen ? undefined : ({ display: 'flex' } as const)
     const inside = await read($, categories)
     const mine = await read($, session)
     const reply = await read($, last)
@@ -277,6 +285,12 @@ export const register: Register = (on, options) => {
           {kilo(now.tokens)} of {kilo(now.window)} tokens
         </Text>
         {now.percent >= DANGER_AT && <Text color="error">Getting full: /compact soon</Text>}
+        <Button
+          key="pane-details"
+          plain
+          label={isOpen ? '▾ Hide details' : '▸ Show details'}
+          onPress={() => update($, isPaneOpen, open => !open)}
+        />
 
         {inside.length > 0 && <Text> </Text>}
         {inside.length > 0 && <Text bold>What's in it</Text>}
@@ -286,7 +300,7 @@ export const register: Register = (on, options) => {
               <Text color="claude">{bar((row.tokens / biggest) * 100, 8)}</Text> {row.name}{' '}
               <Text dimColor>{kilo(row.tokens)}</Text>
             </Text>
-            <Box display="none" hover={{ display: 'flex' }}>
+            <Box display={reveal} hover={onHover}>
               <Text color="suggestion">
                 {' '}
                 · {Math.round((row.tokens / now.window) * 100)}% of the window
@@ -307,7 +321,7 @@ export const register: Register = (on, options) => {
           {tallyLines(day).map(line => (
             <Text dimColor>{line}</Text>
           ))}
-          <Box display="none" hover={{ display: 'flex' }} flexDirection="column">
+          <Box display={reveal} hover={onHover} flexDirection="column">
             {MEANINGS.map(line => (
               <Text color="suggestion">{line}</Text>
             ))}
@@ -329,9 +343,10 @@ export const register: Register = (on, options) => {
       return next(e)
     }
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const color = level(now.percent)
     const details = bandDetails(now, await read($, categories), await read($, session))
+    const isOpen = await read($, isBandOpen)
 
     return (
       <Box key="meter-band" flexDirection="column">
@@ -345,10 +360,20 @@ export const register: Register = (on, options) => {
           <Text dimColor>
             {' '}
             ({kilo(now.tokens)} of {kilo(now.window)})
-            {now.percent >= DANGER_AT ? '  · getting full, /compact soon' : ''}
+            {now.percent >= DANGER_AT ? '  · getting full, /compact soon' : ''}{' '}
           </Text>
+          <Button
+            key="band-details"
+            plain
+            label={isOpen ? '▾ less' : '▸ details'}
+            onPress={() => update($, isBandOpen, open => !open)}
+          />
         </Box>
-        <Box display="none" hover={{ display: 'flex' }} flexDirection="column">
+        <Box
+          display={isOpen ? 'flex' : 'none'}
+          hover={isOpen ? undefined : { display: 'flex' }}
+          flexDirection="column"
+        >
           {details.map(line => (
             <Text dimColor>{line}</Text>
           ))}
