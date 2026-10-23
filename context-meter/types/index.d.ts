@@ -30,6 +30,8 @@ declare module 'claude-code' {
       reported: boolean
       isBandOpen: boolean
       isPaneOpen: boolean
+      lastError: string | null
+      statusText: string | null
     }
   }
 }

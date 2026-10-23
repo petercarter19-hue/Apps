@@ -49,7 +49,13 @@ const REPLY = {
   model: 'claude-test',
 }
 
-function engineAt(on: On, percent: number, statuses: string[], notices: string[] = []) {
+function engineAt(
+  on: On,
+  percent: number,
+  statuses: string[],
+  notices: string[] = [],
+  opens: string[] = [],
+) {
   on('session.usage', () => ({
     value: {
       startedAt: 0,
@@ -77,7 +83,11 @@ function engineAt(on: On, percent: number, statuses: string[], notices: string[]
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'meter' } }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', () => {
+    opens.push('pane')
+    return { value: { isPlaced: true } }
+  })
+  on('session.surfaces', () => ({ value: ['desktop'] }))
   on('turn.complete', () => ({ text: '' }))
   on('session.append', (_, e, next) => {
     notices.push(e.message.content.map(block => ('text' in block ? block.text : '')).join(''))
@@ -219,19 +229,12 @@ test('the report at start can be turned off', { options: { reportAtStart: false 
   expect(notices).toEqual([])
 })
 
-test('hovering the meters reveals their details', async ($, on) => {
+test('hovering the panel reveals its details', async ($, on) => {
   engineAt(on, 27, [])
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await complete($)
 
   for (const surface of ['terminal', 'desktop'] as const) {
-    const band = await $.ui.mount({ ...BAND, surface })
-    expect(await band.find({ key: 'meter-band' })).toBeDefined()
-    expect((await band.find({ type: 'Text', text: /^Messages 90k/ }))?.text).toBe(
-      'Messages 90k · System prompt 3k',
-    )
-    await band.unmount()
-
     const pane = await $.ui.mount({ ...PANE, surface })
     expect((await pane.find({ type: 'Text', text: /of the window/ }))?.text).toBe(
       ' · 45% of the window',
@@ -241,18 +244,21 @@ test('hovering the meters reveals their details', async ($, on) => {
   }
 })
 
-test('clicking "details" opens and closes the extra lines, on every surface', async ($, on) => {
+test('clicking the meter opens and closes its bubble, on every surface', async ($, on) => {
   engineAt(on, 27, [])
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await complete($)
 
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
-    const band = await $.ui.mount({ ...BAND, surface })
-    expect((await band.find({ key: 'band-details' }))?.props.label).toBe('▸ details')
+    const band = await $.ui.mount({ ...BAND, props: { ...BAND.props, maxRows: 12 }, surface })
+    expect(await band.find({ type: 'Text', text: /^Last reply: / })).toBeUndefined()
     await band.press({ key: 'band-details' })
-    expect((await band.find({ key: 'band-details' }))?.props.label).toBe('▾ less')
+    expect(await band.find({ type: 'Text', text: /^Last reply: / })).toBeDefined()
+    expect((await band.find({ type: 'Text', text: /^Messages: 90k/ }))?.text).toBe(
+      'Messages: 90k (45% of the window)',
+    )
     await band.press({ key: 'band-details' })
-    expect((await band.find({ key: 'band-details' }))?.props.label).toBe('▸ details')
+    expect(await band.find({ type: 'Text', text: /^Last reply: / })).toBeUndefined()
     await band.unmount()
 
     const pane = await $.ui.mount({ ...PANE, surface })
@@ -268,5 +274,62 @@ test('the full report names the version', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
   const { text } = await runMeter($)
-  expect(text).toContain('context-meter 0.6.0')
+  expect(text).toContain('context-meter 0.7.0')
+})
+
+test('the panel opens only when asked', async ($, on) => {
+  const opens: string[] = []
+  engineAt(on, 27, [], [], opens)
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await complete($)
+  await runMeter($, '')
+  await runMeter($, 'full')
+  expect(opens).toEqual([])
+
+  const { text } = await runMeter($, 'panel')
+  expect(opens).toEqual(['pane'])
+  expect(text).toContain('panel opened')
+})
+
+test('/meter debug says what the meter sees', async ($, on) => {
+  engineAt(on, 27, [])
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const { text } = await runMeter($, 'debug')
+  expect(text).toContain('context-meter 0.7.0')
+  expect(text).toContain('Screens attached: desktop')
+  expect(text).toContain('Status line set to: Context ███░░░░░░░ 27%')
+  expect(text).toContain('Last problem: none')
+})
+
+test('the status line still shows when the breakdown fails', async ($, on) => {
+  const statuses: string[] = []
+  on('session.usage', (_, e) => {
+    if (e?.breakdown) throw new Error('no breakdown here')
+    return {
+      value: {
+        startedAt: 0,
+        context: { tokens: 20000, window: 200000, percent: 10 },
+        rateLimits: [],
+        cost: { usd: 0.25 },
+      },
+    }
+  })
+  mock.clock(on, { now: 60000 })
+  mock.store(on)
+  on('ui.status', (_, e) => {
+    statuses.push(String(e.text))
+    return { value: undefined }
+  })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', () => ({ value: { command: 'meter' } }))
+  on('session.surfaces', () => ({ value: [] }))
+  on('session.append', (_, e, next) => next(e))
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  expect(statuses.at(-1)).toBe('Context █░░░░░░░░░ 10%  ·  $0.25  ·  1 min')
+  const { text } = await runMeter($, 'debug')
+  expect(text).toContain('Last problem: breakdown:')
 })

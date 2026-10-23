@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, ModelUsage, Register } from 'claude-code'
+import type { EngineInterface, ModelUsage, Register, SessionUsage } from 'claude-code'
 
 import type { Category, Reading, Tally } from '../types'
 
@@ -14,7 +14,10 @@ const reported = atom({ plugin: 'context-meter', key: 'reported' } as const, fal
 const isBandOpen = atom({ plugin: 'context-meter', key: 'isBandOpen' } as const, false)
 const isPaneOpen = atom({ plugin: 'context-meter', key: 'isPaneOpen' } as const, false)
 
-const VERSION = '0.6.0'
+const lastError = atom({ plugin: 'context-meter', key: 'lastError' } as const, null)
+const statusText = atom({ plugin: 'context-meter', key: 'statusText' } as const, null)
+
+const VERSION = '0.7.0'
 
 const PANE = 'context-meter'
 const WARN_AT = 60
@@ -76,8 +79,20 @@ async function dayKey($: EngineInterface): Promise<string> {
   return `day:${d.getFullYear()}-${month}-${day}`
 }
 
+/** The usage with the window broken down; without the breakdown where that fails. */
+async function usageNow($: EngineInterface): Promise<SessionUsage> {
+  try {
+    const usage = await $.session.usage({ breakdown: 'summary' })
+    await update($, lastError, () => null)
+    return usage
+  } catch (error) {
+    await update($, lastError, () => `breakdown: ${String(error)}`)
+    return $.session.usage()
+  }
+}
+
 async function refresh($: EngineInterface): Promise<void> {
-  const usage = await $.session.usage({ breakdown: 'summary' })
+  const usage = await usageNow($)
   const now = await $.clock.now()
   const fiveHour = usage.rateLimits.find(limit => limit.kind === 'five_hour')
   const next: Reading = {
@@ -105,7 +120,9 @@ async function refresh($: EngineInterface): Promise<void> {
     `${next.minutes} min`,
   ]
   if (next.fiveHour !== null) parts.push(`5h limit ${next.fiveHour}%`)
-  $.ui.status(parts.join('  ·  '))
+  const line = parts.join('  ·  ')
+  $.ui.status(line)
+  await update($, statusText, () => line)
 }
 
 /** What each kind of token means, revealed when the pointer rests on the token rows. */
@@ -116,15 +133,17 @@ const MEANINGS = [
   'Output: what Claude wrote',
 ]
 
-/** The details the bar above the prompt reveals on hover. */
-function bandDetails(now: Reading, inside: Category[], mine: Tally): string[] {
+/** The full context the bubble under the bar shows, one fact per line. */
+function bubbleLines(now: Reading, inside: Category[], mine: Tally, reply: Tally | null): string[] {
   const lines: string[] = []
-  if (inside.length > 0) {
-    lines.push(inside.map(row => `${row.name} ${kilo(row.tokens)}`).join(' · '))
+  for (const row of inside) {
+    const share = Math.round((row.tokens / now.window) * 100)
+    lines.push(`${row.name}: ${kilo(row.tokens)} (${share}% of the window)`)
   }
   if (mine.replies > 0) {
-    lines.push(`This session (${mine.replies} replies): ${tallyLines(mine).join(' · ')}`)
+    lines.push(`This session, ${mine.replies} replies: ${tallyLines(mine).join(' · ')}`)
   }
+  if (reply !== null) lines.push(`Last reply: ${tallyLines(reply).join(' · ')}`)
   const tail = [`$${now.usd.toFixed(2)}`, `${now.minutes} min`]
   if (now.fiveHour !== null) tail.push(`5-hour limit ${now.fiveHour}% used`)
   lines.push(tail.join(' · '))
@@ -200,14 +219,16 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     await $.command.register({
       name: 'meter',
-      description: 'How full the context is, in brief; /meter full for the whole report',
-      argumentHint: '[full]',
+      description:
+        'How full the context is, in brief; /meter full for the whole report, /meter panel for the side panel',
+      argumentHint: '[full | panel | debug]',
     })
     const saved = (await $.store.get(await dayKey($))) as Tally | undefined
     await update($, today, () => saved ?? EMPTY)
-    void $.ui.open({ id: PANE, title: 'Context meter' })
-    await refresh($)
-    $.clock.every(60000, () => refresh($))
+    await refresh($).catch(error => update($, lastError, () => `refresh: ${String(error)}`))
+    $.clock.every(60000, () =>
+      refresh($).catch(error => update($, lastError, () => `refresh: ${String(error)}`)),
+    )
     if (isReportAtStart && !(await read($, reported))) {
       await update($, reported, () => true)
       const text = await summary($)
@@ -218,16 +239,31 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  on('session.attach', async ($, e, next) => {
-    const result = await next(e)
-    void $.ui.open({ id: PANE, title: 'Context meter' })
-    return result
-  })
-
   on('command.run', { command: 'meter' }, async ($, e) => {
-    await refresh($)
-    void $.ui.open({ id: PANE, title: 'Context meter' })
-    return { text: e.args.trim() === 'full' ? await summary($) : await brief($) }
+    const args = e.args.trim()
+    await refresh($).catch(error => update($, lastError, () => `refresh: ${String(error)}`))
+    if (args === 'panel') {
+      const opened = await $.ui.open({ id: PANE, title: 'Context meter' })
+      return {
+        text: opened.isPlaced
+          ? 'Context meter panel opened. Close it any time; it only opens when you ask.'
+          : 'This window has no room for side panels, so the panel cannot open here.',
+      }
+    }
+    if (args === 'debug') {
+      const surfaces = await $.session.surfaces()
+      return {
+        text: [
+          `context-meter ${VERSION}`,
+          `Screens attached: ${surfaces.length === 0 ? 'none' : surfaces.join(', ')}`,
+          `Status line set to: ${(await read($, statusText)) ?? '(nothing yet)'}`,
+          `Last problem: ${(await read($, lastError)) ?? 'none'}`,
+          `Replies counted this session: ${(await read($, session)).replies}`,
+          `Meter under each reply: ${isUnderReplies ? 'on' : 'off'} · Full report at start: ${isReportAtStart ? 'on' : 'off'}`,
+        ].join('\n'),
+      }
+    }
+    return { text: args === 'full' ? await summary($) : await brief($) }
   })
 
   on('turn.complete', async ($, e, next) => {
@@ -345,12 +381,18 @@ export const register: Register = (on, options) => {
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const color = level(now.percent)
-    const details = bandDetails(now, await read($, categories), await read($, session))
     const isOpen = await read($, isBandOpen)
+    const lines = bubbleLines(
+      now,
+      await read($, categories),
+      await read($, session),
+      await read($, last),
+    )
+    const room = Math.max(1, e.props.maxRows - 3)
 
     return (
       <Box key="meter-band" flexDirection="column">
-        <Box>
+        <Button key="band-details" plain onPress={() => update($, isBandOpen, open => !open)}>
           <Text color="claude">Context </Text>
           <Text color={color}>{bar(now.percent, 24)}</Text>
           <Text color={color} bold>
@@ -361,23 +403,16 @@ export const register: Register = (on, options) => {
             {' '}
             ({kilo(now.tokens)} of {kilo(now.window)})
             {now.percent >= DANGER_AT ? '  · getting full, /compact soon' : ''}{' '}
+            {isOpen ? '▾' : '▸'}
           </Text>
-          <Button
-            key="band-details"
-            plain
-            label={isOpen ? '▾ less' : '▸ details'}
-            onPress={() => update($, isBandOpen, open => !open)}
-          />
-        </Box>
-        <Box
-          display={isOpen ? 'flex' : 'none'}
-          hover={isOpen ? undefined : { display: 'flex' }}
-          flexDirection="column"
-        >
-          {details.map(line => (
-            <Text dimColor>{line}</Text>
-          ))}
-        </Box>
+        </Button>
+        {isOpen && (
+          <Box flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
+            {lines.slice(0, room).map(line => (
+              <Text>{line}</Text>
+            ))}
+          </Box>
+        )}
       </Box>
     )
   })
