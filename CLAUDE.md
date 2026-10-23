@@ -9,7 +9,7 @@ The owner works on Windows, in the Claude desktop app and in PowerShell. They ar
 | Mod | Version | What it does |
 | --- | --- | --- |
 | `context-meter` | 0.7.0 | Context fill in the status line, a bar above the prompt (click it for a bubble with the full context), a line under each reply, the full report as a notice at session start, a side panel on `/meter panel`. Tallies tokens by kind (input, output, cache read, cache write) per session, last reply and day (`$.store`, keyed `day:YYYY-MM-DD`). Ships a Forest theme in `themes/forest.json`. |
-| `done-ping` | 0.2.0 | After a main-loop reply of `minSeconds` (default 30) or more: a toast, `$.ui.notify`, and a chime (`$.audio.play` on macOS, PowerShell `Media.SoundPlayer` on Windows, detected by `OS=Windows_NT`). `/done-ping` sends a test. |
+| `done-ping` | 0.3.0 | After a main-loop reply of `minSeconds` (default 60) or more: a toast, `$.ui.notify`, and one soft chime (`$.audio.play` on macOS, PowerShell `Media.SoundPlayer` on Windows, detected by `OS=Windows_NT`). `/done-ping` sends a test. |
 | `todo-panel` | 0.1.0 | A to-do list kept in `$.store` (key `items`), shown in a pane, driven by `/todo` and by two tools Claude calls when asked (`mcp__todo-panel__add`, `mcp__todo-panel__list`). |
 
 Each mod folder holds `.claude-plugin/plugin.json`, `hooks/hooks.json` (one module path), `hooks/register.ts(x)`, a `types/index.d.ts` contract when it keeps `$.state` values, a `README.md`, and `tests/*.test.ts(x)`.

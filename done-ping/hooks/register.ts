@@ -5,7 +5,8 @@ const CHIME = 'sounds/chime.wav'
 function duration(ms: number): string {
   const seconds = Math.round(ms / 1000)
   if (seconds < 60) return `${seconds}s`
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+  const minutes = Math.floor(seconds / 60)
+  return seconds % 60 === 0 ? `${minutes}m` : `${minutes}m ${seconds % 60}s`
 }
 
 /** The answer's first line, short enough for a notification. */
@@ -48,7 +49,7 @@ async function ping(
 }
 
 export const register: Register = (on, options) => {
-  const minMs = Number(options.minSeconds ?? 30) * 1000
+  const minMs = Number(options.minSeconds ?? 60) * 1000
   const hasSound = options.sound !== false
 
   on('session.start', async ($, e, next) => {

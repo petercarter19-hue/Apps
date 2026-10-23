@@ -69,9 +69,9 @@ test('an error after a long run says it stopped', async ($, on) => {
   const sent = engine(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
-  await finish($, 40000, { reason: 'error' })
+  await finish($, 70000, { reason: 'error' })
 
-  expect(sent.notes[0]?.title).toBe('Claude stopped (40s)')
+  expect(sent.notes[0]?.title).toBe('Claude stopped (1m 10s)')
 })
 
 test('the settings change the threshold and mute the chime', { options: { minSeconds: 5, sound: false } }, async ($, on) => {
@@ -96,7 +96,7 @@ test('/done-ping sends a test ping', async ($, on) => {
   })
 
   expect(sent.notes).toHaveLength(1)
-  expect(text).toContain('30s or more')
+  expect(text).toContain('1m or more')
 })
 
 test('on Windows the chime plays through PowerShell', async ($, on) => {

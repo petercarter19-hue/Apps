@@ -1,6 +1,6 @@
 {
   "name": "done-ping",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A notification and a chime when Claude finishes a long task",
   "license": "MIT",
   "userConfig": {
@@ -8,13 +8,13 @@
       "type": "number",
       "title": "Ping after (seconds)",
       "description": "Only ping when a reply took at least this long",
-      "default": 30,
+      "default": 60,
       "min": 0
     },
     "sound": {
       "type": "boolean",
       "title": "Play a chime",
-      "description": "Play a short chime with the notification (macOS and Windows)",
+      "description": "Play a soft chime with the notification (macOS and Windows)",
       "default": true
     }
   }
