@@ -14,6 +14,28 @@ function gist(answer: string): string {
   return line.length > 120 ? `${line.slice(0, 117)}…` : line
 }
 
+/**
+ * Plays the chime: with the engine's player where it has one (macOS), and
+ * through PowerShell's SoundPlayer on Windows, where the engine has none.
+ */
+async function chime($: EngineInterface): Promise<void> {
+  if ((await $.env.get('OS')) === 'Windows_NT') {
+    const file = `${$.plugin.root}\\sounds\\chime.wav`.replace(/'/g, "''")
+    await $.process.run(
+      [
+        'powershell.exe',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `(New-Object Media.SoundPlayer '${file}').PlaySync()`,
+      ],
+      { timeoutMs: 10000 },
+    )
+    return
+  }
+  await $.audio.play({ asset: CHIME })
+}
+
 async function ping(
   $: EngineInterface,
   title: string,
@@ -22,7 +44,7 @@ async function ping(
 ): Promise<void> {
   $.ui.toast(`${title}: ${body}`)
   await $.ui.notify(body, { title }).catch(() => undefined)
-  if (hasSound) await $.audio.play({ asset: CHIME }).catch(() => undefined)
+  if (hasSound) await chime($).catch(() => undefined)
 }
 
 export const register: Register = (on, options) => {

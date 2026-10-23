@@ -1,6 +1,6 @@
 {
   "name": "done-ping",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A notification and a chime when Claude finishes a long task",
   "license": "MIT",
   "userConfig": {
@@ -14,7 +14,7 @@
     "sound": {
       "type": "boolean",
       "title": "Play a chime",
-      "description": "Play a short chime with the notification (macOS only)",
+      "description": "Play a short chime with the notification (macOS and Windows)",
       "default": true
     }
   }

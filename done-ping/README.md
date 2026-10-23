@@ -3,7 +3,7 @@
 A Claude Code mod that tells you when Claude finishes a long task, so you can switch to something else while it works.
 
 - A pop-up in Claude Code and a system notification, headed with how long it took ("Claude is done (1m 35s)") and the first line of Claude's answer.
-- A short chime on macOS. Windows and Linux have no player Claude Code can use, so there it stays silent.
+- A short chime on macOS and Windows (on Windows it plays through PowerShell). Linux stays silent.
 - "Claude stopped" when a long task ends on an error.
 - Quiet for quick replies, for subagents, and when you interrupt.
 - `/done-ping` sends a test ping, to check notifications reach you.

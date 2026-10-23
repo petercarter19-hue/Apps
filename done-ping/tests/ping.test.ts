@@ -1,12 +1,19 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 
 type On = Parameters<TestBody>[1]
 type Engine = Parameters<TestBody>[0]
 type Sent = { toasts: string[]; notes: { text: string; title?: string }[]; sounds: string[] }
 
-function engine(on: On): Sent {
+function engine(on: On, env: Record<string, string> = {}): Sent {
   const sent: Sent = { toasts: [], notes: [], sounds: [] }
+  mock.env(on, env)
+  on('process.run', (_, e) => {
+    sent.sounds.push(e.argv.join(' '))
+    return {
+      value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
+    }
+  })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'done-ping' } }))
   on('turn.complete', () => ({ text: '' }))
@@ -90,4 +97,17 @@ test('/done-ping sends a test ping', async ($, on) => {
 
   expect(sent.notes).toHaveLength(1)
   expect(text).toContain('30s or more')
+})
+
+test('on Windows the chime plays through PowerShell', async ($, on) => {
+  const sent = engine(on, { OS: 'Windows_NT' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  await finish($, 95000)
+
+  expect(sent.sounds).toHaveLength(1)
+  expect(sent.sounds[0]).toStartWith(
+    'powershell.exe -NoProfile -NonInteractive -Command (New-Object Media.SoundPlayer ',
+  )
+  expect(sent.sounds[0]).toContain("\\sounds\\chime.wav').PlaySync()")
 })
