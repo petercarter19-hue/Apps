@@ -1,0 +1,338 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Outfit";
+      src: url("assets/fonts/outfit-latin-700-normal.woff2") format("woff2");
+      font-weight: 700;
+      font-style: normal;
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      font-family: "Inter", sans-serif;
+      --ink: #eef2fa;
+      --muted: #a3afc8;
+      --blue: #4c8dff;
+      --green: #2fd3a0;
+      perspective: 1700px;
+      perspective-origin: 50% 45%;
+      overflow: hidden;
+    }
+    #steps-bg {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(160deg, #070c18 0%, #0a1426 50%, #081a22 100%);
+    }
+    .pool {
+      position: absolute;
+      width: 1500px;
+      height: 1500px;
+      border-radius: 50%;
+    }
+    #pool-blue {
+      left: 900px;
+      top: -700px;
+      background: radial-gradient(circle, rgba(60, 120, 255, 0.42) 0%, rgba(60, 120, 255, 0.12) 38%, rgba(60, 120, 255, 0) 68%);
+    }
+    #pool-teal {
+      left: -600px;
+      top: 300px;
+      background: radial-gradient(circle, rgba(40, 210, 165, 0.30) 0%, rgba(40, 210, 165, 0.09) 38%, rgba(40, 210, 165, 0) 68%);
+    }
+    #pool-indigo {
+      left: 400px;
+      top: 200px;
+      background: radial-gradient(circle, rgba(110, 80, 230, 0.24) 0%, rgba(110, 80, 230, 0.07) 38%, rgba(110, 80, 230, 0) 68%);
+    }
+    /* a faint floor grid receding into the distance; it slides at half the pan speed for parallax */
+    #steps-floor {
+      position: absolute;
+      left: -800px;
+      top: 640px;
+      width: 5200px;
+      height: 1400px;
+      background-image: linear-gradient(rgba(76, 141, 255, 0.11) 1.5px, transparent 1.5px),
+        linear-gradient(90deg, rgba(76, 141, 255, 0.11) 1.5px, transparent 1.5px);
+      background-size: 120px 120px;
+      transform-origin: 50% 0%;
+      -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 25%, rgba(0, 0, 0, 0) 80%);
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 25%, rgba(0, 0, 0, 0) 80%);
+    }
+    #steps-eyebrow {
+      position: absolute;
+      left: 192px;
+      top: 112px;
+      font: 700 24px/1 "Inter", sans-serif;
+      letter-spacing: 0.16em;
+      color: var(--green);
+    }
+    #steps-title {
+      position: absolute;
+      left: 192px;
+      top: 146px;
+      font: 700 60px/1.1 "Outfit", sans-serif;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+    #steps-title-in {
+      display: inline-block;
+    }
+    #steps-track {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 4000px;
+      height: 1080px;
+      transform-style: preserve-3d;
+    }
+    .card {
+      position: absolute;
+      width: 520px;
+      height: 340px;
+      transform-style: preserve-3d;
+    }
+    .card-body {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+    }
+    /* two glass layers behind the face give each card real thickness when it turns */
+    .slab {
+      position: absolute;
+      inset: 0;
+      border-radius: 30px;
+      border: 1.5px solid rgba(255, 255, 255, 0.10);
+    }
+    .slab-1 {
+      transform: translateZ(-24px);
+      background: rgba(120, 160, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.04);
+    }
+    .slab-2 {
+      transform: translateZ(-48px);
+      background: rgba(120, 160, 255, 0.03);
+      box-shadow: 0 50px 90px rgba(0, 0, 0, 0.55);
+    }
+    .card-in {
+      position: absolute;
+      inset: 0;
+      border-radius: 30px;
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.03) 100%);
+      backdrop-filter: blur(18px) saturate(150%);
+      -webkit-backdrop-filter: blur(18px) saturate(150%);
+      border: 1.5px solid rgba(255, 255, 255, 0.18);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 0 0 0px rgba(76, 141, 255, 0), 0 0 0 0px rgba(76, 141, 255, 0);
+      padding: 38px 42px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .num {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(76, 141, 255, 0.38);
+      flex-shrink: 0;
+    }
+    .num-digit {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 700 30px/1 "Inter", sans-serif;
+      color: #ffffff;
+    }
+    .num-check {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+    }
+    .icon path,
+    .icon rect,
+    .icon circle {
+      fill: none;
+      stroke: #7fb0ff;
+      stroke-width: 2.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .card-title {
+      font: 700 52px/1.1 "Outfit", sans-serif;
+      color: var(--ink);
+    }
+    .title-part,
+    .sub-part {
+      display: inline-block;
+    }
+    .card-sub {
+      font: 400 30px/1.3 "Inter", sans-serif;
+      color: var(--muted);
+    }
+    .arrow {
+      position: absolute;
+      width: 110px;
+      height: 30px;
+      overflow: visible;
+    }
+    .arrow path {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    #steps-loop {
+      position: absolute;
+      right: 192px;
+      top: 904px;
+      font: 400 28px/1.2 "Inter", sans-serif;
+      color: var(--muted);
+    }
+    #steps-loop-in {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    #steps-loop b {
+      font-weight: 700;
+      color: var(--green);
+    }
+    #steps-loop svg path {
+      fill: none;
+      stroke: var(--green);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    #steps-finish {
+      position: absolute;
+      left: 192px;
+      top: 886px;
+    }
+    #steps-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      font: 700 36px/1.2 "Outfit", sans-serif;
+      color: #071222;
+      background: linear-gradient(90deg, #4c8dff 0%, #2fd3a0 100%);
+      border-radius: 999px;
+      padding: 16px 34px;
+      box-shadow: 0 18px 40px rgba(47, 211, 160, 0.18);
+    }
+    #steps-pill svg path {
+      fill: none;
+      stroke: #071222;
+      stroke-width: 3.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  </style>
+
+  <div id="root" data-composition-id="steps" data-width="1920" data-height="1080">
+    <div id="steps-bg"></div>
+    <div id="pool-indigo" class="pool" data-layout-ignore></div>
+    <div id="pool-blue" class="pool" data-layout-ignore></div>
+    <div id="pool-teal" class="pool" data-layout-ignore></div>
+    <div id="steps-floor" data-layout-ignore></div>
+
+%%HEADER%%
+
+    <!-- one long row of steps; the camera pans right as the row runs off the screen -->
+    <div id="steps-track" data-layout-allow-overflow>
+%%CARDS%%
+%%ARROWS%%
+    </div>
+
+%%LOOP%%
+
+%%FINISH%%
+  </div>
+
+  <script>
+    (function () {
+      // every time below is generated by build_opener.py from opener.json
+      const D = %%DATA%%;
+      const ease = "power3.out";
+      const tl = gsap.timeline({ paused: true });
+      const ringOff = "inset 0 1px 0 rgba(255,255,255,0.26), 0 0 0 0px rgba(76,141,255,0), 0 0 0 0px rgba(76,141,255,0)";
+      const ringOn = "inset 0 1px 0 rgba(255,255,255,0.26), 0 0 0 1.5px rgba(76,141,255,1), 0 0 0 10px rgba(76,141,255,0.18)";
+      const starts = D.steps.map(function (s) { return s.at; });
+      const n = starts.length;
+
+      tl.fromTo("#pool-blue", { x: 0, y: 0 }, { x: -520, y: 160, duration: D.end, ease: "sine.inOut" }, 0);
+      tl.fromTo("#pool-teal", { x: 0, y: 0 }, { x: 640, y: -120, duration: D.end, ease: "sine.inOut" }, 0);
+      tl.fromTo("#pool-indigo", { x: 0, y: 0, scale: 0.85 }, { x: 260, y: 140, scale: 1.1, duration: D.end, ease: "sine.inOut" }, 0);
+      tl.fromTo("#steps-floor", { rotationX: 72, x: 0 }, { rotationX: 72, x: 0, duration: 0.01 }, 0);
+      tl.fromTo("#steps-track", { x: 0, rotationY: 0 }, { x: 0, rotationY: 0, duration: 0.01 }, 0);
+
+      tl.fromTo("#steps-eyebrow", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease }, D.eyebrow);
+      D.title.forEach(function (t, k) {
+        tl.fromTo("#steps-title .title-part:nth-child(" + (k + 1) + ")", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6, ease }, t);
+      });
+
+      // the camera pan: whenever the next card would land past the right edge, glide the row left
+      starts.forEach(function (t, i) {
+        if (i === 0 || D.pans[i] === D.pans[i - 1]) return;
+        tl.to("#steps-track", { x: -D.pans[i], duration: 0.9, ease: "power2.inOut" }, t - 0.45);
+        tl.to("#steps-floor", { x: -D.pans[i] * 0.5, duration: 0.9, ease: "power2.inOut" }, t - 0.45);
+      });
+
+      starts.forEach(function (t, i) {
+        const card = "#card-" + (i + 1);
+        const body = card + " .card-body";
+        const face = card + " .card-in";
+        // fade in from deeper in the scene, already turned slightly so the glass edge shows
+        tl.fromTo(body, { opacity: 0, z: -260, rotationY: -22, rotationX: 6 }, { opacity: 1, z: 60, rotationY: 0, rotationX: 0, duration: 0.8, ease }, t);
+        tl.fromTo(face, { boxShadow: ringOff, borderColor: "rgba(255,255,255,0.18)" }, { boxShadow: ringOn, borderColor: "#4c8dff", duration: 0.3, ease }, t + 0.2);
+        // when the next step takes over, this card settles back and turns a little, showing its thickness
+        const off = i < n - 1 ? starts[i + 1] : D.settle;
+        tl.to(body, { z: 0, rotationY: -14, duration: 0.6, ease: "power2.inOut" }, off);
+        tl.to(face, { boxShadow: ringOff, borderColor: "rgba(255,255,255,0.18)", duration: 0.35, ease }, off);
+        // the small line lands when it's said; a list lands one part at a time
+        const sub = D.steps[i].sub;
+        if (sub.length === 1) {
+          tl.fromTo(card + " .card-sub", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.45, ease }, sub[0]);
+        } else {
+          sub.forEach(function (st, k) {
+            tl.fromTo(card + " .sub-part:nth-child(" + (k + 1) + ")", { opacity: 0 }, { opacity: 1, duration: 0.35, ease }, st);
+          });
+        }
+      });
+
+      for (let i = 0; i < n - 1; i++) {
+        const t = starts[i + 1] - 0.35;
+        const id = "#arrow-" + (i + 1);
+        tl.fromTo(id + " .a-line", { strokeDasharray: 54, strokeDashoffset: 54 }, { strokeDashoffset: 0, duration: 0.35, ease: "power2.out" }, t);
+        tl.fromTo(id + " .a-head", { opacity: 0 }, { opacity: 1, duration: 0.1, ease: "none" }, t + 0.25);
+      }
+
+      tl.fromTo("#steps-loop-in", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease }, D.loop);
+
+      for (let i = 1; i <= n; i++) {
+        const t = D.checks + (i - 1) * D.checkGap;
+        const card = "#card-" + i;
+        tl.fromTo(card + " .num", { backgroundColor: "rgba(76,141,255,0.38)" }, { backgroundColor: "#2fd3a0", duration: 0.25, ease }, t);
+        tl.fromTo(card + " .num-digit", { opacity: 1 }, { opacity: 0, duration: 0.15, ease: "none" }, t);
+        tl.fromTo(card + " .num-check", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(2)" }, t + 0.05);
+      }
+
+      tl.fromTo("#steps-pill", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease }, D.finish);
+      tl.set({}, {}, D.end);
+
+      window.__timelines["steps"] = tl;
+    })();
+  </script>
+</template>

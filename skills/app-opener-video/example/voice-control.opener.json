@@ -1,0 +1,26 @@
+{
+  "app": "voice app",
+  "steps": [
+    { "title": "Set up", "sub": "AI and an empty folder", "icon": "folder" },
+    { "title": "One message", "sub": "The kickoff prompt", "icon": "message" },
+    { "title": "Talk, it types", "sub": "Hold a key and speak", "icon": "mic" },
+    { "title": "Voice commands", "sub": "Tell it what to do", "icon": "wand" },
+    { "title": "Learns your words", "sub": "Fix a word once", "icon": "letters" },
+    { "title": "The extras", "sub": ["Notes,", "read aloud,", "transcripts"], "icon": "layers" }
+  ],
+  "voice": { "file": "voice-over.m4a", "from": 2.0, "to": 53.0 },
+  "times": {
+    "eyebrow": 0.25,
+    "title": [2.0, 5.25],
+    "steps": [
+      { "at": 12.2, "sub": 13.9 },
+      { "at": 16.9, "sub": 17.95 },
+      { "at": 21.55, "sub": 23.05 },
+      { "at": 27.85, "sub": 28.95 },
+      { "at": 31.05, "sub": 34.2 },
+      { "at": 36.85, "sub": [39.05, 39.5, 40.15] }
+    ],
+    "checks": 40.8,
+    "finish": 44.65
+  }
+}
