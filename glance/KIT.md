@@ -66,6 +66,8 @@ Decide these before you start. Changing them later works, but it means rebuildin
 | When the tile pulses | 90% | One red pulse when memory crosses this line. Say "never" to turn it off. |
 | How many apps the card lists | Ten | Five makes a smaller card. The card always sizes itself to the list. |
 
+<table><tr><td align="center" valign="top"><img src="docs/kit/tile-green.png" alt="A green memory tile showing 28" width="230"><br><sub>Under 60: green</sub></td><td align="center" valign="top"><img src="docs/kit/tile-amber.png" alt="An amber memory tile showing 66" width="230"><br><sub>60 to 85: amber</sub></td><td align="center" valign="top"><img src="docs/kit/tile-red.png" alt="A red memory tile showing 90" width="230"><br><sub>Above 85: red (pulses once at 90)</sub></td></tr></table>
+
 > [!NOTE]
 > Your display scaling (how much Windows enlarges things) isn't a choice: the message asks the AI to check it and fit the card to it.
 

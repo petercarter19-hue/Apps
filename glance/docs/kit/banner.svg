@@ -1,48 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-label="Make your own memory meter: free, on your Windows PC, built with AI, no code to write">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="Make your own memory meter: free, on your Windows PC, built with AI, no code to write">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2563eb"/>
-      <stop offset="0.55" stop-color="#0f8a80"/>
-      <stop offset="1" stop-color="#15803d"/>
+      <stop offset="0" stop-color="#1d4ed8"/>
+      <stop offset="0.55" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#166534"/>
     </linearGradient>
-    <filter id="s" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0b1b3a" flood-opacity="0.28"/>
-    </filter>
   </defs>
-  <rect width="1200" height="320" rx="24" fill="url(#g)"/>
+  <rect width="1200" height="300" rx="24" fill="url(#g)"/>
+  <g fill="#ffffff">
+    <circle cx="1040" cy="70" r="120" opacity="0.07"/>
+    <circle cx="1130" cy="230" r="90" opacity="0.08"/>
+    <circle cx="930" cy="250" r="46" opacity="0.10"/>
+    <circle cx="1010" cy="160" r="22" opacity="0.16"/>
+  </g>
   <g font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" fill="#ffffff">
-    <text x="60" y="92" font-size="20" font-weight="600" letter-spacing="3" fill="#dff0ff">BUILD-IT-YOURSELF KIT</text>
-    <text x="60" y="160" font-size="54" font-weight="700">Make your own</text>
-    <text x="60" y="222" font-size="54" font-weight="700">memory meter</text>
-    <text x="60" y="270" font-size="23" fill="#eef7ff">Free · on your Windows PC · built with AI, no code to write</text>
-  </g>
-  <!-- the card -->
-  <g filter="url(#s)">
-    <rect x="850" y="34" width="300" height="186" rx="16" fill="#ffffff"/>
-  </g>
-  <g font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">
-    <text x="872" y="64" font-size="15" fill="#3a3a44">Memory</text>
-    <text x="1128" y="64" font-size="13" fill="#8a8a96" text-anchor="end">2.2 of 8 GB</text>
-    <rect x="872" y="74" width="256" height="7" rx="3.5" fill="#e6e6ec"/>
-    <rect x="872" y="74" width="72" height="7" rx="3.5" fill="#3fa34d"/>
-    <text x="872" y="108" font-size="24" font-weight="700" fill="#1f1f27">28%</text>
-    <g fill="#c9c9d3"><rect x="872" y="128" width="120" height="9" rx="4.5"/><rect x="872" y="156" width="96" height="9" rx="4.5"/><rect x="872" y="184" width="110" height="9" rx="4.5"/></g>
-    <g fill="none" stroke="#c7c7d1" stroke-width="1.5">
-      <rect x="1074" y="122" width="54" height="22" rx="7"/>
-      <rect x="1074" y="178" width="54" height="22" rx="7"/>
-    </g>
-    <rect x="1074" y="150" width="54" height="22" rx="7" fill="#fdecea" stroke="#d93025" stroke-width="1.5"/>
-    <text x="1101" y="137" font-size="12" fill="#3a3a44" text-anchor="middle">End</text>
-    <text x="1101" y="165" font-size="12" font-weight="700" fill="#d93025" text-anchor="middle">End?</text>
-    <text x="1101" y="193" font-size="12" fill="#3a3a44" text-anchor="middle">End</text>
-  </g>
-  <!-- the taskbar with the tile -->
-  <rect x="850" y="240" width="300" height="46" rx="12" fill="#eef2f7" opacity="0.96"/>
-  <g font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">
-    <text x="900" y="270" font-size="18" fill="#5b6270" text-anchor="middle">^</text>
-    <rect x="932" y="249" width="30" height="28" rx="6" fill="#bfe5c3"/>
-    <text x="947" y="269" font-size="15" font-weight="700" fill="#14532d" text-anchor="middle">28</text>
-    <text x="1128" y="261" font-size="12" fill="#3a3a44" text-anchor="end">4:23 PM</text>
-    <text x="1128" y="277" font-size="12" fill="#3a3a44" text-anchor="end">10/29/2026</text>
+    <text x="60" y="88" font-size="20" font-weight="600" letter-spacing="3">BUILD-IT-YOURSELF KIT</text>
+    <text x="60" y="158" font-size="58" font-weight="700">Make your own memory meter</text>
+    <text x="60" y="214" font-size="25">Free · on your Windows PC · built with AI, no code to write</text>
+    <text x="60" y="258" font-size="20" opacity="0.92">⏱ about 1½ hours   ·   💬 about 6 messages   ·   💵 $0 beyond your AI plan</text>
   </g>
 </svg>
