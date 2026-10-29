@@ -4,6 +4,9 @@ A free little Windows app that shows your memory use right by the clock. Hover i
 
 **You build it yourself, with AI, without writing any code.** This folder has everything you need: the step-by-step kit, every message to send, and the finished code to compare with or build directly. It's all open source.
 
+> [!NOTE]
+> **Made with Claude Code, works with any AI app.** We built ours with Claude Code. You can use any AI coding app you like, for example Antigravity, Codex or Cursor: the messages and steps are the same.
+
 ![The memory number on the taskbar with its card open: memory and CPU meters and the top ten apps with End buttons](docs/glance.png)
 
 ## Start here

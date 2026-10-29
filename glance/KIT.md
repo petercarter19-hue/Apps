@@ -6,6 +6,9 @@ A small number by the clock tells you how much memory your computer is using. Re
 |:-:|:-:|:-:|:-:|
 | step by step, mostly waiting | short messages to send | beyond your AI plan | you write none of it |
 
+> [!IMPORTANT]
+> **Made with Claude Code, works with any AI app:** We built ours with Claude Code. You can use any AI coding app you like, for example Antigravity, Codex or Cursor: the messages and steps are the same. Section 3 shows where to paste the message in each.
+
 **Contents**
 
 1. [🎯 What you'll end up with](#1--what-youll-end-up-with)
