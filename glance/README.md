@@ -12,7 +12,7 @@ A free little Windows app that shows your memory use right by the clock. Hover i
 2. **Paste the kickoff message** from [prompts/kickoff.txt](prompts/kickoff.txt) into your AI app. Change the [brackets] first.
 3. **After each step, try it.** If it works, say "Works. Next step." That's most of the conversation.
 
-It takes about an hour and a half, mostly waiting. You need a Windows PC and an AI app that can build on your computer: one that can create files and run programs for you, not just chat. Nothing else to pay for.
+It takes about an hour and a half, mostly waiting. You need a Windows PC and an AI app that can build on your computer: one that can create files and run programs for you, not just chat. **Any of them works**, for example Antigravity, Claude Code, Codex or Cursor. [KIT.md](KIT.md), section 3, shows where to paste the message in each. Nothing else to pay for.
 
 ## What's in here
 
@@ -23,12 +23,13 @@ It takes about an hour and a half, mostly waiting. You need a Windows PC and an 
 | [prompts/](prompts/) | Every message to paste, as files you can copy, with [the order to send them](prompts/README.md) |
 | [src/](src/) | The finished code of our copy, which we call Glance. Compare it with yours, or build it directly |
 | [tools/](tools/) | The tests our copy passed, and the small test program they use |
+| [AGENTS.md](AGENTS.md) | Notes your AI app reads to build and test the finished code (Codex reads it automatically; `CLAUDE.md` and `GEMINI.md` point other apps to it) |
 
 Every lesson from our own build is already a line in the kickoff message. That includes what a second, independent review found before we shared it. So your first try should go more smoothly than ours did.
 
 ## Build the finished code instead
 
-Want to skip to the end, or see how yours compares? Download it from the [repository's main page](https://github.com/petercarter19-hue/Apps) (the green **Code** button, then **Download ZIP**), unzip it, open the `glance` folder in your AI app, and say:
+Want to skip to the end, or see how yours compares? Download it from the [repository's main page](https://github.com/petercarter19-hue/Apps) (the green **Code** button, then **Download ZIP**), unzip it, open the `glance` folder in your AI app (any of them), and say:
 
 ```text
 Build this app into one file I can double-click, then start it. Install Microsoft's free .NET SDK first if it's missing.

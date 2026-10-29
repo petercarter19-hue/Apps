@@ -35,7 +35,7 @@ Building it takes about an hour and a half, mostly waiting. You'll send about ha
 ## 2. 🧰 What you need
 
 - **A Windows 11 PC** with about 1.1 GB of free space. That's Microsoft's free building tools (about 784 MB) plus the project. The finished app itself is one file of about 49 MB.
-- **An AI app that can build on your computer:** one that can create files and run programs for you, not just chat, and a paid plan for it, if it needs one. The AI does the building. It's the only thing you pay for.
+- **An AI app that can build on your computer:** one that can create files and run programs for you, not just chat, for example Antigravity, Claude Code, Codex or Cursor. Any of them works; nothing here is tied to one. You'll need a plan for it, if it needs one. The AI does the building. It's the only thing you pay for.
 - No graphics card, no microphone, and no AI models to download.
 
 | Part of the app | What runs it | Cost |
@@ -51,9 +51,19 @@ Building it takes about an hour and a half, mostly waiting. You'll send about ha
 ## 3. 🛠️ Get set up (10 minutes)
 
 1. **Install your AI app** and sign in. It must be one that can create files and run programs on your computer, not just chat.
-2. **Open the part of your AI app that can work on your computer.** It's like the chat you know, but the AI can create files and install things on your computer.
+2. **Open the part of your AI app that can work on your computer** (its agent). It's like the chat you know, but the AI can create files and install things on your computer.
 3. **Make an empty folder** for your app, for example `C:\MemoryMeter`, and pick it when your AI app asks which folder to work in.
-4. **When the AI asks permission** to run something or install Microsoft's building tools, read the one-line description and click Allow. That's how it installs things for you.
+4. **When the AI asks permission** to run something or install Microsoft's building tools, read the one-line description and allow it. Each app asks in its own way: an Allow button, or a setting for how much it may do without asking. Allowing it for this folder is how it installs things for you.
+
+Where to paste the message in some popular AI apps. Their menus change often, so look for the same idea if yours looks different.
+
+| If you use | Open your folder | Paste the message into |
+|---|---|---|
+| Antigravity | Open the empty folder as your workspace | A new conversation or task with the agent |
+| Claude Code | In the Claude desktop app, open the Code tab and pick the folder; or type `claude` in a terminal inside the folder | The chat box |
+| Codex | In the Codex app, add the folder as a project; or type `codex` in a terminal inside the folder | The chat box |
+| Cursor | File › Open Folder | The Agent chat in that same window |
+| Something else | Any AI app that can create files and run programs in a folder on your PC | Wherever you talk to its agent |
 
 ## 4. 🎨 Choose your options
 
@@ -226,4 +236,5 @@ Make a friend version of my app that I can send as one zip. Build it in a separa
 - **Self-contained file:** An app that carries everything it needs inside one file, so it runs without installing anything else.
 - **.NET SDK:** Microsoft's free kit for building Windows apps. The AI uses it to build; the finished app doesn't need it.
 - **Log:** A diary file the app writes as it works. When something goes wrong, the AI reads it to find out why.
+- **AI coding app:** An AI app that can create files and run programs in a folder on your computer, for example Antigravity, Claude Code, Codex or Cursor.
 - **Prompt:** A message you type to the AI.
