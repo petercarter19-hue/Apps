@@ -1,22 +1,26 @@
-# Make your own memory meter, free, on your Windows PC
+<p align="center"><img src="docs/kit/banner.svg" alt="Make your own memory meter, free, on your Windows PC" width="100%"></p>
 
 A small number by the clock tells you how much memory your computer is using. Rest your mouse on it and a card slides up with the ten apps using the most, and the one that grew the most in the last ten minutes. Two clicks end a greedy app, without opening Task Manager. You don't write any code. You paste one message to the AI, try what it builds, and tell it what happened. There's no AI inside the app and nothing to pay for beyond your AI plan.
 
+| ⏱️ 1½ hours | 💬 About 6 | 💵 $0 | 🧑‍💻 No code |
+|:-:|:-:|:-:|:-:|
+| step by step, mostly waiting | short messages to send | beyond your AI plan | you write none of it |
+
 **Contents**
 
-1. [What you'll end up with](#1-what-youll-end-up-with)
-2. [What you need](#2-what-you-need)
-3. [Get set up (10 minutes)](#3-get-set-up-10-minutes)
-4. [Choose your options](#4-choose-your-options)
-5. [The one message that builds it](#5-the-one-message-that-builds-it)
-6. [Try each step](#6-try-each-step)
-7. [Make it your own](#7-make-it-your-own)
-8. [When something goes wrong](#8-when-something-goes-wrong)
-9. [Stay safe](#9-stay-safe)
-10. [Give it to a friend](#10-give-it-to-a-friend)
-11. [Words you'll hear](#11-words-youll-hear)
+1. [🎯 What you'll end up with](#1--what-youll-end-up-with)
+2. [🧰 What you need](#2--what-you-need)
+3. [🛠️ Get set up (10 minutes)](#3--get-set-up-10-minutes)
+4. [🎨 Choose your options](#4--choose-your-options)
+5. [💬 The one message that builds it](#5--the-one-message-that-builds-it)
+6. [🧪 Try each step](#6--try-each-step)
+7. [✨ Make it your own](#7--make-it-your-own)
+8. [🩹 When something goes wrong](#8--when-something-goes-wrong)
+9. [🛡️ Stay safe](#9--stay-safe)
+10. [🎁 Give it to a friend](#10--give-it-to-a-friend)
+11. [📖 Words you'll hear](#11--words-youll-hear)
 
-## 1. What you'll end up with
+## 1. 🎯 What you'll end up with
 
 - **A number by the clock:** your memory use in %, updated every second. Green when things are calm, amber when busy, red when nearly full. When memory gets very full, the tile pulses red once, and that's all the nagging it does. A second tile for CPU is one click away.
 - **A hover card:** rest your mouse on a tile to see memory and CPU meters, the app that grew the most in the last ten minutes, and the top ten apps. Each app is one row, the way Task Manager groups them, so your web browser is one line, not forty.
@@ -24,9 +28,11 @@ A small number by the clock tells you how much memory your computer is using. Re
 - **Small comforts:** click the tile to keep the card open, right-click for a menu, light and dark looks that follow Windows. It starts when you sign in, it's in your Start menu, and opening it again restarts it.
 - **One file:** the finished app is a single file you double-click. It needs nothing else installed.
 
+<p align="center"><img src="docs/kit/hero.png" alt="The memory number on the taskbar with its card open: memory and CPU meters, and the top ten apps with End buttons" width="380"><br><sub>Ours, with the card open. Yours will look much like it, with your own name.</sub></p>
+
 Building it takes about an hour and a half, mostly waiting. You'll send about half a dozen short messages, or four if you let the AI build it all in one go.
 
-## 2. What you need
+## 2. 🧰 What you need
 
 - **A Windows 11 PC** with about 1.1 GB of free space. That's Microsoft's free building tools (about 784 MB) plus the project. The finished app itself is one file of about 49 MB.
 - **An AI app that can build on your computer:** one that can create files and run programs for you, not just chat, and a paid plan for it, if it needs one. The AI does the building. It's the only thing you pay for.
@@ -39,16 +45,17 @@ Building it takes about an hour and a half, mostly waiting. You'll send about ha
 | Building it | Microsoft's free .NET SDK, which the AI installs if it's missing | $0 |
 | AI models | None. The AI is only the builder | $0 |
 
+> [!TIP]
 > You never need a credit card, an API key or a cloud account. The app reads numbers from your own computer and sends nothing anywhere.
 
-## 3. Get set up (10 minutes)
+## 3. 🛠️ Get set up (10 minutes)
 
 1. **Install your AI app** and sign in. It must be one that can create files and run programs on your computer, not just chat.
 2. **Open the part of your AI app that can work on your computer.** It's like the chat you know, but the AI can create files and install things on your computer.
 3. **Make an empty folder** for your app, for example `C:\MemoryMeter`, and pick it when your AI app asks which folder to work in.
 4. **When the AI asks permission** to run something or install Microsoft's building tools, read the one-line description and click Allow. That's how it installs things for you.
 
-## 4. Choose your options
+## 4. 🎨 Choose your options
 
 Decide these before you start. Changing them later works, but it means rebuilding parts. Write your answers into the [brackets] of the message in the next section.
 
@@ -59,9 +66,10 @@ Decide these before you start. Changing them later works, but it means rebuildin
 | When the tile pulses | 90% | One red pulse when memory crosses this line. Say "never" to turn it off. |
 | How many apps the card lists | Ten | Five makes a smaller card. The card always sizes itself to the list. |
 
+> [!NOTE]
 > Your display scaling (how much Windows enlarges things) isn't a choice: the message asks the AI to check it and fit the card to it.
 
-## 5. The one message that builds it
+## 5. 💬 The one message that builds it
 
 Change the [brackets] and paste it into your AI app. It answers every question up front, so the AI can just build.
 
@@ -110,20 +118,44 @@ HOW TO WORK WITH ME
 Start with step 1.
 ```
 
-> Want it all in one go? Change the last line to: "Build all the steps without stopping. Test each one yourself, and only stop when everything works or you need a decision only I can make." Then come back in about an hour.
+> [!IMPORTANT]
+> **Want it all in one go?** Change the last line to: "Build all the steps without stopping. Test each one yourself, and only stop when everything works or you need a decision only I can make." Then come back in about an hour.
 
-## 6. Try each step
+## 6. 🧪 Try each step
 
 After each step, try it yourself. If it works, just say **"Works. Next step."** Every decision is already in your first message, so that's all the AI needs. If something's off, say what you did and what you saw.
 
-| Step | Try this |
-|---|---|
-| The memory tile | Click the little up arrow (^) by the clock and drag the tile onto the taskbar. Open a few big browser tabs and watch the memory number climb and change color. |
-| The hover card | Rest your mouse on the memory tile. Check the top ten and the "biggest grower" line. Then click By CPU: the list is sorted by CPU. |
-| Two-click End | Start the test program the AI made. Find it in the card, click End once (it turns red), wait a few seconds (it cancels), then click twice. It's gone, and memory drops. |
-| Finishing touches | Click the tile to pin the card; press Esc. Right-click the tile and try the menu. Switch Windows to dark mode and hover again. Open the app again from the Start menu: it restarts. |
+### Step 1 · The memory tile
 
-## 7. Make it your own
+The first time it runs, a short notice tells you where it is. Windows tucks new icons under the little up arrow (^) by the clock: click it and drag the tile onto the taskbar. Then open a few big browser tabs and watch the number climb and change color.
+
+<p align="center"><img src="docs/kit/welcome.png" alt="A Windows notice: the app is running, and to drag it out from under the up arrow by the clock" width="430"><br><sub>The first-run notice. The tile starts out hidden under the ^ arrow.</sub></p>
+
+<table><tr><td align="center" valign="top"><img src="docs/kit/tile-green.png" alt="The taskbar with a green memory tile" width="230"><br><sub>Calm: green</sub></td><td align="center" valign="top"><img src="docs/kit/tile-amber.png" alt="The taskbar with an amber memory tile" width="230"><br><sub>Busy: amber</sub></td><td align="center" valign="top"><img src="docs/kit/tile-red.png" alt="The taskbar with a red memory tile" width="230"><br><sub>Nearly full: red</sub></td></tr></table>
+
+### Step 2 · The hover card
+
+Rest your mouse on the number. Check the top ten and the "biggest grower" line. Then click **By CPU**: the same list, sorted by CPU.
+
+<p align="center"><img src="docs/kit/card.png" alt="The card: memory and CPU meters, then the top apps with End buttons, and locks on Windows&#x27; own parts" width="380"><br><sub>One row per app. Windows' own parts show a lock instead of End.</sub></p>
+
+### Step 3 · Two-click End
+
+Start the test program the AI made. Find it in the card and click End once: it turns into a red "End?". Wait a few seconds and it cancels. Click twice, and it's gone and the number drops.
+
+<p align="center"><img src="docs/kit/end-armed.png" alt="A row in the card with a red End? button, waiting for the second click" width="420"><br><sub>The first click only asks. The second click ends it.</sub></p>
+
+### Step 4 · Finishing touches
+
+Click the tile to pin the card; press Esc to close it. Right-click the tile and try the menu. Switch Windows to dark mode and hover again. Then open the app again from the Start menu: it restarts.
+
+<table><tr><td align="center" valign="top"><img src="docs/kit/menu.png" alt="The right-click menu: Show CPU tile, Start with Windows, Open Task Manager, About, Remove from this PC, Quit" width="300"><br><sub>Right-click for the menu</sub></td><td align="center" valign="top"><img src="docs/kit/restarted.png" alt="A Windows notice saying the app restarted" width="330"><br><sub>Open it again: it restarts</sub></td></tr></table>
+
+<p align="center"><img src="docs/kit/start-menu.png" alt="Searching the Start menu finds the app" width="600"><br><sub>It's in your Start menu: type its name</sub></p>
+
+<p align="center"><img src="docs/kit/dark.png" alt="The card in dark mode" width="340"><br><sub>It follows Windows' dark mode</sub></p>
+
+## 7. ✨ Make it your own
 
 Once it works, change anything by asking for it. Some starting points:
 
@@ -139,9 +171,10 @@ Once it works, change anything by asking for it. Some starting points:
 | A new look | "Make the card bigger, with larger text," or "use round tiles." |
 | To know where things are saved | "Tell me where the settings and the log are saved, and add 'Open log folder' to the menu." |
 
+> [!TIP]
 > Ask for one change at a time, try it, then ask for the next. Say "build it in a separate folder and swap it in when the tests pass" for anything big, so the copy you're using never breaks.
 
-## 8. When something goes wrong
+## 8. 🩹 When something goes wrong
 
 Always tell the AI what you did and what you saw, and ask it to read the log. It fixes most things in one message.
 
@@ -157,7 +190,7 @@ Always tell the AI what you did and what you saw, and ask it to read the log. It
 | Its numbers don't match Task Manager | "Task Manager says my web browser uses 2 GB, but the card says 3 GB. Use the same number Task Manager shows." |
 | A rebuild fails, saying the file is in use | "Quit the running copy first, build in a separate folder, then swap it in." |
 
-## 9. Stay safe
+## 9. 🛡️ Stay safe
 
 - **End is like Task Manager's "End task".** Anything unsaved in that app is lost. Save your work first, and only end apps you recognize.
 - **Keep the lock on Windows' own parts.** Ending them can freeze or restart your computer. Don't ask the AI to remove the lock.
@@ -167,7 +200,7 @@ Always tell the AI what you did and what you saw, and ask it to read the log. It
 - **Nothing leaves your computer.** The app only reads your PC's own numbers. It never deletes files or sends anything.
 - **Only download from trusted sources.** The message tells the AI to get its building tools from Microsoft or other well-known sources.
 
-## 10. Give it to a friend
+## 10. 🎁 Give it to a friend
 
 When yours works, the AI can package a clean copy that a friend starts with one double-click. It contains none of your settings or logs.
 
@@ -179,9 +212,10 @@ Make a friend version of my app that I can send as one zip. Build it in a separa
 - Before you give it to me, run it from scratch in Windows Sandbox and check that the tile, the card, restart and two-click End work there. End only a test program, never a real app.
 ```
 
-> Windows Sandbox is a clean, throwaway copy of Windows inside your PC: a perfect stand-in for your friend's computer. It comes with Windows 11 Pro. Turn it on under Start › "Turn Windows features on or off" › Windows Sandbox, then restart. Share the zip from Google Drive or OneDrive with just your friend's email.
+> [!NOTE]
+> **What's Windows Sandbox?** Windows Sandbox is a clean, throwaway copy of Windows inside your PC: a perfect stand-in for your friend's computer. It comes with Windows 11 Pro. Turn it on under Start › "Turn Windows features on or off" › Windows Sandbox, then restart. Share the zip from Google Drive or OneDrive with just your friend's email.
 
-## 11. Words you'll hear
+## 11. 📖 Words you'll hear
 
 - **Tray:** The icons by the clock, at the bottom right of Windows, where small background apps live. New ones start hidden under the little up arrow (^).
 - **Memory (RAM):** Your computer's short-term workspace. When it's nearly full, everything slows down.

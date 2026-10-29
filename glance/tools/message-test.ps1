@@ -67,6 +67,7 @@ Check 'clicking the tile again closes it' (-not (DumpVisible))
 # CPU tile click sorts by CPU
 TrayMsg $tray 2 0x400 (DumpRect 'cpu')
 Start-Sleep 2
+New-Item -ItemType Directory -Force (Join-Path $PSScriptRoot 'shots') | Out-Null
 Copy-Item (Join-Path $env:LOCALAPPDATA 'Glance\card.png') (Join-Path $PSScriptRoot 'shots\C1-by-cpu-card.png') -Force -ErrorAction SilentlyContinue
 Check 'CPU tile opens the card' (DumpVisible)
 TrayMsg $tray 2 0x400 (DumpRect 'cpu')
