@@ -1,13 +1,25 @@
-﻿# Skills
+﻿# Skills for your AI app
 
-Skills you can add to your AI coding app (Claude Code, Codex, or any app that reads Agent Skills). Each one teaches the AI a job it then does the same way every time.
+A skill teaches your AI app one job, so it does it the same way every time. You add it once by copying a folder, then just ask. You don't write any code.
+
+> [!NOTE]
+> **Made with Claude Code, works with any AI app.** We built ours with Claude Code. You can use any AI coding app you like, for example Antigravity, Codex or Cursor: they all read the same skill folders.
 
 | Skill | What it does |
 | --- | --- |
-| [app-opener-video](app-opener-video/) | "Make a short opener video for a video about building an app with AI - six glass step cards in one fixed design, first as a 10-second silent preview, then timed to your own voice-over so each card lands on the word you say. |
-| [app-show-report](app-show-report/) | "Make the two-part report for a small app you built with an AI coding app. |
-| [status-update](status-update/) | Write any status update, progress report, wrap-up or question for a busy, non-technical owner in a fixed five-part format - being worked on now / done / next / how long / what I need from you - with every question spelled out with a suggested answer and the actual thing shown. |
+| [app-opener-video](app-opener-video/) | Make an opener video for your AI app build |
+| [app-show-report](app-show-report/) | Turn your AI-built app into a build-it-yourself kit |
+| [status-update](status-update/) | Get clear status updates from your AI |
 
-## Install
+## Start here
 
-Copy a skill's folder into your app's skills folder, for example `~/.claude/skills/<skill>/` for Claude Code or `~/.codex/skills/<skill>/` for Codex. Each skill's README has an example request to try.
+1. **Pick a skill** above and open its page. Each one has a picture or example of what you get, and a message to try.
+2. **Copy its folder** into your AI app's skills folder:
+   - Claude Code: `~/.claude/skills/<skill>/`
+   - Codex: `~/.codex/skills/<skill>/`
+   - Any other AI app that reads Agent Skills (a folder with a `SKILL.md`) works the same way.
+3. **Ask for the job** in plain words, like the example on the skill's page.
+
+## License
+
+[MIT](../LICENSE): use them, change them, share them.
