@@ -1,0 +1,88 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.Win32;
+
+namespace Glance;
+
+internal sealed class Settings
+{
+    public bool ShowCpuTile { get; set; } // off by default: one number by the clock; the CPU tile is in the right-click menu
+
+    /// <summary>True the first time Glance runs on this PC (no settings file yet).</summary>
+    [JsonIgnore] public bool FirstRun { get; private set; }
+
+    public static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Glance");
+    private static string FilePath => Path.Combine(Dir, "settings.json");
+    private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string RunValue = "Glance";
+
+    public static Settings Load()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+                return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
+            var fresh = new Settings { FirstRun = true };
+            fresh.Save();
+            return fresh;
+        }
+        catch (Exception ex) { Log.Write(ex); }
+        return new Settings();
+    }
+
+    public void Save()
+    {
+        try
+        {
+            Directory.CreateDirectory(Dir);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex) { Log.Write(ex); }
+    }
+
+    // "Start with Windows" uses the per-user Run key, so it shows up in Task Manager's Startup tab like any other app.
+    public static bool StartsWithWindows()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKey);
+            return key?.GetValue(RunValue) is string s && s.Length > 0;
+        }
+        catch { return false; }
+    }
+
+    public static void SetStartWithWindows(bool on)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RunKey);
+            if (on) key.SetValue(RunValue, $"\"{Environment.ProcessPath}\"");
+            else key.DeleteValue(RunValue, false);
+        }
+        catch (Exception ex) { Log.Write(ex); }
+    }
+
+    public static bool IsTempCopy =>
+        Environment.ProcessPath?.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>If Start with Windows is on but points at an old copy (the file was moved), point it at this one.</summary>
+    public static void RefreshStartupPath()
+    {
+        try
+        {
+            string want = $"\"{Environment.ProcessPath}\"";
+            using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+            if (key?.GetValue(RunValue) is string s && s.Length > 0 && s != want) key.SetValue(RunValue, want);
+        }
+        catch (Exception ex) { Log.Write(ex); }
+    }
+
+    /// <summary>"Remove Glance from this PC": no startup entry, no Start menu shortcut, no settings or log.</summary>
+    public static void RemoveAll()
+    {
+        SetStartWithWindows(false);
+        Shortcut.Remove();
+        try { if (Directory.Exists(Dir)) Directory.Delete(Dir, recursive: true); }
+        catch { }
+    }
+}

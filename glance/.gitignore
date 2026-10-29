@@ -1,0 +1,10 @@
+# Build output: the app is made from the source (see README, Build)
+bin/
+obj/
+dist/
+tools/Hog/dist/
+# Test pictures the scripts write
+tools/shots/
+# Editor files
+.vs/
+*.user

@@ -1,6 +1,14 @@
 # Apps
 
-Claude Code mods.
+Small Windows apps you can build yourself with AI, and Claude Code mods.
+
+## Windows apps
+
+| App | What it does |
+| --- | --- |
+| [glance](glance/) | A memory meter by the clock: hover it to see which apps use the most memory, and end a greedy one in two clicks. Comes with a build-it-yourself kit, every prompt, and the finished code. |
+
+## Claude Code mods
 
 | Mod | What it does |
 | --- | --- |

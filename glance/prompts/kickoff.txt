@@ -1,0 +1,42 @@
+I want to build a small Windows app called [MemoryMeter]. It lives by the clock, shows how much memory and CPU my computer is using, and has a hover card that lists the top ten apps and lets me end one without opening Task Manager. I'm not technical and I've never coded. Build it step by step, show me something working after each step, and test what you can yourself before asking me.
+
+FREE, ONE FILE, ON MY COMPUTER
+- Everything is free and runs on this computer. No paid services, no accounts, no API keys, never ask me for payment details. It doesn't need any AI model: it just reads the numbers Windows already has (the same ones Task Manager shows).
+- First check my computer: the Windows version, my display scaling, and which free building tools are already installed. Install anything missing from Microsoft or other well-known, trusted sources, and tell me in one line what you picked and how big it is.
+- The finished app is one file I double-click, that runs without installing anything else. Keep it in one place and always run that copy.
+
+WHAT IT DOES
+- A small tile by the clock showing memory % as a number I can read. A second tile for CPU % is off at first; I can turn it on from the right-click menu. Colors: [green under 60, amber to 85, red above]. When memory goes over [90%], the memory tile pulses red once. No other nagging.
+- Hover a tile and a card slides up: memory and CPU meters, "biggest grower in the last 10 minutes", and the top [ten] apps by memory, grouped the way Task Manager groups them (one row per app, not forty). Hovering the CPU tile sorts the list by CPU.
+- Each row has an End button. Ending takes two clicks: the first turns the button into a red "End?", the second ends the app. Moving away or waiting a few seconds cancels.
+- Click a tile to pin the card open; Esc or a click elsewhere closes it. Right-click a tile for a menu: Show CPU tile, Start with Windows, Open Task Manager, Remove from this PC, Quit.
+- Easy to find and restart: put it in my Start menu, turn on Start with Windows the first time it runs, and make opening it again restart it (the old copy quits and a fresh one starts). The first time it runs, show a short Windows notice saying where it is.
+- It follows the Windows light or dark setting, and uses almost nothing while the card is closed.
+
+SAFETY
+- Never end anything without my two clicks. Windows' own system parts show a lock instead of an End button. Windows Explorer (my taskbar and desktop) gets "Restart" instead of "End".
+- End must never close the wrong program. Windows reuses process numbers, so check each process is still the one I picked right before ending it. Only end things in my own sign-in, and never sweep in Windows' own parts or Explorer. "As administrator" makes the same checks.
+- If Windows refuses to end something, say so on the card and offer to try again as administrator, with the normal Windows permission prompt. Never fail silently: show problems on the card and write them to a log.
+- It never deletes files and never sends anything anywhere.
+- Tests only ever end a test program you make for the purpose, never my real apps. Tests never take pictures of my real screen, move my mouse or press real keys: use the app's own pictures of itself instead.
+
+FIT MY SCREEN
+- The card sizes itself to what's in it, with no empty space, at whatever display scaling I use. Check it at my scaling and show me a picture.
+- The card sits next to the tile wherever my taskbar is: bottom, top or side, even when it auto-hides.
+- Windows hides new tray icons under the little up arrow (^) by the clock. Tell me in one line how to bring the tile out.
+
+BUILD ORDER (all of it by the end)
+1. The live memory tile with its colors (and the optional CPU tile), starting when I sign in.
+2. The hover card: the meters, the biggest grower and the top ten.
+3. Two-click End, with the lock, Restart for Explorer, and "as administrator".
+4. Pin, the right-click menu, light and dark, the Start menu entry and restart, and the finished one-file app.
+
+HOW TO WORK WITH ME
+- Plain English, short answers. Pick sensible defaults and tell me what you picked; don't ask me technical questions.
+- Short plan first, then build. No long research reports.
+- If I mention a new idea, add it to the list instead of building it, unless I say "now".
+- Build each new version in a separate folder and swap it in only after your tests pass. Quit the old copy first and clean up anything old test copies leave behind, so there's only ever one copy and one set of tiles.
+- After each step, show me a picture, and tell me plainly what you tested and what you couldn't.
+- When everything works, review the whole app as if it were going on a stranger's PC, fix what you find, and test it once more in Windows Sandbox (a clean, throwaway copy of Windows) if my Windows has it.
+
+Start with step 1.

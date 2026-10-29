@@ -1,0 +1,5 @@
+Make a friend version of my app that I can send as one zip. Build it in a separate copy and don't touch the app I use.
+- None of my data: no settings, logs, my name, or my folder paths anywhere. Search the whole copy to prove it's clean.
+- One file that runs without installing anything else, plus a one-page "How to start it" in plain words: where the tile appears, how to bring it out from under the up arrow (^), that it starts with Windows and how to turn that off, how to restart it (open it again), and how to remove it (Remove from this PC), and what to do if Windows shows "Windows protected your PC" for a file from a friend.
+- The first time my friend opens it, the welcome notice says where it is and that it starts with Windows.
+- Before you give it to me, run it from scratch in Windows Sandbox and check that the tile, the card, restart and two-click End work there. End only a test program, never a real app.
