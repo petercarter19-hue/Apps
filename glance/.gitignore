@@ -8,3 +8,8 @@ tools/shots/
 # Editor files
 .vs/
 *.user
+
+# Recordings and videos stay out of the repository
+*.mp4
+*.mov
+*.mkv
