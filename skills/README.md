@@ -7,8 +7,6 @@ A skill teaches your AI app one job, so it does it the same way every time. You 
 
 | Skill | What it does |
 | --- | --- |
-| [app-opener-video](app-opener-video/) | Make an opener video for your AI app build |
-| [app-show-report](app-show-report/) | Turn your AI-built app into a build-it-yourself kit |
 | [skill-maker](skill-maker/) | Turn the work you do with AI into skills it remembers |
 | [status-update](status-update/) | Get clear status updates from your AI |
 
