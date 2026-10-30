@@ -5,17 +5,17 @@
   "plugins": [
     {
       "name": "context-meter",
-      "source": "./context-meter",
+      "source": "./mods/context-meter",
       "description": "Shows how full the context is, what fills it, and tokens by kind (input, output, cache), plus a Forest color theme"
     },
     {
       "name": "done-ping",
-      "source": "./done-ping",
+      "source": "./mods/done-ping",
       "description": "A notification and a chime when Claude finishes a long task"
     },
     {
       "name": "todo-panel",
-      "source": "./todo-panel",
+      "source": "./mods/todo-panel",
       "description": "A to-do list in a side panel that remembers between sessions; /todo to use it"
     }
   ]
