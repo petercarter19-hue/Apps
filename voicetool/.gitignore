@@ -1,0 +1,32 @@
+# What Setup and the app download or make: never part of the repository
+.venv/
+python/
+runtime/
+models/
+_downloads/
+dist/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.zip
+
+# The person's own data and logs (if the app is run from this folder)
+config.local*
+corrections.json
+history.jsonl
+usage.jsonl
+styles.json
+shortcuts.json
+recordings/
+journal/
+backups/
+claude_workdir/
+*.log
+*.jsonl
+.voicetool-installed
+
+# Recordings and videos stay out of the repository
+*.wav
+*.mp4
+*.mov
+*.mkv

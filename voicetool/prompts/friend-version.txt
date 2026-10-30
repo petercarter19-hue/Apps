@@ -1,0 +1,7 @@
+Make a friend version of my app that I can send as one zip. Build it in a separate copy and don't touch the app I use.
+- None of my data: no words, fixes, style, recordings, history, logs, or my name or email anywhere. Search the whole copy to prove it's clean.
+- Free and offline by default, using the same free models.
+- One Setup file my friend double-clicks. It installs everything it needs (including Microsoft's Visual C++ Runtime if it's missing), shows a progress bar for the big download, resumes if the internet drops, adds a Start menu entry and starts at sign-in. Include an Uninstall too.
+- The speech model goes inside the zip, so dictation works even if a download fails.
+- A one-page "How to install" in plain words, and a credits file listing every part's license.
+- Before you give it to me, install it from scratch in Windows Sandbox and check that it works there.

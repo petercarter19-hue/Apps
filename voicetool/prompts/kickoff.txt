@@ -1,0 +1,37 @@
+I want to build my own voice app for Windows called [TalkTool]: hold a key, talk, and my words are typed where my cursor is. I'm not technical and I've never coded. Build it step by step, show me something working after each step, and test what you can yourself before asking me.
+
+FREE, ON MY COMPUTER
+- Everything must run free on this computer. No paid services, no cloud accounts, no API keys, never ask me for payment details.
+- First check my computer (graphics card, memory, disk space). Then pick the best free models for it, one to turn speech into text and one small AI model to tidy text and understand my commands, and download them from well-known, trusted sources. Tell me in one line what you picked and how big the downloads are.
+
+KEYS
+- Hold [Left Alt] to dictate: talk, let go, and the text is typed where my cursor is.
+- Double-tap it for hands-free; tap once to stop. Esc cancels.
+- Hold [Left Windows key] for the Command key: I just say what I want; double-tap it for longer instructions.
+- Shift + tap the Command key opens a small box to type the right spelling of a word it got wrong.
+- Both keys keep working normally in shortcuts (Alt+Tab, Win+E). Never Caps Lock.
+
+TIDYING MY WORDS
+- Keep my words. Remove ums, add punctuation, and apply "no wait" / "I mean" corrections. Never change days, names or numbers.
+- My style: [American English spelling; no texting shorthand like "u"; contractions are fine; correct grammar; friendly but professional].
+- When I tell the Command key what to do, my words are instructions: never paste them into the text.
+- Words it must spell right: [my name, my company, product names].
+
+BUILD ORDER (all of it by the end)
+1. Dictation.
+2. A small "Listening" light that never takes focus from my app, soft and quiet sounds (not loud beeps), and it starts when I sign in. If it can't hear me or something breaks, it tells me and fixes itself; it never fails silently.
+3. Command key: rewrite selected text ("make this friendlier"), write at my cursor, answer questions, fix a misheard word ("that should be…").
+4. Learning: a word list and fixes it remembers, which I can edit in the app.
+5. The app: an icon by the clock, a Start menu entry, and a simple, good-looking window with Home, History, Words & fixes, Settings (an on/off switch and one-line explanation for every feature, showing each key) and Usage.
+6. Meeting notes: records me and the call, offers to start when Teams or Zoom starts, reminds me to get everyone's OK, and saves a summary with action items as a Word document. It deletes the other people's audio afterwards.
+7. More things to say: "read this to me", "note: …", mute, volume, pause, next track, lock, screenshot this window (a fixed safe list only), open files and apps, translate.
+8. Link transcriber: a YouTube or podcast link becomes a document with a summary and timestamped chapters (use the site's captions first).
+9. Optional, only if my AI app has Gmail or Outlook connected: email reply drafts and calendar questions. Drafts only, never send, never delete.
+
+HOW TO WORK WITH ME
+- Plain English, short answers. Pick sensible defaults and tell me what you picked; don't ask me technical questions.
+- Short plan first, then build. No long research reports.
+- If I mention a new idea, add it to the list instead of building it, unless I say "now".
+- For big steps, build in a separate copy and swap it in only after your tests pass. Tests never take screenshots of my real screen, press real keys, change my volume, or send anything.
+
+Start with step 1.
