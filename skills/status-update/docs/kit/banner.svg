@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="Get clear status updates from your AI: one small skill, any AI coding app, no code to write">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b34b8"/>
+      <stop offset="0.55" stop-color="#1b5ccc"/>
+      <stop offset="1" stop-color="#0e7366"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" rx="24" fill="url(#g)"/>
+  <g fill="#ffffff">
+    <rect x="890" y="52" width="250" height="40" rx="12" opacity="0.16"/>
+    <rect x="890" y="104" width="210" height="28" rx="10" opacity="0.10"/>
+    <rect x="890" y="142" width="230" height="28" rx="10" opacity="0.10"/>
+    <rect x="890" y="180" width="190" height="28" rx="10" opacity="0.10"/>
+    <rect x="890" y="218" width="240" height="28" rx="10" opacity="0.10"/>
+  </g>
+  <g font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" fill="#ffffff">
+    <text x="905" y="79" font-size="17" font-weight="700">Nothing is waiting on you.</text>
+    <text x="905" y="124" font-size="14" opacity="0.95">1. Being worked on now</text>
+    <text x="905" y="162" font-size="14" opacity="0.95">2. Done</text>
+    <text x="905" y="200" font-size="14" opacity="0.95">3. Next steps</text>
+    <text x="905" y="238" font-size="14" opacity="0.95">4. How long  ·  5. What I need</text>
+    <text x="60" y="88" font-size="20" font-weight="600" letter-spacing="3">BUILD-IT-YOURSELF KIT</text>
+    <text x="60" y="152" font-size="52" font-weight="700">Get clear status updates</text>
+    <text x="60" y="206" font-size="25">from your AI · one small skill · no code to write</text>
+    <text x="60" y="254" font-size="20" opacity="0.92">💬 4 messages   ·   📄 1 file, 37 lines   ·   💵 $0 beyond your AI plan</text>
+  </g>
+</svg>

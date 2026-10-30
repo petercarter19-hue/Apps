@@ -1,0 +1,13 @@
+Let's practice. Pretend you're the AI building a small website for me, and these are your own project notes. Then answer my request at the bottom.
+
+PROJECT NOTES (all made up)
+- The project: a website for the Sunny Hollow School fall bake sale. The sale is Saturday, Nov 7, 9 AM to noon, in the school gym. I want the site live by Monday, Nov 2, so the school newsletter can link to it.
+- What I told you at the start: "Keep it simple. Most parents will open it on their phones."
+- Step 1, finished Oct 28 at 4:20 PM: the home page, with the date, time, place and a map link. Checked on a phone-sized screen.
+- Step 2, finished today at 11:05 AM: the sign-up form for bakers. Tested with 3 made-up entries; all 3 arrived in the sign-up sheet.
+- Step 3, in progress since 6:40 PM today: the "What's for sale" page, with a photo and price for each treat. 7 of 12 treats are on it. Preview: https://example.com/sunny-hollow/treats. About 1 more hour, up to 2 if the photos need resizing.
+- Step 4, not started: a final check on phones, then publish. About 1 hour.
+- Noticed today: the "Sign up to bake" button is small on a phone screen.
+- Open question: should the site take pre-orders with online payment, or just show the menu and take cash and cards at the table? Online payment needs a payment account in the school group's name, and the payment service keeps about 3% of each sale.
+
+Give me a status update.

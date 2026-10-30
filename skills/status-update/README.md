@@ -28,18 +28,23 @@ Waiting on you: one question at the bottom.
 
 ## Start here
 
-1. **Add the skill:** copy this folder into your AI app's skills folder.
+1. **Read the kit:** [KIT.md](KIT.md), or the printable [PDF](docs/status-update-kit.pdf). It covers setup, the one message that adds the skill, three practice messages with real replies, and how to make it your own.
+2. **Add the skill:** paste [prompts/add-the-skill.txt](prompts/add-the-skill.txt) into your AI app (change the [brackets] first), or copy this folder into your AI app's skills folder.
    - Claude Code: `~/.claude/skills/status-update/`
    - Codex: `~/.codex/skills/status-update/`
    - Any other AI app that reads Agent Skills (a folder with a `SKILL.md`) works the same way.
-2. **Ask for a status,** for example: "Give me a status update." or "Where are we, and what's waiting on me?"
-3. **That's it.** The AI also uses this format on its own whenever it wraps up or needs a decision from you.
+3. **Start a new chat and ask for a status,** for example: "Give me a status update." or "Where are we, and what's waiting on me?"
+4. **That's it.** The AI also uses this format on its own whenever it wraps up or needs a decision from you.
 
 ## What's in here
 
 | | |
 |---|---|
 | [SKILL.md](SKILL.md) | The instructions your AI reads: the five parts, showing the actual thing, deciding what it can, plain words |
+| [KIT.md](KIT.md) | The build-it-yourself kit: setup, options, the message that adds it, practice with real replies, making it your own, fixing problems, staying safe |
+| [docs/status-update-kit.pdf](docs/status-update-kit.pdf) | The same kit, ready to print |
+| [prompts/](prompts/) | Every message to paste, as files you can copy, with [the order to send them](prompts/README.md) |
+| [AGENTS.md](AGENTS.md) | Notes your AI app reads to install and test the skill (`CLAUDE.md` and `GEMINI.md` point other apps to it) |
 
 ## License
 
