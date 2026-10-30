@@ -6,10 +6,11 @@ sent anywhere.
 ## The keys
 - **Hold Left Alt**, talk, let go: your words are pasted where your cursor is. Double-tap Left Alt to keep the mic on
   hands-free, and tap it once more to stop. Esc cancels.
-- **Hold Left Windows** and say what you want: "make this shorter" (with text selected), "write a thank-you note
+- **Hold Left Ctrl** and say what you want: "make this shorter" (with text selected), "write a thank-you note
   to Sam", "what does this mean", "open Notepad", "mute", "read this to me", "note: buy milk", "journal: today I...".
-  Double-tap it for a longer instruction; tap again to stop.
-- **Shift-tap Left Windows** with a misheard word selected: type what it should be. VoiceTool fixes it and
+  Double-tap it for a longer instruction; tap again to stop. Ctrl still does its usual jobs (Ctrl+C, Ctrl+V,
+  Ctrl+click, Ctrl+scroll): only Ctrl on its own, held or double-tapped, is a command.
+- **Shift + tap Left Ctrl** with a misheard word selected: type what it should be. VoiceTool fixes it and
   remembers.
 - A small light at the bottom of the screen shows when it is listening. Soft beeps: higher means listening, a double
   beep means hands-free is on, lower means done.

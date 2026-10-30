@@ -236,8 +236,8 @@ main::-webkit-scrollbar-thumb { background: #30373b; } .btn:hover { background: 
       <div class="grid g4">
         <div class="card gesture"><span class="k">Hold Left Alt</span><b>Dictate</b><span>Talk, let go, it types.</span></div>
         <div class="card gesture"><span class="k">Double-tap Left Alt</span><b>Hands-free</b><span>Talk as long as you like. Tap to stop.</span></div>
-        <div class="card gesture"><span class="k">Hold Left Windows</span><b>Command</b><span>"Make this friendlier", "write a thank-you", ask anything.</span></div>
-        <div class="card gesture"><span class="k">Shift-tap Left Windows</span><b>Fix a word</b><span>Select it first, type what it should be.</span></div>
+        <div class="card gesture"><span class="k">Hold Left Ctrl</span><b>Command</b><span>"Make this friendlier", "write a thank-you", ask anything.</span></div>
+        <div class="card gesture"><span class="k">Shift + tap Left Ctrl</span><b>Fix a word</b><span>Select it first, type what it should be.</span></div>
       </div>
 
       <h2>Today</h2>
@@ -326,7 +326,7 @@ main::-webkit-scrollbar-thumb { background: #30373b; } .btn:hover { background: 
     <!-- COMMANDS -->
     <section class="page" id="page-commands">
       <h1>Commands</h1>
-      <p class="sub">Hold Left Windows and say what you want. It works out which of these you mean.</p>
+      <p class="sub">Hold Left Ctrl and say what you want. It works out which of these you mean.</p>
       <div class="grid g2" id="cmdhelp"></div>
       <h2>Voice shortcuts</h2>
       <div class="card">
@@ -373,7 +373,7 @@ main::-webkit-scrollbar-thumb { background: #30373b; } .btn:hover { background: 
         <select id="translate"></select></div>
       <h2>Voice notes</h2>
       <div class="card feature" style="grid-template-columns:1fr auto;align-items:center;gap:12px">
-        <div><div class="t">"Note: …" goes to</div><div class="d" style="grid-column:1">Hold Left Windows and say "note: …" (or "remember that…").
+        <div><div class="t">"Note: …" goes to</div><div class="d" style="grid-column:1">Hold Left Ctrl and say "note: …" (or "remember that…").
           Each note is saved as a time-stamped file. A folder works with Obsidian: point it at your vault.</div>
           <div class="row" style="margin-top:8px" id="notefolderrow"><input type="text" id="notefolder" style="flex:1" autocomplete="off">
             <button class="btn small" id="choosefolder">Choose…</button></div></div>
@@ -381,7 +381,7 @@ main::-webkit-scrollbar-thumb { background: #30373b; } .btn:hover { background: 
           <button class="btn" id="opennotes">Open</button></div></div>
       <h2>Read it to me</h2>
       <div class="card feature" style="grid-template-columns:1fr auto;align-items:center;gap:12px">
-        <div><div class="t">Voice and speed</div><div class="d" style="grid-column:1">Select text anywhere, hold Left Windows and say
+        <div><div class="t">Voice and speed</div><div class="d" style="grid-column:1">Select text anywhere, hold Left Ctrl and say
           "read this to me". Esc stops it. These are the voices built into Windows (free, and nothing leaves your PC). For
           more of them: Settings › Time &amp; language › Speech › Manage voices.</div></div>
         <div class="row" style="flex-wrap:nowrap"><select id="readvoice" style="min-width:190px"></select>
@@ -473,8 +473,8 @@ const WELCOME = `<div class="card welcome">
     <button class="x" data-welcome-close title="Close">✕</button></div>
   <ul>
     <li><b>Hold Left Alt</b> and talk. Let go and your words are pasted where the cursor is. Double-tap Left Alt for hands-free; tap once more to stop.</li>
-    <li><b>Hold Left Windows</b> for commands, like "make this shorter", "open Notepad" or "note: buy milk".</li>
-    <li><b>Shift-tap Left Windows</b> to fix a word: select it, then type what it should be.</li>
+    <li><b>Hold Left Ctrl</b> for commands, like "make this shorter", "open Notepad" or "note: buy milk". Ctrl works as usual for Ctrl+C, Ctrl+V and the rest: only Ctrl on its own is a command.</li>
+    <li><b>Shift + tap Left Ctrl</b> to fix a word: select it, then type what it should be.</li>
     <li>Everything stays on this computer.</li>
     <li>The first start takes about 10 seconds. You'll hear two soft beeps when VoiceTool is ready.</li>
   </ul>
@@ -680,7 +680,7 @@ $("#savestyles").onclick = async () => { readStyles(); sdata = await call("save_
 // ---------- Commands ----------
 const CMDS = [
   ["Rewrite what's selected", '"Make this friendlier", "shorter", "turn it into bullets", "make this LinkedIn post style"'],
-  ["Fix a word", 'Select it, then "that should be Kubernetes" (or Shift-tap Left Windows to type it)'],
+  ["Fix a word", 'Select it, then "that should be Kubernetes" (or Shift + tap Left Ctrl to type it)'],
   ["Write something", '"Write a thank-you to the team for shipping on time"'],
   ["Answer a question", '"What does idempotent mean?"'],
   ["Open things", '"Open Notepad", "open Edge", "open my dashboard"'],

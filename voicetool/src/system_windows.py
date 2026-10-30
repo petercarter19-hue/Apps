@@ -1,6 +1,6 @@
 """The PC's half of system_actions.py: each listed computer command, done the Windows way. Nothing else can run from here.
 (The Mac's is system_mac.py, with the same function names.) VoiceTool calls these only after the Command key has been
-released, so the keys it sends are never mixed up with a held Win key.
+released, so the keys it sends are never mixed up with a held Ctrl key.
 
 - mute / unmute / set_volume: the speakers' own volume control through pycaw (exact). Without pycaw: the mute key (a
   toggle) and volume set by keys (50 presses down, then up to the level: one press is 2%).

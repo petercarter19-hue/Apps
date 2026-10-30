@@ -6,7 +6,7 @@ This folder is a finished, working Windows app: a voice app that types what the 
 
 1. From `src\`, run `Setup.cmd` (it runs `setup.ps1`). It needs `src\wheels\` with the one package PyPI has no wheel for; the folder must be complete, so don't run it from inside a zip.
 2. Setup copies the app to `%LOCALAPPDATA%\VoiceTool`, installs Microsoft's Visual C++ Runtime if missing (Windows asks once), finds or installs Python 3.13 just for VoiceTool, makes a private `.venv` with the hash-pinned packages in `requirements-friend.txt`, downloads the models with `fetch_models.py` (about 3.2 GB, every file checked by SHA-256), writes this computer's settings into `config.json`, adds the Start menu entries and a sign-in task, and starts it.
-3. Tell the person: hold Left Alt to talk; the window opens from the Start menu. Running Setup again repairs an install without touching their words or settings. Uninstall is in the Start menu (`uninstall.ps1`).
+3. Tell the person: hold Left Alt to talk and Left Ctrl for commands; the window opens from the Start menu. Running Setup again repairs an install without touching their words or settings. Uninstall is in the Start menu (`uninstall.ps1`).
 
 `Start VoiceTool.cmd` and `Stop VoiceTool.cmd` in the install folder start and stop it. The log is `voicetool.log` in the install folder.
 

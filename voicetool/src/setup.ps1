@@ -671,6 +671,7 @@ function Invoke-Setup {
         Write-Host ''
         Say '  VoiceTool is ready.' 'Green'
         Say '  Hold the Left Alt key, talk, and let go: your words are typed where the cursor is.' 'Green'
+        Say '  Hold the Left Ctrl key and say what you want done, such as "make this shorter" (Ctrl+C, Ctrl+V and the rest work as usual).' 'Green'
         if ($SkipShortcut) {
             Say "  VoiceTool is in $InstallDir (in File Explorer, click the address bar and type that folder name to open it). To remove it, double-click Uninstall there." 'Green'
         } else {

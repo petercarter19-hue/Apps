@@ -43,7 +43,7 @@ HERE = Path(__file__).resolve().parent.parent / "src"  # the app code (the tests
 # (the fixture replaces these three: the tests never run the real `claude`)
 REAL_CLAUDE_PROBLEM, REAL_DEFAULT_NOTES_FOLDER, REAL_SIGNED_IN = commands.claude_problem, va.default_notes_folder, commands.signed_in
 REAL_NOTES_BASE = meetings_windows.notes_base  # (the fixture replaces this one too: meeting notes never go to the real Documents)
-DICTATE, COMMAND = vt.Trigger("d", "alt_l", True).vk, vt.Trigger("c", "cmd_l", True).vk  # Left Alt, Left Win
+DICTATE, COMMAND = vt.Trigger("d", "alt_l", True).vk, vt.Trigger("c", "ctrl_l", True).vk  # Left Alt, Left Ctrl
 
 
 # ====================================================================================================== fakes + fixtures
@@ -358,9 +358,9 @@ def test_dictation_remembers_the_app_in_front(tool):
 
 def test_command_key_hold_captures_the_selection_after_release(tool):
     key(tool, COMMAND, True, now() - 1)
-    assert tool.recorder.running and tool.triggers[COMMAND].context is None
+    assert not tool.recorder.running and tool.triggers[COMMAND].context is None  # (Ctrl waits a moment before the mic opens)
     tool._tick()
-    assert tool.active.cued and tool.light.state == "command"
+    assert tool.recorder.running and tool.active.cued and tool.light.state == "command"
     key(tool, COMMAND, False, now())
     settle()
     assert jobs(tool) == 1 and tool.captured == ["command"] and tool.light.state == "thinking"
@@ -383,10 +383,10 @@ def test_shift_command_tap_opens_the_teach_window(tool, monkeypatch):
     assert tool.taught == ["command"] and tool.active is None
 
 
-def test_shortcut_with_shift_and_win_is_not_a_teach(tool, monkeypatch):
+def test_shortcut_with_shift_and_ctrl_is_not_a_teach(tool, monkeypatch):
     monkeypatch.setattr(vt.win32api, "GetAsyncKeyState", lambda vk: 0x8000)
     key(tool, COMMAND, True, now())
-    tool._handle("other", None, 0x53, now())  # the S of Win+Shift+S
+    tool._handle("other", None, 0x54, now())  # the T of Ctrl+Shift+T
     key(tool, COMMAND, False, now())
     settle()
     assert tool.taught == [] and tool.active is None
@@ -403,7 +403,8 @@ def test_warm_up_only_when_azure_will_be_asked(tool, monkeypatch):
     monkeypatch.setitem(vt.CONFIG, "offline_only", False)
 
     def press(vk):
-        key(tool, vk, True, now())
+        key(tool, vk, True, now() - 1)
+        tool._tick()  # (Ctrl opens the microphone, and warms Azure up, only once it has been down a moment)
         tool._drop(tool.active)  # (drop the recording, then let go of the key)
         key(tool, vk, False, now())
     press(DICTATE)
@@ -417,6 +418,10 @@ def test_warm_up_only_when_azure_will_be_asked(tool, monkeypatch):
     assert tool.azure.warms == 1  # "keep dictation on this computer": Azure isn't contacted for dictation
     press(COMMAND)
     assert tool.azure.warms == 2  # but the command key still uses Azure
+    key(tool, COMMAND, True, now())
+    key(tool, COMMAND, False, now())  # a quick Ctrl press (Ctrl+C, say) never wakes Azure up
+    tool._tick()
+    assert tool.azure.warms == 2
 
 
 # ====================================================================================================== keyboard hook
@@ -522,6 +527,353 @@ def test_pause_from_the_window_drops_a_recording_in_progress(tool):
     vt.CONFIG["enabled"] = False
     tool.ui.get_nowait()()
     assert tool.active is None and not tool.recorder.running
+
+
+# ====================================================================================================== Left Ctrl as the command key
+
+SHIFT, KEY_C, KEY_V, KEY_T, RIGHT_ALT = vt.win32con.VK_SHIFT, 0x43, 0x56, 0x54, 0xA5
+KEY_UP = vt.win32con.KEYEVENTF_KEYUP
+MOUSE_DOWN_AND_WHEEL = [0x201, 0x204, 0x207, 0x20B, 0x20A, 0x20E]  # left, right, middle, side button down; wheel; sideways wheel
+
+
+class FakeMouseHook:
+    """Stands in for the mouse hook: only records when the keyboard hook asks for it to go in and come out."""
+
+    def __init__(self):
+        self.calls = []
+
+    def arm(self):
+        self.calls.append("arm")
+
+    def disarm(self):
+        self.calls.append("disarm")
+
+    def is_alive(self):
+        return True
+
+
+def pump(tool):
+    """Hand the key events the hook has queued to the key loop, in order, as the window loop does."""
+    for kind, trigger, value, at in drain(tool.events):
+        tool._handle(kind, trigger, value, at)
+
+
+def shift_held(monkeypatch):
+    monkeypatch.setattr(vt.win32api, "GetAsyncKeyState", lambda vk: 0x8000 if vk == SHIFT else 0)
+
+
+def nothing_happened(tool):
+    return (tool.active is None and tool.recorder.starts == 0 and not tool.recorder.running and jobs(tool) == 0
+            and tool.captured == [] and tool.taught == [] and tool.light.state is None)
+
+
+def test_the_command_key_is_left_ctrl_and_dictation_is_left_alt():
+    assert COMMAND == vt.keyboard.Key.ctrl_l.value.vk and DICTATE == vt.keyboard.Key.alt_l.value.vk
+    assert vt.CONFIG["command_key"] == "ctrl_l" and vt.CONFIG["dictate_key"] == "alt_l"
+
+
+def test_an_old_config_that_used_the_windows_key_now_uses_left_ctrl():
+    assert vt._migrate_config({"command_key": "cmd_l", "beeps": True}) == {"command_key": "ctrl_l", "beeps": True}
+    assert vt._migrate_config({"command_key": ""}) == {"command_key": ""}  # switched off stays off
+    assert vt._migrate_config({"command_key": "ctrl_r"}) == {"command_key": "ctrl_r"}
+    assert vt._migrate_config({}) == {}
+
+
+def test_a_ctrl_command_key_is_never_held_back_from_windows():
+    assert vt.Trigger("c", "ctrl_l", False).let_through is True and vt.Trigger("c", "ctrl_r", False).let_through is True
+    assert vt.Trigger("d", "alt_l", False).let_through is False  # (other keys keep what the setting says)
+    assert vt.Trigger("c", "ctrl_l", True).mic_delay > 0 and vt.Trigger("d", "alt_l", True).mic_delay == 0
+
+
+def test_ctrl_alone_held_is_a_command_and_the_key_is_not_touched(hooked):
+    tool, injected = hooked
+    assert hook(tool, COMMAND, True) is False  # False = Windows still sees the key
+    time.sleep(0.35)
+    assert hook(tool, COMMAND, False) is False
+    assert injected == [] and tool.listener.suppressed == 0  # nothing added, nothing swallowed
+    events = drain(tool.events)
+    tool._handle(*events[0])
+    assert not tool.recorder.running  # (Ctrl waits a moment before the microphone opens)
+    tool._tick()
+    assert tool.recorder.running and tool.active.cued and tool.light.state == "command"
+    tool._handle(*events[1])
+    settle()
+    assert jobs(tool) == 1 and tool.captured == ["command"] and tool.light.state == "thinking"
+
+
+@pytest.mark.parametrize("vk", [KEY_C, KEY_V])
+def test_ctrl_c_and_ctrl_v_are_never_a_command_and_every_key_passes_through(hooked, vk):
+    tool, injected = hooked
+    for key_vk, down in ((COMMAND, True), (vk, True), (vk, False), (COMMAND, False)):
+        assert hook(tool, key_vk, down) is False
+    assert injected == [] and tool.listener.suppressed == 0  # Ctrl+C / Ctrl+V reach the program exactly as typed
+    pump(tool)
+    tool._tick()
+    assert nothing_happened(tool)
+
+
+def test_a_slow_ctrl_c_stops_the_recording_it_had_started_and_sends_no_command(tool):
+    key(tool, COMMAND, True, now() - 1)
+    tool._tick()
+    assert tool.recorder.running and tool.active.cued  # held long enough to look like a command...
+    tool._handle("other", None, KEY_C, now())  # ...then the C
+    assert tool.active is None and not tool.recorder.running
+    key(tool, COMMAND, False, now())
+    settle()
+    assert jobs(tool) == 0 and tool.captured == []
+
+
+def test_a_quick_ctrl_press_never_opens_the_microphone(tool):
+    key(tool, COMMAND, True, now())
+    tool._tick()
+    assert tool.recorder.starts == 0
+    key(tool, COMMAND, False, now())
+    tool._tick()
+    assert tool.recorder.starts == 0 and tool.captured == []
+
+
+@pytest.mark.parametrize("msg", MOUSE_DOWN_AND_WHEEL)
+def test_ctrl_click_and_ctrl_scroll_are_never_a_command(hooked, msg):
+    tool, injected = hooked
+    tool.mouse_listener = FakeMouseHook()
+    hook(tool, COMMAND, True)
+    assert tool.mouse_listener.calls == ["arm"]  # the mouse hook goes in only while Ctrl is down
+    assert tool._mouse_filter(msg, None) is False  # and never holds the mouse back
+    hook(tool, COMMAND, False)
+    assert tool.mouse_listener.calls == ["arm", "disarm"] and injected == [] and tool.listener.suppressed == 0
+    pump(tool)
+    tool._tick()
+    assert nothing_happened(tool)
+
+
+def test_a_click_after_a_long_ctrl_hold_stops_the_recording_and_sends_no_command(tool):
+    key(tool, COMMAND, True, now() - 1)
+    tool._tick()
+    assert tool.recorder.running and tool.active.cued
+    tool._handle("mouse", None, 0x20A, now())  # Ctrl+scroll to zoom, a second into holding Ctrl
+    assert tool.active is None and not tool.recorder.running
+    key(tool, COMMAND, False, now())
+    settle()
+    assert jobs(tool) == 0 and tool.captured == []
+
+
+def test_mouse_moves_and_clicks_without_ctrl_are_not_even_queued(hooked):
+    tool, _ = hooked
+    tool.mouse_listener = FakeMouseHook()
+    tool._mouse_filter(0x201, None)  # a click with no Ctrl down
+    hook(tool, COMMAND, True)
+    tool._mouse_filter(0x200, None)  # moving the mouse while Ctrl is down
+    assert [e[0] for e in drain(tool.events)] == ["trigger"]
+    hook(tool, COMMAND, False)
+    drain(tool.events)
+    hook(tool, DICTATE, True)  # Left Alt neither arms the mouse hook nor is stopped by a click
+    tool._mouse_filter(0x201, None)
+    assert [e[0] for e in drain(tool.events)] == ["trigger"] and tool.mouse_listener.calls == ["arm", "disarm"]
+
+
+def test_clicking_while_ctrl_hands_free_is_on_keeps_listening(tool):
+    t0 = now()
+    key(tool, COMMAND, True, t0)
+    key(tool, COMMAND, False, t0 + 0.05)
+    key(tool, COMMAND, True, t0 + 0.2)
+    assert tool.triggers[COMMAND].state == vt.LOCKED and tool.recorder.running
+    tool._handle("mouse", None, 0x201, now())
+    tool._handle("other", None, KEY_C, now())
+    assert tool.triggers[COMMAND].state == vt.LOCKED and tool.recorder.running  # only a tap of Ctrl stops it
+
+
+def test_shift_tap_ctrl_fixes_a_word_and_cannot_switch_the_input_language(hooked, monkeypatch):
+    tool, injected = hooked
+    shift_held(monkeypatch)
+    hook(tool, SHIFT, True)
+    assert hook(tool, COMMAND, True) is False
+    assert hook(tool, COMMAND, False) is False
+    # Windows would read a lone Ctrl+Shift as "switch the input language" (2+ layouts). An unused key goes in before the
+    # release, which cancels that, and our own release replaces the real one.
+    assert injected == [(vt.MASK_VK, 0), (vt.MASK_VK, KEY_UP), (COMMAND, KEY_UP)] and tool.listener.suppressed == 1
+    pump(tool)
+    settle()
+    assert tool.taught == ["command"] and tool.active is None and tool.recorder.starts == 0
+
+
+def test_a_lone_ctrl_tap_without_shift_is_not_masked(hooked):
+    tool, injected = hooked
+    hook(tool, COMMAND, True)
+    hook(tool, COMMAND, False)
+    assert injected == [] and tool.listener.suppressed == 0  # (Ctrl opens nothing on its own: no trick is needed)
+
+
+def test_ctrl_shift_shortcuts_are_not_a_fix_and_not_masked(hooked, monkeypatch):
+    tool, injected = hooked
+    shift_held(monkeypatch)
+    for vk, down in ((SHIFT, True), (COMMAND, True), (KEY_T, True), (KEY_T, False), (COMMAND, False)):  # Ctrl+Shift+T
+        assert hook(tool, vk, down) is False
+    assert injected == [] and tool.listener.suppressed == 0
+    pump(tool)
+    settle()
+    assert nothing_happened(tool)
+
+
+def test_ctrl_keys_we_press_ourselves_never_trigger_the_command_key(hooked):
+    """Our own Ctrl+C (copying the selection) and Ctrl+V (pasting) are sent as injected keys, which the hook ignores."""
+    tool, injected = hooked
+    for vk, down in ((COMMAND, True), (KEY_C, True), (KEY_C, False), (COMMAND, False),
+                     (COMMAND, True), (KEY_V, True), (KEY_V, False), (COMMAND, False)):
+        assert hook(tool, vk, down, injected=True) is True
+    assert tool.events.empty() and injected == [] and tool.listener.suppressed == 0
+    assert not tool.triggers[COMMAND].hook_down and not tool.triggers[COMMAND].key_down
+
+
+def test_altgr_is_never_a_command(hooked):
+    """On many keyboards AltGr arrives as Left Ctrl, then Right Alt."""
+    tool, injected = hooked
+    for vk, down in ((COMMAND, True), (RIGHT_ALT, True), (RIGHT_ALT, False), (COMMAND, False)):
+        hook(tool, vk, down)
+    assert injected == []
+    pump(tool)
+    tool._tick()
+    assert nothing_happened(tool)
+
+
+def test_ctrl_esc_is_a_shortcut_not_a_cancel_so_it_makes_no_cancel_beep(tool, monkeypatch):
+    beeps = []
+    monkeypatch.setattr(vt, "beep", lambda *a: beeps.append(a))
+    key(tool, COMMAND, True, now())
+    tool._handle("other", None, vt.win32con.VK_ESCAPE, now())  # Ctrl+Esc
+    assert tool.active is None and beeps == []
+    key(tool, COMMAND, False, now())
+    key(tool, COMMAND, True, now() - 1)
+    tool._tick()
+    beeps.clear()
+    tool._handle("other", None, vt.win32con.VK_ESCAPE, now())  # Esc while a command is really being recorded: a cancel
+    assert tool.active is None and beeps == [((400, 120),)]
+
+
+def test_a_stray_ctrl_tap_copies_nothing(tool):
+    t0 = now()
+    key(tool, COMMAND, True, t0)
+    key(tool, COMMAND, False, t0 + 0.05)
+    settle()
+    assert tool.captured == [] and tool.triggers[COMMAND].state == vt.TAP_WAIT
+    tool.triggers[COMMAND].tap_deadline = 0  # nobody tapped again
+    tool._tick()
+    assert tool.active is None and tool.captured == [] and tool.recorder.starts == 0
+
+
+def test_ctrl_double_tap_turns_hands_free_on_and_copies_the_selection_once_the_key_is_up(tool):
+    t0 = now()
+    key(tool, COMMAND, True, t0)
+    key(tool, COMMAND, False, t0 + 0.05)
+    key(tool, COMMAND, True, t0 + 0.2)
+    settle()
+    assert tool.triggers[COMMAND].state == vt.LOCKED and tool.recorder.running and tool.light.state == "command_handsfree"
+    assert tool.captured == []  # (Ctrl is still down: our own Ctrl+C would be mixed up with it)
+    key(tool, COMMAND, False, t0 + 0.3)
+    settle()
+    assert tool.captured == ["command"]
+    key(tool, COMMAND, True, t0 + 3)  # one more tap of Ctrl stops it
+    key(tool, COMMAND, False, t0 + 3.05)
+    settle()
+    assert jobs(tool) == 1 and tool.captured == ["command"] and tool.active is None
+
+
+def test_ctrl_that_cannot_open_the_microphone_gives_up_with_one_beep(tool, monkeypatch):
+    beeps = []
+    monkeypatch.setattr(vt, "beep", lambda *a: beeps.append(a))
+    monkeypatch.setattr(tool.recorder, "start", lambda: (_ for _ in ()).throw(OSError("no microphone")))
+    key(tool, COMMAND, True, now() - 1)
+    tool._tick()
+    tool._tick()
+    assert tool.active is None and beeps == [((300, 300),)]
+    key(tool, COMMAND, False, now())
+    settle()
+    assert jobs(tool) == 0 and tool.captured == []
+    # the second tap of a double-tap that finds the microphone broken does the same, and does not lock hands-free on
+    beeps.clear()
+    t0 = now()
+    key(tool, COMMAND, True, t0)
+    key(tool, COMMAND, False, t0 + 0.05)
+    key(tool, COMMAND, True, t0 + 0.2)
+    assert tool.active is None and tool.triggers[COMMAND].state == vt.IDLE and beeps == [((300, 300),)]
+
+
+def test_a_missed_ctrl_release_takes_the_mouse_hook_out_again(watched):
+    mouse = watched.mouse_listener = FakeMouseHook()
+    t = watched.triggers[COMMAND]
+    t.hook_down, t.hook_at = True, 100.0  # Ctrl went down and the hook never heard it come up
+    watched._check_keys(100.4, held())
+    watched._check_keys(100.8, held())
+    assert not t.hook_down and mouse.calls == ["disarm"]
+
+
+def test_the_watchdog_puts_a_stopped_mouse_hook_back_at_most_every_two_seconds(watched, monkeypatch):
+    class Dead:
+        def is_alive(self):
+            return False
+    watched.mouse_listener = Dead()
+    installs = []
+    monkeypatch.setattr(watched, "_install_mouse_hook", lambda: installs.append(1))
+    watched._check_keys(100.0, held())
+    watched._check_keys(100.5, held())
+    assert installs == [1]
+    watched._check_keys(103.0, held())
+    assert installs == [1, 1]
+
+
+def test_mouse_hook_callback_hands_each_event_on_and_survives_errors(monkeypatch):
+    import ctypes
+    nexts = []
+    monkeypatch.setattr(vt.MouseHook, "_CallNext", lambda *a: nexts.append(a) or 0)
+    data = vt._MSLLHOOKSTRUCT(x=5, y=6)
+    ptr = ctypes.addressof(data)
+    seen = []
+
+    def on_mouse(msg, d):
+        seen.append((msg, d.x, d.y))
+        if msg == 0x204:
+            raise RuntimeError("bug")
+    hk = vt.MouseHook(on_mouse)
+    assert hk._callback(0, 0x201, ptr) == 0 and seen == [(0x201, 5, 6)] and len(nexts) == 1
+    assert hk._callback(0, 0x204, ptr) == 0 and len(nexts) == 2  # an error: the mouse goes on as normal
+    assert hk._callback(-1, 0x201, ptr) == 0 and len(seen) == 2  # not HC_ACTION: not looked at
+
+
+def test_mouse_hook_is_in_only_while_armed_and_stops_cleanly():
+    hk = vt.MouseHook(lambda msg, data: None)
+    hk.start()
+    assert hk.wait() and hk.is_alive() and not hk.armed
+
+    def until(check):
+        for _ in range(150):
+            if check():
+                return True
+            time.sleep(0.02)
+        return check()
+    hk.arm()
+    assert until(lambda: hk.armed)
+    hk.disarm()
+    assert until(lambda: not hk.armed)
+    hk.arm()
+    assert until(lambda: hk.armed)
+    hk.stop()  # (stopped while armed: the hook is taken out on the way)
+    hk.join(5)
+    assert not hk.is_alive() and not hk.armed
+
+
+def test_every_key_label_says_left_ctrl_and_none_says_the_windows_key(tool):
+    badges = {f[1]: f[3] for f in ui_api.FEATURES if f[3]}
+    assert (badges["dictate_enabled"], badges["command_enabled"], badges["typed_fix"]) == (
+        "Hold or double-tap Left Alt", "Hold or double-tap Left Ctrl", "Shift + tap Left Ctrl")
+    assert tool._tooltip() == "VoiceTool: hold Left Alt to talk, Left Ctrl for commands"
+    for name in ("voicetool.py", "ui_api.py", "settings_window.py", "system_windows.py", "README.md", "How to install.md",
+                 "setup.ps1", "ui/index.html", "ui/pc_overrides.js"):
+        path = HERE / name
+        if not path.exists():  # (the public kit's src folder has no "How to install.md")
+            continue
+        text = path.read_text(encoding="utf-8-sig")
+        for bad in ("Left Windows", "Windows key", "Win key", "Shift-tap"):
+            assert bad not in text, (name, bad)
+    assert "cmd_l" not in (HERE / "config.json").read_text(encoding="utf-8-sig")
 
 
 # ====================================================================================================== dictation

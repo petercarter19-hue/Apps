@@ -1,6 +1,6 @@
 # Build your own voice app with AI
 
-A free Windows app that lets you talk instead of type, anywhere. Hold Left Alt, talk, let go: your words land where your cursor is, with punctuation added and the "ums" gone. Hold the Left Windows key and tell it what to do: "make this friendlier", "write a thank-you note", "read this to me". It runs on free AI models on your own computer, so what you say stays there.
+A free Windows app that lets you talk instead of type, anywhere. Hold Left Alt, talk, let go: your words land where your cursor is, with punctuation added and the "ums" gone. Hold Left Ctrl and tell it what to do: "make this friendlier", "write a thank-you note", "read this to me". It runs on free AI models on your own computer, so what you say stays there.
 
 **You build it yourself, with AI, without writing any code.** This folder has everything you need: the step-by-step kit, every message to send, and the finished code to compare with or install directly. It's all open source.
 
@@ -60,8 +60,8 @@ VoiceTool goes into `%LOCALAPPDATA%\VoiceTool` (or `C:\VoiceTool` if your Window
 ## Using it
 
 - **Hold Left Alt**, talk, let go: your words are typed where your cursor is. **Double-tap** Left Alt to keep the mic on hands-free, and tap once more to stop. **Esc** cancels.
-- **Hold the Left Windows key** and say what you want: "make this shorter" (with text selected), "write a thank-you note to Sam", "what does this mean", "open Notepad", "mute", "volume to 30", "read this to me", "note: buy milk", "journal: today I…". Double-tap it for a longer instruction.
-- **Fix a word:** select a word it misheard, then **Shift + tap Left Windows** and type what it should be. VoiceTool fixes it and remembers. Your learned fixes and the names it must spell exactly are on the **Words & fixes** page.
+- **Hold Left Ctrl** and say what you want: "make this shorter" (with text selected), "write a thank-you note to Sam", "what does this mean", "open Notepad", "mute", "volume to 30", "read this to me", "note: buy milk", "journal: today I…". Double-tap it for a longer instruction. Ctrl still does its usual jobs (Ctrl+C, Ctrl+V, Ctrl+click, Ctrl+scroll): only Ctrl on its own is a command.
+- **Fix a word:** select a word it misheard, then **Shift + tap Left Ctrl** and type what it should be. VoiceTool fixes it and remembers. Your learned fixes and the names it must spell exactly are on the **Words & fixes** page.
 - **Meeting notes** are off until you turn them on in Settings. Each time, it asks you to make sure everyone on the call agrees to be recorded, then writes a Word document with a summary, decisions and action items. The other people's audio is deleted as soon as the notes are written.
 - **Read aloud:** select text and say "read this to me". It uses Windows' own voices. Esc stops it.
 - A small light at the bottom of the screen shows when it's listening. Soft beeps: higher means listening, a double beep means hands-free is on, lower means done.

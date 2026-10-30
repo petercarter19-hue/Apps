@@ -33,7 +33,7 @@ FEATURES = [
      "config.json and the Azure CLI signed in."),
     ("Talking", "speak_answers", "Spoken answers", None,
      "Reads answers out loud (questions, history, Claude), as well as showing them. Esc stops it."),
-    ("Doing things", "command_enabled", "Command key", "Hold or double-tap Left Windows",
+    ("Doing things", "command_enabled", "Command key", "Hold or double-tap Left Ctrl",
      "Hold, say what you want, let go. Rewrites what's selected, writes something, or answers. "
      "Double-tap for longer instructions; tap again to stop."),
     ("Doing things", "claude_actions", "Email and calendar (Claude)", None,
@@ -54,7 +54,7 @@ FEATURES = [
     ("Learning", "use_style", "Write like me", None,
      "Drafts and 'write' commands follow your style guide (your own words, plus what it learned from your sent emails "
      "if Claude is on)."),
-    ("Learning", "typed_fix", "Type a fix", "Shift-tap Left Windows",
+    ("Learning", "typed_fix", "Type a fix", "Shift + tap Left Ctrl",
      "Select a misheard word, then type what it should be. Fixed now and learned for next time."),
     ("Learning", "auto_learn", "Learn mishearings automatically", None,
      "When the tidy-up fixes the same mishearing into one of your words twice, it remembers it."),

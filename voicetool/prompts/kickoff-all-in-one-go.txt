@@ -7,9 +7,9 @@ FREE, ON MY COMPUTER
 KEYS
 - Hold [Left Alt] to dictate: talk, let go, and the text is typed where my cursor is.
 - Double-tap it for hands-free; tap once to stop. Esc cancels.
-- Hold [Left Windows key] for the Command key: I just say what I want; double-tap it for longer instructions.
-- Shift + tap the Command key opens a small box to type the right spelling of a word it got wrong.
-- Both keys keep working normally in shortcuts (Alt+Tab, Win+E). Never Caps Lock.
+- Hold [Left Ctrl] for the Command key: I just say what I want; double-tap it for longer instructions.
+- Shift + tap Left Ctrl opens a small box to type the right spelling of a word it got wrong.
+- Both keys keep working normally in shortcuts (Alt+Tab, Ctrl+C, Ctrl+V, Ctrl+click). Only Left Ctrl on its own, held or double-tapped, is a command: never when I press it with another key, click the mouse or turn the scroll wheel while holding it, and a quick press of Ctrl (as in Ctrl+C) must never switch the microphone on. Never Caps Lock.
 
 TIDYING MY WORDS
 - Keep my words. Remove ums, add punctuation, and apply "no wait" / "I mean" corrections. Never change days, names or numbers.

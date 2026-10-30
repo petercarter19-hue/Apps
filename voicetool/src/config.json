@@ -1,7 +1,7 @@
 {
   "dictate_key": "alt_l",
   "let_key_through": true,
-  "command_key": "cmd_l",
+  "command_key": "ctrl_l",
   "command_let_key_through": true,
   "claude_model": "sonnet",
   "mic_name_contains": "",

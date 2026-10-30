@@ -179,8 +179,8 @@ def test_the_first_start_shows_the_welcome_card_and_closing_it_clears_first_run(
     go(window, "home")
     until(lambda: js(window, "!!document.querySelector('#welcome .welcome')"))
     text = js(window, "document.querySelector('#welcome').textContent")
-    for phrase in ("Hold Left Alt", "Let go", "Double-tap Left Alt", "hands-free", "Hold Left Windows", "make this shorter",
-                   "open Notepad", "note: buy milk", "Shift-tap Left Windows", "Everything stays on this computer",
+    for phrase in ("Hold Left Alt", "Let go", "Double-tap Left Alt", "hands-free", "Hold Left Ctrl", "make this shorter",
+                   "open Notepad", "note: buy milk", "Shift + tap Left Ctrl", "Ctrl works as usual", "Everything stays on this computer",
                    "first start takes about 10 seconds"):
         assert phrase in text, phrase
     assert window.t.config["first_run"] is True
@@ -249,6 +249,8 @@ def test_settings_page_lists_every_feature_with_the_pc_meetings_rows(window):
     assert "Icon menu › Start meeting notes" in text and "isn't downloaded yet" in text  # (the fake host has no model)
     assert "Claude Code installed and signed in on your own Claude plan" in text and "Off until you turn it on" in text
     assert "Offline tidy-up" not in text and "Left Option" not in text and "Left Command" not in text
+    assert "Hold or double-tap Left Alt" in text and "Hold or double-tap Left Ctrl" in text and "Shift + tap Left Ctrl" in text
+    assert "Left Windows" not in text and "Windows key" not in text
     assert js(window, "document.querySelector('#startup').checked") is True
     assert "Windows" not in js(window, "document.querySelector('#translate').textContent")
     assert js(window, "document.querySelectorAll('#translate option').length") == len(ui_api.LANGUAGES) + 1
@@ -300,7 +302,8 @@ def test_commands_page_lists_what_this_version_does_and_nothing_personal(window)
     for gone in ("Transcribe a link", "About your screen", "Tell your AI team"):
         assert gone not in text
     assert "needs Claude Code" in text and "it always asks first" in text
-    assert "Left Option" not in text and "Left Command" not in text and "Left Windows" in js(window, "document.querySelector('#page-commands').textContent")
+    assert "Left Option" not in text and "Left Command" not in text and "Left Ctrl" in js(window, "document.querySelector('#page-commands').textContent")
+    assert "Left Windows" not in js(window, "document.querySelector('#page-commands').textContent")
 
 
 def test_the_window_can_ask_for_a_folder_dialog_and_get_the_answer(monkeypatch):
@@ -594,7 +597,7 @@ def test_the_home_page_says_claude_is_missing_only_when_it_was_turned_on(window)
 def test_home_key_labels_use_the_short_wording_and_each_fits_on_one_line(window):
     go(window, "home")
     labels = js(window, "[...document.querySelectorAll('#page-home .gesture .k')].map(k => k.textContent)")
-    assert labels == ["Hold Left Alt", "Double-tap Left Alt", "Hold Left Windows", "Shift-tap Left Windows"]
+    assert labels == ["Hold Left Alt", "Double-tap Left Alt", "Hold Left Ctrl", "Shift + tap Left Ctrl"]
     fit = js(window, """[...document.querySelectorAll('#page-home .gesture .k')].map(k => {
         const r = k.getBoundingClientRect(), card = k.closest('.card').getBoundingClientRect();
         return getComputedStyle(k).whiteSpace === 'nowrap' && r.height < 26 && r.right <= card.right - 8; })""")
@@ -942,7 +945,10 @@ class Listener:                                      # the Windows keyboard hook
     def is_alive(self): return True
     def stop(self): print("keyboard hook stopped", flush=True)
     def suppress_event(self): pass
+    def arm(self): pass
+    def disarm(self): pass
 vt.KeyboardHook = Listener
+vt.MouseHook = Listener                              # (the mouse hook for Ctrl+click is replaced too)
 HELD = set()                                         # what Windows itself thinks is held (for the keyboard watchdog)
 vt.win32api.GetAsyncKeyState = lambda vk: 0x8000 if vk in HELD else 0
 
@@ -978,6 +984,10 @@ def keys():
     HELD.discard(d.vkCode)
     tool._filter(vt.win32con.WM_KEYUP, d)            # ...and let go
     time.sleep(2.0)
+    for vk, down in ((0xA2, True), (0x43, True), (0x43, False), (0xA2, False)):   # Ctrl+C: never a command
+        e = D(); e.vkCode = vk
+        tool._filter(vt.win32con.WM_KEYDOWN if down else vt.win32con.WM_KEYUP, e)
+    time.sleep(0.6)
     print("pasted", pasted, flush=True)
     tool.ui.put(tool._quit)
 
@@ -1001,3 +1011,4 @@ def test_the_real_run_loop_takes_a_hold_and_pastes_with_a_fake_keyboard_and_micr
     assert "pasted ['Hello there, this is a test. ']" in out, out
     history = (copy_of_the_tool / "history.jsonl").read_text(encoding="utf-8")
     assert "Hello there, this is a test." in history
+    assert '"command"' not in history and "pasted ['Hello there, this is a test. ']" in out  # Ctrl+C did nothing

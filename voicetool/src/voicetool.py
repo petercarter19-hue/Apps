@@ -1,6 +1,7 @@
 """VoiceTool: hold Left Alt anywhere, talk, let go, and the text is pasted at the cursor.
-Hold the Left Windows key and say what to do: rewrite the selection, fix a word, write something, answer, open things,
-jot a note, translate, journal, run meeting notes (if turned on), or have Claude act (if turned on).
+Hold the Left Ctrl key and say what to do: rewrite the selection, fix a word, write something, answer, open things,
+jot a note, translate, journal, run meeting notes (if turned on), or have Claude act (if turned on). Ctrl keeps all its
+normal jobs (Ctrl+C, Ctrl+V, Ctrl+click, Ctrl+scroll...): only Ctrl on its own, held or double-tapped, is a command.
 
 Double-tap the key to keep the mic on hands-free; tap once more to stop. Esc cancels (and stops a spoken answer).
 Everything runs on this computer: speech-to-text with Parakeet, tidy-up and commands with a small model (Qwen3 4B on
@@ -52,9 +53,23 @@ except Exception:  # (not on Windows)
 
 HERE = Path(__file__).resolve().parent
 CONFIG = json.loads((HERE / "config.json").read_text(encoding="utf-8-sig"))  # (Notepad and PowerShell can add a BOM)
+
+
+def _migrate_config(config):
+    """An older config.json names the Windows logo key (cmd_l) as the command key. It is Left Ctrl now, and every screen
+    and help text says so, so an old config follows. (A command key that is switched off, or another key, is left alone.)"""
+    if config.get("command_key") == "cmd_l":
+        config["command_key"] = "ctrl_l"
+    return config
+
+
+_migrate_config(CONFIG)
 RATE = 16000
 MAX_CHUNK_SECONDS = 25  # Parakeet works best on clips under ~30 s; longer recordings are split at quiet points
 LLKHF_INJECTED = 0x10
+CTRL_VKS = (0x11, 0xA2, 0xA3)  # Ctrl, Left Ctrl, Right Ctrl: keys with everyday jobs (Ctrl+C, Ctrl+click, Ctrl+scroll...)
+CTRL_MIC_DELAY_SECONDS = 0.15  # a Ctrl command opens the microphone only after this long alone: Ctrl+C never wakes it
+MOUSE_PRESSES = (0x201, 0x204, 0x207, 0x20B, 0x20A, 0x20E)  # a button goes down (left, right, middle, side); a wheel turns
 MASK_VK = 0xE8  # an unassigned key code, used to stop a lone Alt from opening menus
 MEETING_AUDIO = HERE / "recordings" / "meetings"  # the two audio tracks while a meeting is recorded
 CLAUDE_OFF_TEXT = "Email and calendar need Claude Code with your own Claude plan; turn it on in Settings."
@@ -754,6 +769,11 @@ class _KBDLLHOOKSTRUCT(ctypes.Structure):
                 ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
 
 
+class _MSLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long), ("mouseData", wintypes.DWORD), ("flags", wintypes.DWORD),
+                ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
 class KeyboardHook(threading.Thread):
     """Windows' low-level keyboard hook, on a thread of its own that does nothing else. Windows waits for this thread
     on every key pressed anywhere, so it is kept as small as possible: on_key(msg, data) is called for each key
@@ -778,6 +798,10 @@ class KeyboardHook(threading.Thread):
     _CallNext.restype = _c.c_ssize_t
     _PostThreadMessage = _user32.PostThreadMessageW
     _PostThreadMessage.argtypes = (_w.DWORD, _w.UINT, _w.WPARAM, _w.LPARAM)
+    # The same call without letting go of Python's lock, for use inside the hook (see CallNextHookEx above).
+    _PostFast = _c.PyDLL("user32").PostThreadMessageW
+    _PostFast.argtypes = (_w.DWORD, _w.UINT, _w.WPARAM, _w.LPARAM)
+    _HOOK_ID = 13  # WH_KEYBOARD_LL
 
     def __init__(self, on_key):
         super().__init__(daemon=True, name="keyboard hook")
@@ -808,7 +832,7 @@ class KeyboardHook(threading.Thread):
         k32.SetThreadPriority(k32.GetCurrentThread(), 2)  # THREAD_PRIORITY_HIGHEST: it only ever runs for a key
         msg = self._w.MSG()
         self._user32.PeekMessageW(self._c.byref(msg), None, 0, 0, 0)  # make the message queue before anyone posts
-        hook = self._SetHook(13, self._proc, None, 0)  # WH_KEYBOARD_LL
+        hook = self._SetHook(self._HOOK_ID, self._proc, None, 0)
         self.handle = hook
         self.installed = bool(hook)
         self.error = 0 if hook else self._c.get_last_error()
@@ -830,14 +854,67 @@ class KeyboardHook(threading.Thread):
             self._PostThreadMessage(self._thread_id, 0x0012, 0, 0)  # WM_QUIT
 
 
+class MouseHook(KeyboardHook):
+    """Windows' low-level mouse hook, for one job: telling VoiceTool that a mouse button went down or a wheel turned
+    while a Ctrl key is held (Ctrl+click, Ctrl+scroll to zoom), which is a shortcut, never a command. The hook is only
+    installed while a Ctrl key is down (arm / disarm, called from the keyboard hook), because Windows asks it about
+    every mouse movement, so the mouse is never touched the rest of the time. on_key(msg, data) hears each event."""
+
+    _KBD = _MSLLHOOKSTRUCT
+    _HOOK_ID = 14  # WH_MOUSE_LL
+    _ARM, _DISARM = 0x8001, 0x8002  # WM_APP + 1, + 2: thread messages that put the hook in and take it out
+
+    def __init__(self, on_mouse):
+        super().__init__(on_mouse)
+        self.name = "mouse hook"
+        self.armed = False
+
+    def arm(self):
+        if self._thread_id:
+            self._PostFast(self._thread_id, self._ARM, 0, 0)
+
+    def disarm(self):
+        if self._thread_id:
+            self._PostFast(self._thread_id, self._DISARM, 0, 0)
+
+    def run(self):
+        k32 = self._kernel32
+        self._thread_id = k32.GetCurrentThreadId()
+        k32.SetThreadPriority(k32.GetCurrentThread(), 2)  # THREAD_PRIORITY_HIGHEST, as the keyboard hook
+        msg = self._w.MSG()
+        self._user32.PeekMessageW(self._c.byref(msg), None, 0, 0, 0)  # make the message queue before anyone posts
+        self.installed = True  # (the thread is ready; the hook itself is only in while armed)
+        self._ready.set()
+        hook = None
+        try:
+            while self._user32.GetMessageW(self._c.byref(msg), None, 0, 0) > 0:
+                if msg.message == self._ARM and hook is None:
+                    hook = self._SetHook(self._HOOK_ID, self._proc, None, 0) or None
+                    self.handle, self.armed = hook, bool(hook)
+                    self.error = 0 if hook else self._c.get_last_error()
+                elif msg.message == self._DISARM and hook is not None:
+                    self._Unhook(hook)
+                    hook, self.handle, self.armed = None, None, False
+        finally:
+            if hook is not None:
+                self._Unhook(hook)
+                self.armed = False
+
+
 class Trigger:
     """One key and where it is in its hold / double-tap / tap gesture."""
 
     def __init__(self, name, key_name, let_through):
         self.name = name  # "dictate" or "command"
         self.vk = getattr(keyboard.Key, key_name).value.vk
+        # A Ctrl key (the command key) is pressed all day for Ctrl+C, Ctrl+V, Ctrl+click: it is never held back from Windows.
+        self.is_ctrl = self.vk in CTRL_VKS
         # A left-side key (e.g. Left Alt) still has its normal jobs (Alt+Tab, Alt+F4), so Windows keeps seeing it.
-        self.let_through = let_through
+        self.let_through = let_through or self.is_ctrl
+        # Ctrl is pressed far too often to open the microphone at the first instant (every Ctrl+C would): it waits until
+        # the key has been down this long with nothing else pressed. Alt starts at once, so no first word is lost.
+        self.mic_delay = CTRL_MIC_DELAY_SECONDS if self.is_ctrl else 0.0
+        self.mic_on = False
         self.state = IDLE
         self.key_down = False
         self.pressed_at = 0.0
@@ -846,13 +923,14 @@ class Trigger:
         self.cued = False
         self.hook_down = False
         self.hook_alone = False
+        self.mask_on_release = False  # the hook's note for this press: slip an unused key in before a lone release
         # The watchdog's own view of the key (Windows' key state, polled): when it went down / up without the hook
         # saying so. None when the hook and Windows agree.
         self.missed_down_since = None
         self.missed_up_since = None
         self.hook_at = 0.0  # when the hook last heard this key (a held key repeats, so this keeps moving while held)
-        # Command key: what was on screen. Captured at the first release, never while the key is down: a held
-        # Win key would turn our Ctrl+C into Win+Ctrl+C (a Windows shortcut).
+        # Command key: what was on screen. Captured after a release, never while the key is down: our own Ctrl+C would
+        # send a Ctrl release the person never made (and a Ctrl key that is simply tapped sends no Ctrl+C at all).
         self.context = None
         self.capturing = False
         self.app = {}  # dictation key: the program and window in front when the key went down (for app rules)
@@ -868,7 +946,7 @@ class VoiceTool:
         dictate = Trigger("dictate", CONFIG["dictate_key"], CONFIG.get("let_key_through", True))
         self.triggers = {dictate.vk: dictate}
         if CONFIG.get("command_key"):
-            # Left Win keeps its shortcuts (Win+E, Win+Shift+S); a lone press is masked so it can't open Start.
+            # Left Ctrl keeps all its shortcuts (Ctrl+C, Ctrl+click...): only Ctrl alone is a command (see _key_event).
             command = Trigger("command", CONFIG["command_key"], CONFIG.get("command_let_key_through", True))
             self.triggers[command.vk] = command
         self.active = None  # the trigger currently recording, if any
@@ -885,6 +963,8 @@ class VoiceTool:
         self.card = None
         self.icon = None
         self.listener = None
+        self.mouse_listener = None  # the mouse hook for Ctrl+click and Ctrl+scroll (only used with a Ctrl command key)
+        self._mouse_restarted_at = float("-inf")
         self.settings = None  # the old tkinter settings window, only used if the app window can't start
         self.app_window = None
         self.meeting = None
@@ -925,11 +1005,20 @@ class VoiceTool:
             if down:
                 if not trigger.hook_down:
                     trigger.hook_down, trigger.hook_alone = True, True
+                    # Ctrl needs no mask (it opens nothing on its own), except with Shift: Shift + tap Ctrl is how a word
+                    # is fixed, and Windows reads a lone Ctrl+Shift as "switch the input language" when 2+ layouts exist.
+                    trigger.mask_on_release = (not trigger.is_ctrl) or bool(
+                        win32api.GetAsyncKeyState(win32con.VK_SHIFT) & 0x8000)
+                    if trigger.is_ctrl and self.mouse_listener is not None:
+                        self.mouse_listener.arm()  # Ctrl+click and Ctrl+scroll are shortcuts, not commands
             else:
                 trigger.hook_down = False
-                if trigger.hook_alone:
+                if trigger.is_ctrl and self.mouse_listener is not None:
+                    self.mouse_listener.disarm()
+                if trigger.hook_alone and trigger.mask_on_release:
                     # Pressed on its own: slip in an unused key before releasing it, so a lone Alt can't open
-                    # app menus or ribbon shortcuts (the same trick AutoHotkey uses). Shortcuts like Alt+Tab are untouched.
+                    # app menus or ribbon shortcuts (the same trick AutoHotkey uses), and a lone Shift + Ctrl can't switch
+                    # the input language. Shortcuts like Alt+Tab are untouched.
                     win32api.keybd_event(MASK_VK, 0, 0, 0)
                     win32api.keybd_event(MASK_VK, 0, win32con.KEYEVENTF_KEYUP, 0)
                     win32api.keybd_event(trigger.vk, 0, win32con.KEYEVENTF_KEYUP, 0)
@@ -938,6 +1027,20 @@ class VoiceTool:
             for t in self.triggers.values():
                 t.hook_alone = False
             self.events.put(("other", None, data.vkCode, time.monotonic()))
+        return False
+
+    def _mouse_filter(self, msg, data):
+        """Runs inside Windows' mouse hook (only while a Ctrl key is held): a click or a turn of the wheel means the Ctrl
+        key is part of a shortcut. Always lets the mouse through."""
+        try:
+            if msg in MOUSE_PRESSES:
+                held = [t for t in self.triggers.values() if t.is_ctrl and t.hook_down]
+                for t in held:
+                    t.hook_alone = False
+                if held:
+                    self.events.put(("mouse", None, msg, time.monotonic()))
+        except Exception:
+            log.exception("mouse hook error (the mouse was passed on)")
         return False
 
     def run(self, hardware=True):
@@ -954,6 +1057,8 @@ class VoiceTool:
         threading.Thread(target=self._worker, daemon=True).start()
         if hardware:
             self._install_hook()
+            if any(t.is_ctrl for t in self.triggers.values()):
+                self._install_mouse_hook()
             threading.Thread(target=self._watch_keys, daemon=True, name="key watchdog").start()
             log.info("ready: hold %s to talk, %s for commands; double-tap to lock on, tap again to stop",
                      CONFIG["dictate_key"], CONFIG.get("command_key") or "no key")
@@ -1005,6 +1110,20 @@ class VoiceTool:
             except Exception:
                 log.exception("could not stop the old keyboard hook")
 
+    def _install_mouse_hook(self):
+        """The mouse hook's thread (the hook itself is only put in while a Ctrl key is down). Replaces an older one."""
+        old = self.mouse_listener
+        listener = MouseHook(self._mouse_filter)
+        listener.start()
+        if not listener.wait():
+            log.error("the mouse hook's thread did not start")
+        self.mouse_listener = listener
+        if old is not None:
+            try:
+                old.stop()
+            except Exception:
+                log.exception("could not stop the old mouse hook")
+
     def _watch_keys(self):
         """A light thread that checks, 20 times a second, that the keyboard hook is still alive and agrees with
         Windows' own key state. If the hook goes deaf (Windows can silently remove a hook; pynput stops its listener
@@ -1027,6 +1146,11 @@ class VoiceTool:
             log.warning("keyboard hook had stopped; re-installing it")
             self._install_hook()
             log.info("keyboard hook re-installed")
+        if (self.mouse_listener is not None and not self.mouse_listener.is_alive()
+                and now - self._mouse_restarted_at >= 2):
+            self._mouse_restarted_at = now
+            log.warning("mouse hook had stopped; re-installing it")
+            self._install_mouse_hook()
         for t in self.triggers.values():
             enabled = CONFIG.get("enabled", True) and CONFIG.get(f"{t.name}_enabled", True)
             # A key the hook swallows never reaches Windows' key state, so it can't be checked this way.
@@ -1059,6 +1183,8 @@ class VoiceTool:
                 elif now - t.missed_up_since >= HOOK_MISSED_RELEASE_SECONDS:
                     since, t.missed_up_since = t.missed_up_since, None
                     t.hook_down = False
+                    if t.is_ctrl and self.mouse_listener is not None:
+                        self.mouse_listener.disarm()
                     self.events.put(("trigger", t, False, since))
                     log.warning("keyboard hook missed a %s release (in %s); handled it and re-installing the hook",
                                 t.name, self._front_window().get("app") or "?")
@@ -1121,7 +1247,7 @@ class VoiceTool:
             return "VoiceTool: taking meeting notes (right-click to stop)"
         if not CONFIG.get("enabled", True):
             return "VoiceTool: paused"
-        return "VoiceTool: hold Left Alt to talk, the Left Windows key for commands"
+        return "VoiceTool: hold Left Alt to talk, Left Ctrl for commands"
 
     def _open_app(self, page="home"):
         """The VoiceTool window, at `page` (main thread). If it can't start, the old settings window opens instead."""
@@ -1207,6 +1333,8 @@ class VoiceTool:
                 self._abandon_meeting()
             if self.listener is not None:
                 self.listener.stop()
+            if self.mouse_listener is not None:
+                self.mouse_listener.stop()
             self.claude_session.stop()
             self._hush()
             if getattr(self.azure, "local", None) is not None:
@@ -1489,6 +1617,10 @@ class VoiceTool:
             log.exception("window update failed")
         now = time.monotonic()
         t = self.active
+        if t is not None and t.state == HOLDING and not t.mic_on and now - t.pressed_at >= t.mic_delay:
+            if not self._open_mic(t):
+                self._drop(t)
+                t = self.active
         if t is not None and t.state == TAP_WAIT and now > t.tap_deadline:
             self._drop(t)  # a single short tap does nothing
         elif t is not None and t.state == HOLDING and not t.cued and now - t.pressed_at >= CONFIG["hold_seconds"]:
@@ -1499,8 +1631,26 @@ class VoiceTool:
         self.light.level = self.recorder.level
         self.light.draw()
 
+    def _open_mic(self, t):
+        """Start recording for this trigger. False (after the error beep) if the microphone can't be opened."""
+        try:
+            self.recorder.start()
+        except Exception:
+            log.exception("could not open the microphone")
+            beep((300, 300))
+            return False
+        t.mic_on = True
+        if t.mic_delay > 0:
+            self._warm_up(t)  # (a Ctrl key's warm-up waits for the microphone too: Ctrl+C never contacts Azure)
+        return True
+
+    def _warm_up(self, t):
+        if (CONFIG.get("cleanup") and not CONFIG.get("offline_only")) or t.name == "command":
+            self.azure.warm_up()
+
     def _drop(self, t, quietly=True):
         self.recorder.stop()
+        t.mic_on = False
         t.state = IDLE
         t.swallow_release = t.key_down
         self.active = None
@@ -1511,15 +1661,19 @@ class VoiceTool:
 
     def _handle(self, kind, trigger, value, at):
         t = self.active
+        if kind == "mouse":  # a click or the wheel while Ctrl is held: Ctrl+click, Ctrl+scroll... not a command
+            if t is not None and t.is_ctrl and t.state in (HOLDING, TEACH):
+                self._drop(t)
+            return
         if kind == "other":
             if value == win32con.VK_ESCAPE:
                 self._hush()  # Esc also stops a spoken answer
             if t is None:
                 return
-            if value == win32con.VK_ESCAPE and t.state in (HOLDING, LOCKED, TAP_WAIT):
-                self._drop(t, quietly=False)
+            if value == win32con.VK_ESCAPE and t.state in (HOLDING, LOCKED, TAP_WAIT) and (t.mic_on or not t.is_ctrl):
+                self._drop(t, quietly=False)  # (Ctrl+Esc, which opens Start, is no cancel: nothing was recording yet)
             elif t.state in (HOLDING, TEACH):
-                self._drop(t)  # the key was part of a shortcut (e.g. Alt+Tab, Win+Shift+S), not ours
+                self._drop(t)  # the key was part of a shortcut (e.g. Alt+Tab, Ctrl+C), not ours
             return
         t, down = trigger, value
         if self.active is not None and self.active is not t:
@@ -1535,6 +1689,9 @@ class VoiceTool:
                 self._finish(t)
                 t.swallow_release = True
             elif t.state == TAP_WAIT:
+                if not t.mic_on and not self._open_mic(t):  # (a Ctrl tap was too short to have opened it yet)
+                    self._drop(t)
+                    return
                 t.state = LOCKED
                 t.swallow_release = True
                 self._light(t.looks[1])
@@ -1545,23 +1702,23 @@ class VoiceTool:
                 t.state, t.context, t.capturing = TEACH, None, False  # Shift + command key: type a fix instead
                 self.active = t
             elif t.state == IDLE:
-                try:
-                    self.recorder.start()
-                except Exception:
-                    log.exception("could not open the microphone")
-                    beep((300, 300))
-                    return
                 # Record from the first instant so no word is lost; the light and beep wait until it's clearly a hold.
+                # (A Ctrl key waits t.mic_delay first: see _tick_once.)
+                if t.mic_delay <= 0 and not self._open_mic(t):
+                    return
                 t.state, t.pressed_at, t.cued = HOLDING, at, False
                 t.context, t.capturing = None, False
                 t.app = self._front_window() if t.name == "dictate" else {}
                 self.active = t
-                if (CONFIG.get("cleanup") and not CONFIG.get("offline_only")) or t.name == "command":
-                    self.azure.warm_up()
+                if t.mic_delay <= 0:
+                    self._warm_up(t)
         else:
             t.key_down = False
             if t.swallow_release:
                 t.swallow_release = False
+                if t.state == LOCKED and t.name == "command" and not t.capturing:
+                    t.capturing = True  # a Ctrl double-tap: now that the key is up, copy the selection
+                    threading.Thread(target=self._capture, args=(t,), daemon=True).start()
                 return
             if t.state == TEACH:
                 t.state = IDLE
@@ -1570,10 +1727,13 @@ class VoiceTool:
                 return
             if t.state != HOLDING:
                 return
-            if t.name == "command" and not t.capturing:
+            held = at - t.pressed_at >= CONFIG["hold_seconds"]
+            # (A Ctrl key that was only tapped copies nothing: a stray tap must never send Ctrl+C to the program in front.
+            # Its selection is copied once it is a real hold or the hands-free lock.)
+            if t.name == "command" and not t.capturing and (held or not t.is_ctrl):
                 t.capturing = True  # the key is up now, so copying the selection is safe
                 threading.Thread(target=self._capture, args=(t,), daemon=True).start()
-            if at - t.pressed_at >= CONFIG["hold_seconds"]:
+            if held:
                 self._finish(t)
             else:
                 t.state = TAP_WAIT
@@ -1630,6 +1790,7 @@ class VoiceTool:
 
     def _finish(self, t):
         audio = self.recorder.stop()
+        t.mic_on = False
         t.state = IDLE
         self.active = None
         beep((660, 40))
@@ -1851,7 +2012,7 @@ class VoiceTool:
             self._done()
             selection = (context.get("selection") or "").strip()
             if not selection:
-                self._card("Nothing selected", "Select some text first, then hold the Left Windows key and say "
+                self._card("Nothing selected", "Select some text first, then hold the Left Ctrl key and say "
                            "\u201cread this to me\u201d.", 8)
             else:
                 log.info("reading %d characters aloud", len(selection))
@@ -1887,7 +2048,7 @@ class VoiceTool:
 
     def _system(self, t, extra, context):
         """"Mute", "volume up", "lock the screen"...: one of the FIXED list in system_actions.ACTIONS, nothing else. Keys are
-        sent only after the Command key is up (a held Win key would turn them into other shortcuts)."""
+        sent only after the Command key is up (a held Ctrl key would turn them into other shortcuts)."""
         import system_actions
         import system_windows
         self._wait_for_release(t)

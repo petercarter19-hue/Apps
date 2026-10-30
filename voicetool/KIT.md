@@ -26,7 +26,7 @@ Hold a key, talk, and your words appear wherever your cursor is: in email, docum
 ## 1. 🎯 What you'll end up with
 
 - **Dictation anywhere:** hold a key, talk, let go. Your words are typed with punctuation, and the "ums" are gone. "Thursday at 2, no wait, 3" comes out as "Thursday at 3".
-- **A Command key:** rewrite selected text, write something new at your cursor, answer a question, or fix a word it got wrong.
+- **A Command key (Left Ctrl):** rewrite selected text, write something new at your cursor, answer a question, or fix a word it got wrong.
 - **It learns:** names and words it must spell right, and the mistakes you've corrected.
 - **An app:** an icon by the clock, a Start menu entry, and a window with your history, your words and an on/off switch for every feature.
 - **Extras you can pick:** meeting notes, "read this to me", quick notes, volume and music controls, opening files and apps, translating, and turning a YouTube or podcast link into a written summary.
@@ -78,7 +78,7 @@ Decide these before you start. Changing them later works, but it means rebuildin
 |---|---|---|
 | Your app's name | TalkTool | Anything you like |
 | Key to hold for dictation | Left Alt | Shortcuts like Alt+Tab keep working. Avoid Caps Lock. |
-| Key to hold for commands | Left Windows key | Win+E and other shortcuts keep working |
+| Key to hold for commands | Left Ctrl | Ctrl+C, Ctrl+V and other shortcuts keep working: only Ctrl on its own is a command |
 | Your spelling and style | American English; no texting shorthand; contractions fine; friendly but professional | Say how you actually write |
 | Words it must spell right | Your name, your company, product names | You can add more later |
 | Which extras | All of them | Delete any build step you don't want |
@@ -99,9 +99,9 @@ FREE, ON MY COMPUTER
 KEYS
 - Hold [Left Alt] to dictate: talk, let go, and the text is typed where my cursor is.
 - Double-tap it for hands-free; tap once to stop. Esc cancels.
-- Hold [Left Windows key] for the Command key: I just say what I want; double-tap it for longer instructions.
-- Shift + tap the Command key opens a small box to type the right spelling of a word it got wrong.
-- Both keys keep working normally in shortcuts (Alt+Tab, Win+E). Never Caps Lock.
+- Hold [Left Ctrl] for the Command key: I just say what I want; double-tap it for longer instructions.
+- Shift + tap Left Ctrl opens a small box to type the right spelling of a word it got wrong.
+- Both keys keep working normally in shortcuts (Alt+Tab, Ctrl+C, Ctrl+V, Ctrl+click). Only Left Ctrl on its own, held or double-tapped, is a command: never when I press it with another key, click the mouse or turn the scroll wheel while holding it, and a quick press of Ctrl (as in Ctrl+C) must never switch the microphone on. Never Caps Lock.
 
 TIDYING MY WORDS
 - Keep my words. Remove ums, add punctuation, and apply "no wait" / "I mean" corrections. Never change days, names or numbers.
@@ -156,7 +156,7 @@ Select a blunt sentence and say "make this friendlier". In an empty email, say "
 
 ### Step 4 · Learning
 
-Say your hardest word. Fix it once with Shift + tap the Command key. Say it again: it should come out right.
+Say your hardest word. Fix it once with Shift + tap Left Ctrl. Say it again: it should come out right.
 
 <p align="center"><img src="docs/kit/words-and-fixes.jpg" alt="The Words and fixes page: names it must spell exactly, and the mishearings it learned to fix" width="640"><br><sub>Your words and learned fixes, ready to edit.</sub></p>
 
@@ -190,7 +190,7 @@ Once it works, change anything by asking for it. Some starting points:
 
 | You want | Say to the AI |
 |---|---|
-| A different key | "Change the dictation key to Right Ctrl. Keep normal shortcuts working." |
+| A different key | "Change the dictation key to Right Alt. Keep normal shortcuts working." |
 | It to write like you | "Here are three emails I wrote. Learn my style from them and use it when you write for me." |
 | Different styles for different apps | "In Slack, keep it casual and short. In Outlook, use full sentences." |
 | A new voice command | "Add a command: when I say 'start my day', open my email, my calendar and my notes." |
