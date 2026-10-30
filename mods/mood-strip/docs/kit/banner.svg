@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-label="Make your own mood strip, free">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4efff"/>
+      <stop offset="0.55" stop-color="#e8f6f3"/>
+      <stop offset="1" stop-color="#fff1e8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="260" rx="28" fill="url(#bg)"/>
+  <text x="60" y="92" font-family="Segoe UI, system-ui, sans-serif" font-size="46" font-weight="700" fill="#1f1d26">Make your own mood strip</text>
+  <text x="60" y="132" font-family="Segoe UI, system-ui, sans-serif" font-size="22" fill="#565362">A colored bar above the prompt that shows how your AI session is going. Free, with AI, no code.</text>
+  <g font-family="Segoe UI, system-ui, sans-serif" font-size="15" font-weight="600">
+    <rect x="60" y="164" width="170" height="30" rx="8" fill="#FAC775"/><text x="74" y="184" fill="#412402">☀ Good morning</text>
+    <rect x="240" y="164" width="150" height="30" rx="8" fill="#7F77DD"/><text x="254" y="184" fill="#fff">● Thinking…</text>
+    <rect x="400" y="164" width="150" height="30" rx="8" fill="#D4537E"/><text x="414" y="184" fill="#fff">◆ Waiting</text>
+    <rect x="560" y="164" width="150" height="30" rx="8" fill="#639922"/><text x="574" y="184" fill="#fff">✓ Tests passed</text>
+    <rect x="720" y="164" width="130" height="30" rx="8" fill="#EF9F27"/><text x="734" y="184" fill="#412402">≈ Bumpy</text>
+    <rect x="860" y="164" width="130" height="30" rx="8" fill="#E24B4A"/><text x="874" y="184" fill="#fff">⚠ Stuck</text>
+    <rect x="1000" y="164" width="140" height="30" rx="8" fill="#1D9E75"/><text x="1014" y="184" fill="#fff">✓ Done</text>
+  </g>
+  <rect x="60" y="214" width="1080" height="6" rx="3" fill="#7F77DD" opacity="0.35"/>
+</svg>

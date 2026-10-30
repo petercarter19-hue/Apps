@@ -16,7 +16,8 @@ Skills you can add to Claude Code, Codex or any AI coding app that reads Agent S
 
 | Mod | What it does |
 | --- | --- |
-| [context-meter](mods/context-meter/) | Shows how full the conversation's context window is, what fills it (system prompt, tools, messages, ...) and where tokens go (input, output, cache reads and writes), in a side panel, the status line and a bar above the prompt. `/meter` prints the report. Includes a Forest color theme. |
+| [context-meter](mods/context-meter/) | Shows how full the conversation's context window is and your 5-hour limit with the time left in the status line, what fills the window and where tokens go in a side panel (`/meter panel`). `/meter` prints the report. Includes a Forest color theme. |
+| [mood-strip](mods/mood-strip/) | A full-width colored strip above the prompt that shows how the session is going: what Claude is doing or thinking right now, a trail of its last steps, and the plan's progress as dots. It changes color for working, waiting on you, wins, bumpy, stuck and done, fading slowly between them, and greets you by time of day when idle. `/mood demo` plays made-up scenes. |
 | [done-ping](mods/done-ping/) | A notification and a chime when Claude finishes a long task. `/done-ping` sends a test. |
 | [todo-panel](mods/todo-panel/) | A to-do list in a side panel that remembers between sessions. `/todo <text>` adds, `/todo done <n>` ticks off, or ask Claude to add things. |
 

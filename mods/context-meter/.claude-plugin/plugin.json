@@ -1,6 +1,6 @@
 {
   "name": "context-meter",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "A context meter: how full the context is, the 5-hour limit with time left, what fills the window, and tokens by kind (input, output, cache), plus a Forest color theme",
   "types": "./types/index.d.ts",
   "license": "MIT",

@@ -16,7 +16,7 @@ const isPaneOpen = atom({ plugin: 'context-meter', key: 'isPaneOpen' } as const,
 const lastError = atom({ plugin: 'context-meter', key: 'lastError' } as const, null)
 const statusText = atom({ plugin: 'context-meter', key: 'statusText' } as const, null)
 
-const VERSION = '0.8.0'
+const VERSION = '0.8.1'
 
 const PANE = 'context-meter'
 const WARN_AT = 60
@@ -146,16 +146,6 @@ const MEANINGS = [
   'Cache write: text saved for reuse later, a one-time premium',
   'Output: what Claude wrote',
 ]
-
-/** Opens the side panel, or closes it where it is already up: what the link under the prompt does. */
-async function togglePane($: EngineInterface): Promise<void> {
-  const isUp = (await $.ui.panes()).some(pane => pane.id === PANE)
-  if (isUp) {
-    await $.ui.close({ id: PANE })
-  } else {
-    await $.ui.open({ id: PANE, title: 'Context meter' })
-  }
-}
 
 /** Two or three lines: the fill, its top three categories, and the session's tokens. */
 async function brief($: EngineInterface): Promise<string> {
@@ -377,24 +367,6 @@ export const register: Register = (on, options) => {
 
         {fiveHourText(now) !== null && <Text> </Text>}
         {fiveHourText(now) !== null && <Text>{fiveHourText(now)}</Text>}
-      </Box>
-    )
-  })
-
-  // A link beside the hint under the prompt: a click opens the side panel, another closes it.
-  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    const now = await read($, reading)
-    if (now === null) return next(e)
-    const { Box, Button, Text } = $.ui.resolve(e)
-    const isUp = (await $.ui.panes()).some(pane => pane.id === PANE)
-    const color = level(now.percent)
-    return (
-      <Box key="meter-hint">
-        {e.props.hint !== '' && <Text dimColor>{e.props.hint}  </Text>}
-        <Button key="meter-details" plain onPress={() => togglePane($)}>
-          <Text color={color}>Context {now.percent}%</Text>
-          <Text dimColor> · {isUp ? 'hide details ◂' : 'details ▸'}</Text>
-        </Button>
       </Box>
     )
   })

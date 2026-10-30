@@ -1,0 +1,62 @@
+I want to build a mod for Claude Code called [mood-strip]: a full-width colored strip right above the prompt box that shows how my session is going, at a glance. I'm not technical and I've never coded. Build it step by step, show me something working after each step, and test what you can yourself before asking me.
+
+FREE, ON MY COMPUTER
+- It's a Claude Code plugin (a mod with a hooks module that draws above the prompt). No paid services, no accounts, no API keys, never ask me for payment details. It sends nothing anywhere.
+- First check which version of Claude Code I have and whether I use the desktop app or the terminal. Tell me in one line what you found.
+- While we build, load it as a development mod that reloads when it changes, so I only need to start a new session or restart once. If I already have a copy of this mod installed, turn that copy off first, so only one copy draws the strip.
+
+WHAT IT SHOWS
+- The strip is the only thing above the prompt: one bar, fully colored, edge to edge, the exact width of the prompt box. It changes color with what's happening, and every change fades in slowly (about [2.5 seconds]); never a hard jump, never flashing.
+- Three parts, using the whole length:
+  - Left: what's happening right now ("Reading app.js", "Running npm", "Thinking…"). For commands, never show the whole command: show the program's name only for well-known programs (npm, git, python and the like), otherwise "a command". Text written into files is never a command. If a file, helper, skill or step name looks private, say "a file", "a helper", "a skill" or "Step 2 of 5" instead.
+  - Middle: a short trail of the last few things done ("Read app.js › Edited app.js › Tests ✓") and how it's going ("2 retries so far", "9 min, past your usual 3 min", helper names).
+  - Right: the current plan step ("Step 2 of 5: Build the page") with one small dot per step, filled when done, from whichever kind of plan, task list or to-do list the AI keeps. If there's no plan, show how many steps and files so far.
+- Moods and colors (pick colors dark enough that the words pass 4.5 to 1 contrast, and tell me what you picked):
+  - Working: [purple]. Drifts toward [amber] when a task runs past [twice my usual length]; my usual is the average of my recent tasks, starting at [3 minutes].
+  - Waiting on me (a question or a plan to approve): [pink], "Waiting for your answer".
+  - Big moments (tests passed, installed, committed, pushed, pull request opened): [green] for a moment.
+  - Bumpy (something failed, or [2] failures in 10 minutes): [orange]. Stuck (the same step failed [3] times in a row): [red], "Might need a new approach". A step I declined or interrupted, or a search or test that simply found nothing, is not a failure.
+  - Done: [teal], "Done in 4m 10s", with a one-line recap in the middle (files changed with lines added and removed, tests passing, saved, retries). Teal stays for about [3 minutes], then fades back to the idle color in its last few seconds, so the recap stays easy to read. Stopped by me: [coral], "Stopped after 1m 12s". If the reply ended in an error or the AI declined, coral too, and say which ("Ran into an error after 2m 5s"). Say the step count only once.
+  - Work started in the background shows as "Tests started" or "Helper started".
+  - Builds show as "Building…", "✓ Build passed" or "✗ Build failed, fixing…", and the recap says "build passing". A build never counts as a test.
+  - Idle: a greeting by time of day with the clock ("Good morning · 9:30 AM"), today's tasks and minutes of work in the middle, and how the last task went on the right. Morning [warm yellow], afternoon [sky blue], evening [rose], late night [dark gray].
+- An optional thinking line, as a setting that is OFF at first: when I turn it on, while the AI is thinking the middle starts with the latest complete sentence of its thinking, in quotes, up to about [60] characters, updated about every [2 seconds]. The setting's description warns that thinking often restates what I gave the AI, so it can put private details on screen. Leave out any sentence that repeats my own words, says "the user", quotes something, has a file path, web address, email or anything that looks like a password or key, has 5 or more digits in a row, looks like a phone number or street address, or talks about health, money or identity. When it starts writing the answer, the left says "Writing the answer…".
+- Anything too long for its part is cut at a word, with "…", never in the middle of a letter: about 48 characters on the left, 75 in the middle and 48 on the right, with a soft fade at each part's right edge.
+- Helpers (sub-agents) show by name while they work. Only the main conversation changes the strip; helpers never take it over.
+- A /mood command that says what the strip shows, what each color means, the last problem it hit (or "none"), and the version. And /mood demo that plays every look with made-up examples, a few seconds each, then goes back to now. It only plays between tasks (during a task, say a task is running and to try between tasks), it can be run again any time, and a real reply ends it.
+- In the terminal, show the same words on a colored line, in the mood's color at once (no fades or drifting there).
+
+PRIVACY AND SAFETY
+- Never show my own messages on the strip, not even a few words of them, and don't store them anywhere. Only what the AI is doing.
+- No buttons and nothing to click on the strip.
+- Keep only today's counts, saved on this computer. Nothing is sent anywhere.
+- Never fail silently: if something breaks, keep the session going, and show what went wrong as "Last problem" in /mood.
+- Tests use a fake clock and fake storage. They never touch my real settings, my real sessions or my screen.
+
+WHAT WE LEARNED BUILDING ONE (do these from the start)
+- The desktop app ignores plain color codes on text boxes, which gives a white bar. Draw the strip as an SVG picture, which the desktop app paints exactly. Use the theme's named colors for the terminal.
+- Redraw the picture only when what it shows changes. Do the fades with animation inside the picture, never by redrawing every second (that flashes).
+- Make the picture very wide (4000 wide) and set its style to 100% width, or it only fills a third of the space.
+- Each of the three parts is its own small area, so long words stop at its edge instead of running into the next part.
+- Never show whole commands: they can hold passwords, keys or private paths. The program's name is enough.
+- The AI's thinking can repeat my request or mention private things. Filter it as above, and show whole sentences only.
+- The terminal can't do fades, so paint each mood's color at once there.
+- Steps I decline and searches that find nothing aren't failures; don't turn the strip orange for them.
+- Thinking often restates what I gave you, names and numbers included, so the thinking line is off unless I turn it on, and filtered when it's on.
+- Text written into a file can look like a command. Show program names only for well-known programs, otherwise "a command".
+- A fade that starts right away makes "Done" hard to read. Hold the color, and fade only at the end.
+
+BUILD ORDER (all of it by the end)
+1. The full-width colored strip with the time-of-day greeting.
+2. Working and done: what's happening now, the trail, the recap, and the slow fades.
+3. How it's going: waiting on me, big moments, bumpy, stuck, longer than usual.
+4. The plan step with dots, and helper names.
+5. The optional thinking line (off at first), /mood and /mood demo.
+
+HOW TO WORK WITH ME
+- Plain English, short answers. Pick sensible defaults and tell me what you picked; don't ask me technical questions.
+- Short plan first, then build. No long research reports.
+- If I mention a new idea, add it to the list instead of building it, unless I say "now".
+- After each step, run the tests, tell me plainly what you tested and what you couldn't, and tell me exactly what to do to see it (for example "start a new session" or "type /mood demo").
+
+Start with step 1.

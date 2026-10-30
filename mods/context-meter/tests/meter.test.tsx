@@ -14,12 +14,6 @@ function runMeter($: Engine, args = 'full') {
   })
 }
 
-const HINT = {
-  plugin: 'context-meter',
-  component: 'PromptHint',
-  props: { isDraft: false, isWorking: false, hint: '? for shortcuts' },
-} as const
-
 /** 2h 10m before the five-hour window in `engineAt` resets. */
 const NOW = Date.parse('2026-10-22T17:50:00Z')
 
@@ -243,31 +237,17 @@ test('hovering the panel reveals its details', async ($, on) => {
   }
 })
 
-test('the link under the prompt opens and closes the side panel, on every surface', async ($, on) => {
-  const opens: string[] = []
-  engineAt(on, 27, [], [], opens)
+test('the panel toggles its details, on every surface', async ($, on) => {
+  engineAt(on, 27, [])
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await complete($)
 
   for (const surface of ['terminal', 'desktop'] as const) {
-    const hint = await $.ui.mount({ ...HINT, surface })
-    expect(await hint.find({ type: 'Text', text: /for shortcuts/ })).toBeDefined()
-    expect(await hint.find({ type: 'Text', text: /details ▸/ })).toBeDefined()
-    await hint.press({ key: 'meter-details' })
-    expect(opens).toHaveLength(1)
-    await hint.unmount()
-
-    const again = await $.ui.mount({ ...HINT, surface })
-    expect(await again.find({ type: 'Text', text: /hide details/ })).toBeDefined()
-    await again.press({ key: 'meter-details' })
-    await again.unmount()
-
     const pane = await $.ui.mount({ ...PANE, surface })
     await pane.press({ key: 'pane-details' })
     expect((await pane.find({ key: 'pane-details' }))?.props.label).toBe('▾ Hide details')
     await pane.press({ key: 'pane-details' })
     await pane.unmount()
-    opens.length = 0
   }
 })
 
@@ -276,7 +256,7 @@ test('the full report names the version', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
   const { text } = await runMeter($)
-  expect(text).toContain('context-meter 0.8.0')
+  expect(text).toContain('context-meter 0.8.1')
 })
 
 test('the panel opens only when asked', async ($, on) => {
@@ -299,7 +279,7 @@ test('/meter debug says what the meter sees', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
   const { text } = await runMeter($, 'debug')
-  expect(text).toContain('context-meter 0.8.0')
+  expect(text).toContain('context-meter 0.8.1')
   expect(text).toContain('Screens attached: desktop')
   expect(text).toContain('Status line set to: Context ███░░░░░░░ 27%')
   expect(text).toContain('Last problem: none')

@@ -23,7 +23,7 @@
     {
       "name": "mood-strip",
       "source": "./mods/mood-strip",
-      "description": "A colored strip above the prompt that shows the mood of the session (working, bumpy, stuck, done), fading smoothly between colors"
+      "description": "A full-width colored strip above the prompt: what Claude is doing or thinking, its last steps and the plan, colored by how the session is going; /mood demo to see it"
     }
   ]
 }

@@ -1,0 +1,4 @@
+Make a copy of my mood strip that I can share with a friend. Build it in a separate folder and don't touch the copy I use.
+- None of my data: no saved counts, no logs, my name or my folder paths anywhere. Search the whole copy to prove it's clean.
+- Package it as a plugin marketplace folder, with a short "How to add it" in plain words: how to add the marketplace and install the mod, that it needs Claude Code, how to see it (start a new session, then type /mood demo), and how to turn it off or remove it.
+- Run the tests on the clean copy, check that it installs from that folder in a fresh session, and tell me what you checked.

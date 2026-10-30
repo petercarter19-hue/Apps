@@ -5,8 +5,8 @@ A Claude Code mod that shows how full the conversation's context window is, what
 > Made with Claude Code, works with any AI app.
 
 - **Status line, under the prompt:** `Context ▓▓▓▓▓▓▓░░░ 72%  ·  5h limit 45%, 2h 10m left`: how full the window is, and how much of your 5-hour usage limit is used with the time until it resets.
-- **"details ▸" link, beside the hint under the prompt:** click it to open the side panel, click again to close it. The space above the prompt is left free for other mods, such as mood-strip.
-- **Side panel ("Context meter"), only when you click the link or type `/meter panel`:**
+- **The space above the prompt is left free** for other mods, such as mood-strip.
+- **Side panel ("Context meter"), only when you type `/meter panel`:**
   - how full the window is
   - **what's in it**, by category as `/context` lists it (system prompt, tools, memory files, messages, ...)
   - **tokens by kind** for this session, the last reply and today: input, output, cache reads, cache writes, and the share served from cache
