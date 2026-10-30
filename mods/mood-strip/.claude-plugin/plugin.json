@@ -1,0 +1,7 @@
+{
+  "name": "mood-strip",
+  "version": "0.1.0",
+  "description": "A colored strip above the prompt that shows the session's mood: working, bumpy, stuck or done, fading smoothly between colors",
+  "types": "./types/index.d.ts",
+  "license": "MIT"
+}

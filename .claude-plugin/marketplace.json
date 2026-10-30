@@ -1,12 +1,14 @@
 {
   "name": "apps",
-  "owner": { "name": "petercarter19-hue" },
+  "owner": {
+    "name": "petercarter19-hue"
+  },
   "description": "Claude Code mods by petercarter19-hue",
   "plugins": [
     {
       "name": "context-meter",
       "source": "./mods/context-meter",
-      "description": "Shows how full the context is, what fills it, and tokens by kind (input, output, cache), plus a Forest color theme"
+      "description": "Shows how full the context is, the 5-hour limit with time left, what fills the window, and tokens by kind, plus a Forest color theme"
     },
     {
       "name": "done-ping",
@@ -17,6 +19,11 @@
       "name": "todo-panel",
       "source": "./mods/todo-panel",
       "description": "A to-do list in a side panel that remembers between sessions; /todo to use it"
+    },
+    {
+      "name": "mood-strip",
+      "source": "./mods/mood-strip",
+      "description": "A colored strip above the prompt that shows the mood of the session (working, bumpy, stuck, done), fading smoothly between colors"
     }
   ]
 }

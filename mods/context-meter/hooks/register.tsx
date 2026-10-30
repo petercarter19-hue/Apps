@@ -11,13 +11,12 @@ const last = atom({ plugin: 'context-meter', key: 'last' } as const, null)
 const today = atom({ plugin: 'context-meter', key: 'today' } as const, EMPTY)
 const categories = atom({ plugin: 'context-meter', key: 'categories' } as const, [])
 const reported = atom({ plugin: 'context-meter', key: 'reported' } as const, false)
-const isBandOpen = atom({ plugin: 'context-meter', key: 'isBandOpen' } as const, false)
 const isPaneOpen = atom({ plugin: 'context-meter', key: 'isPaneOpen' } as const, false)
 
 const lastError = atom({ plugin: 'context-meter', key: 'lastError' } as const, null)
 const statusText = atom({ plugin: 'context-meter', key: 'statusText' } as const, null)
 
-const VERSION = '0.7.0'
+const VERSION = '0.8.0'
 
 const PANE = 'context-meter'
 const WARN_AT = 60
@@ -95,13 +94,13 @@ async function refresh($: EngineInterface): Promise<void> {
   const usage = await usageNow($)
   const now = await $.clock.now()
   const fiveHour = usage.rateLimits.find(limit => limit.kind === 'five_hour')
+  const resetsAt = fiveHour?.resetsAt === undefined ? NaN : Date.parse(fiveHour.resetsAt)
   const next: Reading = {
     percent: usage.context.percent ?? 0,
     tokens: usage.context.tokens ?? 0,
     window: usage.context.window,
-    usd: usage.cost?.usd ?? 0,
-    minutes: Math.max(0, Math.round((now - usage.startedAt) / 60000)),
     fiveHour: fiveHour?.percentUsed ?? null,
+    fiveHourLeftMs: Number.isNaN(resetsAt) ? null : Math.max(0, resetsAt - now),
   }
   await update($, reading, () => next)
 
@@ -114,15 +113,30 @@ async function refresh($: EngineInterface): Promise<void> {
     await update($, categories, () => used)
   }
 
-  const parts = [
-    `Context ${bar(next.percent, 10)} ${next.percent}%`,
-    `$${next.usd.toFixed(2)}`,
-    `${next.minutes} min`,
-  ]
-  if (next.fiveHour !== null) parts.push(`5h limit ${next.fiveHour}%`)
+  const parts = [`Context ${bar(next.percent, 10)} ${next.percent}%`]
+  const limit = fiveHourText(next)
+  if (limit !== null) parts.push(limit)
   const line = parts.join('  ·  ')
   $.ui.status(line)
   await update($, statusText, () => line)
+}
+
+/** "2h 10m" or "45m" until the five-hour window resets. */
+function timeLeft(ms: number): string {
+  const minutes = Math.ceil(ms / 60000)
+  const hours = Math.floor(minutes / 60)
+  if (hours === 0) return `${minutes}m`
+  return minutes % 60 === 0 ? `${hours}h` : `${hours}h ${minutes % 60}m`
+}
+
+/** "5h limit 45%, 2h 10m left", or null where the API reported no five-hour window. */
+function fiveHourText(now: Reading): string | null {
+  if (now.fiveHour === null) return null
+  // A reading saved by 0.7.0 has no time left in it.
+  const left = now.fiveHourLeftMs ?? null
+  return left === null
+    ? `5h limit ${now.fiveHour}%`
+    : `5h limit ${now.fiveHour}%, ${timeLeft(left)} left`
 }
 
 /** What each kind of token means, revealed when the pointer rests on the token rows. */
@@ -133,21 +147,14 @@ const MEANINGS = [
   'Output: what Claude wrote',
 ]
 
-/** The full context the bubble under the bar shows, one fact per line. */
-function bubbleLines(now: Reading, inside: Category[], mine: Tally, reply: Tally | null): string[] {
-  const lines: string[] = []
-  for (const row of inside) {
-    const share = Math.round((row.tokens / now.window) * 100)
-    lines.push(`${row.name}: ${kilo(row.tokens)} (${share}% of the window)`)
+/** Opens the side panel, or closes it where it is already up: what the link under the prompt does. */
+async function togglePane($: EngineInterface): Promise<void> {
+  const isUp = (await $.ui.panes()).some(pane => pane.id === PANE)
+  if (isUp) {
+    await $.ui.close({ id: PANE })
+  } else {
+    await $.ui.open({ id: PANE, title: 'Context meter' })
   }
-  if (mine.replies > 0) {
-    lines.push(`This session, ${mine.replies} replies: ${tallyLines(mine).join(' · ')}`)
-  }
-  if (reply !== null) lines.push(`Last reply: ${tallyLines(reply).join(' · ')}`)
-  const tail = [`$${now.usd.toFixed(2)}`, `${now.minutes} min`]
-  if (now.fiveHour !== null) tail.push(`5-hour limit ${now.fiveHour}% used`)
-  lines.push(tail.join(' · '))
-  return lines
 }
 
 /** Two or three lines: the fill, its top three categories, and the session's tokens. */
@@ -159,8 +166,10 @@ async function brief($: EngineInterface): Promise<string> {
 
   if (now !== null) {
     lines.push(
-      `Context ${bar(now.percent, 10)} ${now.percent}% · ${kilo(now.tokens)} of ${kilo(now.window)} · $${now.usd.toFixed(2)}`,
+      `Context ${bar(now.percent, 10)} ${now.percent}% · ${kilo(now.tokens)} of ${kilo(now.window)}`,
     )
+    const limit = fiveHourText(now)
+    if (limit !== null) lines.push(limit)
   }
   if (inside.length > 0) {
     const top = inside.slice(0, 3).map(row => `${row.name} ${kilo(row.tokens)}`)
@@ -194,6 +203,8 @@ async function summary($: EngineInterface): Promise<string> {
     lines.push(
       `Context ${bar(now.percent, 20)} ${now.percent}% (${kilo(now.tokens)} of ${kilo(now.window)})`,
     )
+    const limit = fiveHourText(now)
+    if (limit !== null) lines.push(limit)
   }
   if (inside.length > 0) {
     lines.push('', "What's in it:")
@@ -364,55 +375,26 @@ export const register: Register = (on, options) => {
           </Box>
         </Box>
 
-        <Text> </Text>
-        <Text>
-          Cost: ${now.usd.toFixed(2)} · {now.minutes} min
-        </Text>
-        {now.fiveHour !== null && <Text>5-hour limit: {now.fiveHour}% used</Text>}
+        {fiveHourText(now) !== null && <Text> </Text>}
+        {fiveHourText(now) !== null && <Text>{fiveHourText(now)}</Text>}
       </Box>
     )
   })
 
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+  // A link beside the hint under the prompt: a click opens the side panel, another closes it.
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const now = await read($, reading)
-    if (e.props.hasSurvey || now === null) {
-      return next(e)
-    }
-
+    if (now === null) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
+    const isUp = (await $.ui.panes()).some(pane => pane.id === PANE)
     const color = level(now.percent)
-    const isOpen = await read($, isBandOpen)
-    const lines = bubbleLines(
-      now,
-      await read($, categories),
-      await read($, session),
-      await read($, last),
-    )
-    const room = Math.max(1, e.props.maxRows - 3)
-
     return (
-      <Box key="meter-band" flexDirection="column">
-        <Button key="band-details" plain onPress={() => update($, isBandOpen, open => !open)}>
-          <Text color="claude">Context </Text>
-          <Text color={color}>{bar(now.percent, 24)}</Text>
-          <Text color={color} bold>
-            {' '}
-            {now.percent}%
-          </Text>
-          <Text dimColor>
-            {' '}
-            ({kilo(now.tokens)} of {kilo(now.window)})
-            {now.percent >= DANGER_AT ? '  · getting full, /compact soon' : ''}{' '}
-            {isOpen ? '▾' : '▸'}
-          </Text>
+      <Box key="meter-hint">
+        {e.props.hint !== '' && <Text dimColor>{e.props.hint}  </Text>}
+        <Button key="meter-details" plain onPress={() => togglePane($)}>
+          <Text color={color}>Context {now.percent}%</Text>
+          <Text dimColor> · {isUp ? 'hide details ◂' : 'details ▸'}</Text>
         </Button>
-        {isOpen && (
-          <Box flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
-            {lines.slice(0, room).map(line => (
-              <Text>{line}</Text>
-            ))}
-          </Box>
-        )}
       </Box>
     )
   })

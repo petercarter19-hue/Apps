@@ -1,6 +1,6 @@
 # Apps: Claude Code mods
 
-This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`, name `apps`) holding three mods, each in its own folder. A mod is a plugin of function hooks: a TypeScript module the engine loads and calls through `$`, the engine interface.
+This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`, name `apps`) holding the mods, each in its own folder under `mods/`. A mod is a plugin of function hooks: a TypeScript module the engine loads and calls through `$`, the engine interface.
 
 The owner works on Windows, in the Claude desktop app and in PowerShell. They are not a programmer: explain in plain words, give exact commands to paste, and say what they will see.
 
@@ -8,8 +8,9 @@ The owner works on Windows, in the Claude desktop app and in PowerShell. They ar
 
 | Mod | Version | What it does |
 | --- | --- | --- |
-| `context-meter` | 0.7.0 | Context fill in the status line, a bar above the prompt (click it for a bubble with the full context), a line under each reply, the full report as a notice at session start, a side panel on `/meter panel`. Tallies tokens by kind (input, output, cache read, cache write) per session, last reply and day (`$.store`, keyed `day:YYYY-MM-DD`). Ships a Forest theme in `themes/forest.json`. |
+| `context-meter` | 0.8.0 | Context fill and the 5-hour limit with time left in the status line, a "details" link in the hint under the prompt (`PromptHint`) that opens and closes the side panel, a line under each reply, the full report as a notice at session start. It leaves the band above the prompt to mood-strip. Tallies tokens by kind (input, output, cache read, cache write) per session, last reply and day (`$.store`, keyed `day:YYYY-MM-DD`). Ships a Forest theme in `themes/forest.json`. |
 | `done-ping` | 0.3.0 | After a main-loop reply of `minSeconds` (default 60) or more: a toast, `$.ui.notify`, and one soft chime (`$.audio.play` on macOS, PowerShell `Media.SoundPlayer` on Windows, detected by `OS=Windows_NT`). `/done-ping` sends a test. |
+| `mood-strip` | 0.1.0 | The band above the prompt (`AbovePrompt`) as a colored strip: working, bumpy (2+ tool errors in 10 min), stuck (3+ failures in a row), done or stopped (3 min), else the time of day. Colors ease toward the mood's each second (`$.clock.every`). `/mood` explains it. |
 | `todo-panel` | 0.1.0 | A to-do list kept in `$.store` (key `items`), shown in a pane, driven by `/todo` and by two tools Claude calls when asked (`mcp__todo-panel__add`, `mcp__todo-panel__list`). |
 
 Each mod folder holds `.claude-plugin/plugin.json`, `hooks/hooks.json` (one module path), `hooks/register.ts(x)`, a `types/index.d.ts` contract when it keeps `$.state` values, a `README.md`, and `tests/*.test.ts(x)`.

@@ -2,9 +2,9 @@ export type Reading = {
   percent: number
   tokens: number
   window: number
-  usd: number
-  minutes: number
   fiveHour: number | null
+  /** Until the five-hour window resets; null where the API gave no reset time. */
+  fiveHourLeftMs: number | null
 }
 
 /** Token counts as the API reports them, summed over replies. */
@@ -28,7 +28,6 @@ declare module 'claude-code' {
       today: Tally
       categories: Category[]
       reported: boolean
-      isBandOpen: boolean
       isPaneOpen: boolean
       lastError: string | null
       statusText: string | null

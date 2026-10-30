@@ -14,18 +14,14 @@ function runMeter($: Engine, args = 'full') {
   })
 }
 
-const BAND = {
+const HINT = {
   plugin: 'context-meter',
-  component: 'AbovePrompt',
-  props: {
-    hasSurvey: false,
-    isWorking: false,
-    maxRows: 4,
-    bodyColumns: 80,
-    scroll: { offset: 0, bodyRows: 4 },
-    view: {},
-  },
+  component: 'PromptHint',
+  props: { isDraft: false, isWorking: false, hint: '? for shortcuts' },
 } as const
+
+/** 2h 10m before the five-hour window in `engineAt` resets. */
+const NOW = Date.parse('2026-10-22T17:50:00Z')
 
 const PANE = {
   plugin: 'context-meter',
@@ -56,6 +52,7 @@ function engineAt(
   notices: string[] = [],
   opens: string[] = [],
 ) {
+  const up: { id: string; title: string; isShown: boolean; isFocused: boolean; isPlaced: boolean }[] = []
   on('session.usage', () => ({
     value: {
       startedAt: 0,
@@ -75,7 +72,7 @@ function engineAt(
       cost: { usd: 1.5 },
     },
   }))
-  mock.clock(on, { now: 41 * 60000 })
+  mock.clock(on, { now: NOW })
   mock.store(on)
   on('ui.status', (_, e) => {
     statuses.push(String(e.text))
@@ -83,10 +80,16 @@ function engineAt(
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'meter' } }))
-  on('ui.open', () => {
+  on('ui.open', (_, e) => {
     opens.push('pane')
+    up.push({ id: e.id, title: e.title ?? e.id, isShown: true, isFocused: false, isPlaced: true })
     return { value: { isPlaced: true } }
   })
+  on('ui.close', (_, e) => {
+    up.splice(up.findIndex(pane => pane.id === e.id), 1)
+    return { value: undefined }
+  })
+  on('ui.panes', () => ({ value: [...up] }))
   on('session.surfaces', () => ({ value: ['desktop'] }))
   on('turn.complete', () => ({ text: '' }))
   on('session.append', (_, e, next) => {
@@ -107,18 +110,13 @@ async function complete($: Engine, agentId?: string) {
   })
 }
 
-test('the status line and the bar show the reading', async ($, on) => {
+test('the status line shows the fill and the five-hour limit with the time left', async ($, on) => {
   const statuses: string[] = []
   engineAt(on, 72, statuses)
 
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
 
-  expect(statuses.at(-1)).toBe('Context ███████░░░ 72%  ·  $1.50  ·  41 min  ·  5h limit 30%')
-
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: /72%/ }))?.text).toBe(' 72%')
-  expect(await ui.find({ type: 'Text', text: /compact soon/ })).toBeUndefined()
-  await ui.unmount()
+  expect(statuses.at(-1)).toBe('Context ███████░░░ 72%  ·  5h limit 30%, 2h 10m left')
 })
 
 test('a nearly full window nudges toward /compact', async ($, on) => {
@@ -126,7 +124,7 @@ test('a nearly full window nudges toward /compact', async ($, on) => {
 
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
-  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /compact soon/ })).toBeDefined()
   await ui.unmount()
 })
@@ -173,7 +171,7 @@ test("today's totals carry over to the next session", async ($, on) => {
   expect(text).toContain('Today (2 replies):')
 })
 
-test('/meter on its own is three short lines', async ($, on) => {
+test('/meter on its own is four short lines', async ($, on) => {
   engineAt(on, 27, [])
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await complete($)
@@ -181,7 +179,8 @@ test('/meter on its own is three short lines', async ($, on) => {
   const { text } = await runMeter($, '')
   expect(text).toBe(
     [
-      'Context ███░░░░░░░ 27% · 54k of 200k · $1.50',
+      'Context ███░░░░░░░ 27% · 54k of 200k',
+      '5h limit 30%, 2h 10m left',
       'Messages 90k · System prompt 3k',
       'Tokens: in 1k · out 800 · cache 40k read, 3k write (90% cached)',
     ].join('\n'),
@@ -244,28 +243,31 @@ test('hovering the panel reveals its details', async ($, on) => {
   }
 })
 
-test('clicking the meter opens and closes its bubble, on every surface', async ($, on) => {
-  engineAt(on, 27, [])
+test('the link under the prompt opens and closes the side panel, on every surface', async ($, on) => {
+  const opens: string[] = []
+  engineAt(on, 27, [], [], opens)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await complete($)
 
-  for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
-    const band = await $.ui.mount({ ...BAND, props: { ...BAND.props, maxRows: 12 }, surface })
-    expect(await band.find({ type: 'Text', text: /^Last reply: / })).toBeUndefined()
-    await band.press({ key: 'band-details' })
-    expect(await band.find({ type: 'Text', text: /^Last reply: / })).toBeDefined()
-    expect((await band.find({ type: 'Text', text: /^Messages: 90k/ }))?.text).toBe(
-      'Messages: 90k (45% of the window)',
-    )
-    await band.press({ key: 'band-details' })
-    expect(await band.find({ type: 'Text', text: /^Last reply: / })).toBeUndefined()
-    await band.unmount()
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const hint = await $.ui.mount({ ...HINT, surface })
+    expect(await hint.find({ type: 'Text', text: /for shortcuts/ })).toBeDefined()
+    expect(await hint.find({ type: 'Text', text: /details ▸/ })).toBeDefined()
+    await hint.press({ key: 'meter-details' })
+    expect(opens).toHaveLength(1)
+    await hint.unmount()
+
+    const again = await $.ui.mount({ ...HINT, surface })
+    expect(await again.find({ type: 'Text', text: /hide details/ })).toBeDefined()
+    await again.press({ key: 'meter-details' })
+    await again.unmount()
 
     const pane = await $.ui.mount({ ...PANE, surface })
     await pane.press({ key: 'pane-details' })
     expect((await pane.find({ key: 'pane-details' }))?.props.label).toBe('▾ Hide details')
     await pane.press({ key: 'pane-details' })
     await pane.unmount()
+    opens.length = 0
   }
 })
 
@@ -274,7 +276,7 @@ test('the full report names the version', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
   const { text } = await runMeter($)
-  expect(text).toContain('context-meter 0.7.0')
+  expect(text).toContain('context-meter 0.8.0')
 })
 
 test('the panel opens only when asked', async ($, on) => {
@@ -297,7 +299,7 @@ test('/meter debug says what the meter sees', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
   const { text } = await runMeter($, 'debug')
-  expect(text).toContain('context-meter 0.7.0')
+  expect(text).toContain('context-meter 0.8.0')
   expect(text).toContain('Screens attached: desktop')
   expect(text).toContain('Status line set to: Context ███░░░░░░░ 27%')
   expect(text).toContain('Last problem: none')
@@ -329,7 +331,7 @@ test('the status line still shows when the breakdown fails', async ($, on) => {
 
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
-  expect(statuses.at(-1)).toBe('Context █░░░░░░░░░ 10%  ·  $0.25  ·  1 min')
+  expect(statuses.at(-1)).toBe('Context █░░░░░░░░░ 10%')
   const { text } = await runMeter($, 'debug')
   expect(text).toContain('Last problem: breakdown:')
 })
