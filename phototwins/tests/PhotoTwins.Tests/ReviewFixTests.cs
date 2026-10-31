@@ -57,7 +57,7 @@ public class ReviewFixTests
         foreach (var e in result.Removed.Where(x => x.Method == RemoveMethod.Folder))
         {
             Assert.True(File.Exists(e.Destination!));
-            Assert.Contains("nearly full", e.Reason);          // and the reason is kept to tell Pete
+            Assert.Contains("nearly full", e.Reason);          // and the reason is kept to tell the user
         }
         Assert.True(File.Exists(g.Keeper.Path));               // the keeper is never touched
     }

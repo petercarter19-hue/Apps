@@ -11,7 +11,7 @@ public sealed record CloudRoot(string Path, string Service);
 
 /// <summary>
 /// Knows which folders are cloud folders (OneDrive, iCloud, Dropbox, Google Drive...). Removing a photo from one also removes it
-/// online and from Pete's other devices, so he is warned once before it happens.
+/// online and from the user's other devices, so they are warned once before it happens.
 /// </summary>
 public sealed class CloudFolderDetector
 {
@@ -91,7 +91,7 @@ public sealed class CloudFolderDetector
 
 /// <summary>
 /// Knows which folders are shared with other people. A photo in a shared folder always stays, and removing one needs a second
-/// clearly worded confirm. Sharing is read from Windows' own local records (never from the internet), and Pete can also mark
+/// clearly worded confirm. Sharing is read from Windows' own local records (never from the internet), and the user can also mark
 /// any folder as shared himself in case Windows can't see the sharing.
 /// </summary>
 public sealed class SharedFolderDetector
@@ -102,7 +102,7 @@ public sealed class SharedFolderDetector
     private readonly ConcurrentDictionary<string, string?> _cache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <param name="probes">Each looks at one folder and says why it is shared, or null.</param>
-    /// <param name="userMarked">The folders Pete marked as shared in Settings.</param>
+    /// <param name="userMarked">The folders the user marked as shared in Settings.</param>
     public SharedFolderDetector(IEnumerable<Func<string, string?>> probes, Func<IReadOnlyList<string>> userMarked, Action? refreshProbes = null)
     {
         _probes = probes.ToArray();
@@ -134,7 +134,7 @@ public sealed class SharedFolderDetector
 
     public bool IsShared(string filePath) => WhyShared(filePath) != null;
 
-    /// <summary>Forget what was learned (after Pete changes the shared-folder list or sharing changes).</summary>
+    /// <summary>Forget what was learned (after the user changes the shared-folder list or sharing changes).</summary>
     public void ForgetEverything() { _cache.Clear(); _refreshProbes?.Invoke(); }
 
     // ------------------------------------------------------------------ the real probes for this PC

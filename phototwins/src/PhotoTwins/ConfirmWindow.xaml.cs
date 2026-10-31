@@ -4,7 +4,7 @@ namespace PhotoTwins;
 
 public partial class ConfirmWindow : Window
 {
-    /// <summary>What Pete chose. Closing the window any other way counts as Cancel.</summary>
+    /// <summary>What the user chose. Closing the window any other way counts as Cancel.</summary>
     public DialogChoice Choice { get; private set; } = DialogChoice.Cancel;
 
     public ConfirmWindow(ConfirmRequest request)

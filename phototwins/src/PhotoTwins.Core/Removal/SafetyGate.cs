@@ -5,10 +5,10 @@ using PhotoTwins.Core.Sharing;
 
 namespace PhotoTwins.Core.Removal;
 
-/// <summary>The answers Pete gave to the confirmation questions. The gate checks that every question it needs was answered "yes".</summary>
+/// <summary>The answers the user gave to the confirmation questions. The gate checks that every question it needs was answered "yes".</summary>
 public sealed record Confirmations(bool BulkExactCopies = false, bool SharedFolders = false, bool Cloud = false, bool BulkSamePhoto = false);
 
-/// <summary>What a plan will need Pete to confirm before it can go ahead.</summary>
+/// <summary>What a plan will need the user to confirm before it can go ahead.</summary>
 public sealed record PlanNeeds(bool BulkExactCopies, IReadOnlyList<PhotoFile> SharedPhotos, IReadOnlyList<(string Service, int Count)> CloudServices, bool BulkSamePhoto = false);
 
 public sealed record DroppedFile(PhotoFile File, string Why);
@@ -21,7 +21,7 @@ public sealed class GateResult
     /// <summary>Plain-English reason the whole action was refused, if it was.</summary>
     public string? Refusal { get; init; }
     public IReadOnlyList<ApprovedGroup> Groups { get; init; } = Array.Empty<ApprovedGroup>();
-    /// <summary>Photos left out of the action because they changed (or vanished) since the scan. Never silent: listed to Pete.</summary>
+    /// <summary>Photos left out of the action because they changed (or vanished) since the scan. Never silent: listed to the user.</summary>
     public IReadOnlyList<DroppedFile> Dropped { get; init; } = Array.Empty<DroppedFile>();
     /// <summary>The real locations of the picked folders, for the checks made again just before each photo moves.</summary>
     public IReadOnlyList<string> RealRoots { get; init; } = Array.Empty<string>();
@@ -30,10 +30,10 @@ public sealed class GateResult
 }
 
 /// <summary>
-/// The last check before anything is removed, run after Pete confirms so nothing can change in between. It refuses the whole
+/// The last check before anything is removed, run after the user confirms so nothing can change in between. It refuses the whole
 /// action (and says why) if a safety rule would be broken, and quietly-but-visibly leaves out single photos that changed:
 ///   - every group keeps its keeper: the keeper is never in the list, still exists, and is unchanged (exact copies: same contents);
-///   - nothing outside the folders Pete picked (checked on the REAL location, seeing through links and drive-letter shortcuts);
+///   - nothing outside the folders the user picked (checked on the REAL location, seeing through links and drive-letter shortcuts);
 ///   - no photo that is itself a shortcut link;
 ///   - a shared copy always stays when there is one, and removing shared photos needs the second confirm;
 ///   - removing from a cloud folder needs the cloud warning confirmed; removing many exact copies (or many same-photo copies) at once
@@ -53,7 +53,7 @@ public sealed class SafetyGate
     private bool IsShared(DecidedGroup g, PhotoFile f) => g.IsShared(f) || (_shared?.IsShared(f.Path) ?? false);
     private string? CloudOf(DecidedGroup g, PhotoFile f) => g.CloudService(f) ?? _cloud?.ServiceOf(f.Path);
 
-    /// <summary>What the plan needs Pete to confirm (used to decide which questions to ask).</summary>
+    /// <summary>What the plan needs the user to confirm (used to decide which questions to ask).</summary>
     public PlanNeeds Needs(RemovalPlan plan)
     {
         _shared?.ForgetEverything();
@@ -79,7 +79,7 @@ public sealed class SafetyGate
         if (needs.CloudServices.Count > 0 && !confirmed.Cloud)
             return GateResult.Refused("Removing photos from a cloud folder needs your confirmation first, and it wasn't given. Nothing was removed.");
 
-        // The real locations of the folders Pete picked.
+        // The real locations of the folders the user picked.
         var realRoots = new List<string>();
         foreach (var root in plan.PickedRoots)
         {
@@ -208,7 +208,7 @@ public sealed class SafetyGate
 
     private static bool SamePath(PhotoFile a, PhotoFile b) => string.Equals(a.Path, b.Path, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The picked folder (as Pete picked it) that holds this photo: the longest one that contains it.</summary>
+    /// <summary>The picked folder (as the user picked it) that holds this photo: the longest one that contains it.</summary>
     private string PickedRootFor(RemovalPlan plan, string path, string realRoot)
     {
         var textual = plan.PickedRoots.Where(r => ScanPolicy.IsSameOrInside(path, r)).OrderByDescending(r => r.Length).FirstOrDefault();

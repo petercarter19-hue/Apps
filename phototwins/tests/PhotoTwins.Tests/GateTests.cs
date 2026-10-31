@@ -167,7 +167,7 @@ public class GateTests
         using var h = Harness("g-outside");
         h.Identical(8, "a.jpg", "b.jpg");
         var g = h.Scan().Decided.Single();
-        var plan = new RemovalPlan(PlanKind.OneGroup, new[] { Crafted(g, g.Keeper, g.Others.Single()) }, new[] { h.Ws.Outside });   // Pete picked a different folder
+        var plan = new RemovalPlan(PlanKind.OneGroup, new[] { Crafted(g, g.Keeper, g.Others.Single()) }, new[] { h.Ws.Outside });   // The user picked a different folder
 
         var r = h.Run(plan);
 

@@ -7,7 +7,7 @@ namespace PhotoTwins.Core.Sharing;
 /// <summary>
 /// Finds the folders on THIS PC that Google Drive for desktop keeps in sync: the folders it backs up (they appear online under
 /// "Other computers") and a mirrored "My Drive" folder. Deleting a photo from one of them also removes it from Google Drive and
-/// from Pete's other devices, so they get the same one-line warning as OneDrive. (The streamed Google Drive letter is handled
+/// from the user's other devices, so they get the same one-line warning as OneDrive. (The streamed Google Drive letter is handled
 /// separately: it is never scanned at all.) Google keeps its folder list in a small database in the user's own app data; it is
 /// opened read-only and never changed. The database stores each folder by Windows file ID, which is turned back into a path.
 /// </summary>

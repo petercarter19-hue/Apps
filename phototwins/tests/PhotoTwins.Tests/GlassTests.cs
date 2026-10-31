@@ -12,7 +12,7 @@ using PhotoTwins.Tests.Support;
 namespace PhotoTwins.Tests;
 
 /// <summary>
-/// The glossy look (Pete 10-29): a black band fading down to white, glass cards over the fade, rounded glossy buttons with grain and shadows,
+/// The glossy look (the user 10-29): a black band fading down to white, glass cards over the fade, rounded glossy buttons with grain and shadows,
 /// readable everywhere, photos never covered, Windows' plain colors with high contrast. Made-up photos only.
 /// </summary>
 [Collection("WPF")]
@@ -82,7 +82,7 @@ public class GlassTests
             WpfHost.SetTheme(dark);
             var band = Stops("HeroBrush");
             Assert.All(band, c => Assert.True(Lum(c) < 30 && Chroma(c) <= 6 && c.A >= 0xD8 && c.A < 0xFF, $"band {c}"));   // dark glass: nearly black, faintly see-through
-            var page = Stops("PageBrush");                                                            // Pete's pick (10-29): option A with background 1, "smoke"
+            var page = Stops("PageBrush");                                                            // The user's pick (10-29): option A with background 1, "smoke"
             Assert.True(page.Count >= 3);
             Assert.All(page, c => Assert.True(Chroma(c) <= 8 && c.A == 0xFF, $"page {c}"));
             Assert.True(Lum(page[0]) < 40);                                                           // charcoal / near-black at the top ...
@@ -92,7 +92,7 @@ public class GlassTests
             foreach (var key in new[] { "GlassCardBrush", "GlassPhotoCardBrush", "GlassEdgeBrush", "ButtonFaceBrush", "ButtonEdgeBrush", "HeroButtonFaceBrush",
                                         "TabTrackBrush", "TabSelectedBrush", "GlassWindowBrush" })
                 Assert.All(Stops(key), c => Assert.True(Chroma(c) <= 8, $"{key} {c} ({(dark ? "dark" : "light")})"));
-            // the cards are clear glass (Pete 10-30: "The foreground should be glass"): mostly see-through, so the fade shows through them
+            // the cards are clear glass (design note 10-30: "The foreground should be glass"): mostly see-through, so the fade shows through them
             Assert.All(Stops("GlassCardBrush"), c => Assert.InRange(c.A, 0x10, 0x70));
             Assert.All(Stops("GlassPhotoCardBrush"), c => Assert.InRange(c.A, 0x10, 0xA0));
             Assert.All(Stops("GlassSheenBrush"), c => Assert.True(c.R == 0xFF && c.G == 0xFF && c.B == 0xFF && c.A <= 0x80, $"sheen {c}"));
@@ -472,7 +472,7 @@ public class GlassTests
         });
     }
 
-    // ------------------------------------------------------------ the pictures for Pete
+    // ------------------------------------------------------------ the pictures for the user
 
     [Fact]
     public async Task Pictures_the_main_window_in_each_state_and_a_question_light_and_dark_at_100_and_125_percent()

@@ -10,9 +10,9 @@ namespace PhotoTwins;
 
 
 /// <summary>
-/// The glossy look (Pete 10-29: "a black to white transition fade with a glass cards overlay", rounder buttons with texture, depth and
+/// The glossy look (design note 10-29: "a black to white transition fade with a glass cards overlay", rounder buttons with texture, depth and
 /// shadows). The main window has a black band at the top (name, buttons, headline) that fades down to white (to soft graphite in dark mode);
-/// the groups sit on clear glass cards over the fade (Pete 10-30: "The foreground should be glass"): mostly see-through, so the fade
+/// the groups sit on clear glass cards over the fade (design note 10-30: "The foreground should be glass"): mostly see-through, so the fade
 /// shows through them, with a bright rim and a soft shine across the top. Buttons are rounded pills with a glossy face, a fine grain and a soft shadow. Windows
 /// are solid (nothing of the wallpaper shows), so the look is the same on every wallpaper and every Windows. With high contrast on, everything
 /// falls back to Windows' own plain colors and controls. Photos are never covered by anything. The styles live in Theme.xaml; the colors,
@@ -233,7 +233,7 @@ public static class Glass
         if (!dark)
         {
             yield return ("GlassWindowBrush", Down((0, hex(LightDialogTop)), (1, "#FAFAFB")));
-            yield return ("GlassCardBrush", Down((0, "#26FFFFFF"), (1, "#14FFFFFF")));          // clear glass (Pete 10-30: "make it glass. So it's see-through")
+            yield return ("GlassCardBrush", Down((0, "#26FFFFFF"), (1, "#14FFFFFF")));          // clear glass (design note 10-30: "make it glass. So it's see-through")
             yield return ("GlassPhotoCardBrush", Down((0, "#40FFFFFF"), (1, "#2EFFFFFF")));     // a second, barely frostier layer for each photo
             yield return ("GlassEdgeBrush", Down((0, "#FFFFFFFF"), (0.5, "#33000000"), (1, "#40000000")));
             yield return ("GlassSheenBrush", Down((0, "#73FFFFFF"), (0.35, "#00FFFFFF")));

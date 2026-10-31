@@ -32,7 +32,7 @@ internal static class SameData
     public static string Where(string folder) => $"\\{folder}\\";
 }
 
-/// <summary>A question that stays open until the test answers it (to look at the screen while Pete is being asked).</summary>
+/// <summary>A question that stays open until the test answers it (to look at the screen while the user is being asked).</summary>
 internal sealed class HoldingDialogs : IDialogs
 {
     public TaskCompletionSource<DialogChoice> Answer { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -41,7 +41,7 @@ internal sealed class HoldingDialogs : IDialogs
     public void ShowMessage(string title, string message) { }
 }
 
-/// <summary>"Remove all same-photo copies": the button, the question, the removal, Undo, and Pete's whole run from his real computer with made-up photos.</summary>
+/// <summary>"Remove all same-photo copies": the button, the question, the removal, Undo, and the user's whole run from their real computer with made-up photos.</summary>
 [Collection("WPF")]
 public class BulkSamePhotoTests
 {
@@ -86,7 +86,7 @@ public class BulkSamePhotoTests
         using var e = new Step3Env("bs-count");
         SameData.Group(e.Ws, 1, "S0", third: true);                    // 3 photos: 2 extras
         SameData.Group(e.Ws, 2, "S1");                                 // 2 photos: 1 extra
-        SameData.Group(e.Ws, 3, "S2", dated: false);                   // a photo with no date: left for Pete to check by eye
+        SameData.Group(e.Ws, 3, "S2", dated: false);                   // a photo with no date: left for the user to check by eye
         e.Identical(50, "E\\a.jpg", "E\\b.jpg");                       // exact copies belong to the other button
         await e.ScanAsync();
 
@@ -499,7 +499,7 @@ public class BulkSamePhotoTests
         var other = SameIn(e, "S1").Model.Others.Single().Path;
         var keeper = FileSnapshot.Of(family.Model.Keeper.Path);
 
-        // Pete says no to the shared question: nothing at all is removed
+        // The user says no to the shared question: nothing at all is removed
         e.Dialogs.Answer(DialogChoice.Primary, DialogChoice.Cancel);
         await e.RemoveAllSamePhotoAsync();
         Assert.Equal(new[] { "Remove all same-photo copies?", "Photos in a shared folder" }, e.Dialogs.Requests.Select(r => r.Title).ToArray());
@@ -703,7 +703,7 @@ public class BulkSamePhotoTests
         Assert.Equal(text, e.Vm.RemoveAllSamePhotoText);                     // still only the group with dates
     }
 
-    // ------------------------------------------------------------------ Pete's own sequence, end to end
+    // ------------------------------------------------------------------ the user's own sequence, end to end
 
     [Fact]
     public async Task Petes_whole_run_exact_copies_then_same_photo_copies_then_Undo_both_and_scan_again()
@@ -843,7 +843,7 @@ public class BulkSamePhotoTests
         e.Dialogs.Answer(DialogChoice.Cancel);
         await e.RemoveAllSamePhotoAsync();
         ScreenShots.TakeConfirm(e.Dialogs.Requests.Single(), "bulk-same-question");
-        // ... and a big one, the size of Pete's real run, to see the long wording wrap
+        // ... and a big one, the size of the user's real run, to see the long wording wrap
         ScreenShots.TakeConfirm(new ConfirmRequest("Remove all same-photo copies?",
             "Remove 1,008 copies (3.2 GB)? These are the same picture saved in different ways, not identical files. Each group keeps the photo with the star. 37 groups with missing date info are left for you to check one by one.",
             "Remove 1,008 photos", null, "Cancel", DialogChoice.Cancel, WhereTheyGo), "bulk-same-question-big");
@@ -1089,7 +1089,7 @@ public class BulkSamePhotoGateTests
     {
         var (h, s0, s1) = Two("bsg-outside");
         using var _h = h;
-        var plan = new RemovalPlan(PlanKind.AllSamePhoto, new[] { Whole(s0), Whole(s1) }, new[] { h.Ws.Outside });   // Pete picked a different folder
+        var plan = new RemovalPlan(PlanKind.AllSamePhoto, new[] { Whole(s0), Whole(s1) }, new[] { h.Ws.Outside });   // The user picked a different folder
 
         var r = h.Run(plan, Yes);
 

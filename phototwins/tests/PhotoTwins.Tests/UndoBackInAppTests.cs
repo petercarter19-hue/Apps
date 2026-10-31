@@ -144,7 +144,7 @@ public class UndoBackInAppTests
         await e.ScanAsync();
         var g = e.Vm.ExactGroups.Single();
         var chosen = g.Cards.First(c => !c.IsKeeper);
-        WpfHost.Run(() => chosen.MakeKeeperCommand.Execute(null));          // Pete moves the star to another photo
+        WpfHost.Run(() => chosen.MakeKeeperCommand.Execute(null));          // The user moves the star to another photo
         var starPath = g.Model.Keeper.Path;
         Assert.True(g.Model.KeeperChosenByUser);
 
@@ -200,7 +200,7 @@ public class UndoBackInAppTests
         await e.ScanAsync();
         var group = e.Vm.ExactGroups.Single(g => g.Cards.Any(c => c.Name == "a.jpg"));
         await e.RemoveAsync(group);
-        await e.ScanAsync();                                                // Pete scans again: the removed copy is not in this result
+        await e.ScanAsync();                                                // The user scans again: the removed copy is not in this result
         var listBefore = Order(e);
         Assert.Single(listBefore);
 

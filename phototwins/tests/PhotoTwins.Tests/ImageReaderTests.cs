@@ -5,7 +5,7 @@ using PhotoTwins.Tests.Support;
 
 namespace PhotoTwins.Tests;
 
-/// <summary>Can the free image reader and the free photo-info reader handle every type Pete listed?</summary>
+/// <summary>Can the free image reader and the free photo-info reader handle every type the user listed?</summary>
 public class ImageReaderTests
 {
     public static IEnumerable<object[]> Types() => new[]

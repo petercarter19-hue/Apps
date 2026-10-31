@@ -8,7 +8,7 @@ namespace PhotoTwins.Tests;
 
 /// <summary>
 /// Undo into the groups checks the contents and never freezes the window; a picture that failed is tried again on the next scan;
-/// an honest message if the main screen can't be updated after an Undo; and the calm pictures for Pete.
+/// an honest message if the main screen can't be updated after an Undo; and the calm pictures for the user.
 /// </summary>
 [Collection("WPF")]
 public class UndoAndPictureFixTests
@@ -300,7 +300,7 @@ public class UndoAndPictureFixTests
         Assert.Contains("Scan again to see it in the groups", undo.Message);
     }
 
-    // ------------------------------------------------------------------ B: the pictures for Pete (the glossy look), with every kind of group
+    // ------------------------------------------------------------------ B: the pictures for the user (the glossy look), with every kind of group
 
     [Fact]
     public async Task Pictures_for_Pete_main_window_the_Same_tab_with_the_remove_all_bar_and_the_question_at_every_size()

@@ -6,7 +6,7 @@ using PhotoTwins.Tests.Support;
 
 namespace PhotoTwins.Tests;
 
-/// <summary>The folder list Pete sees: starts with Pictures, remembered, every pick checked.</summary>
+/// <summary>The folder list the user sees: starts with Pictures, remembered, every pick checked.</summary>
 public class FolderListTests
 {
     private static (FolderList list, SettingsStore store, AppSettings settings) Make(TestWorkspace ws)

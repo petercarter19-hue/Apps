@@ -61,7 +61,7 @@ public sealed class ScanResult
     /// <summary>Set if the memory of this scan couldn't be saved (disk full, locked). The results themselves are fine.</summary>
     public string? CacheWarning { get; init; }
 
-    /// <summary>Every group with its keeper decided (the star), which photos are in shared and cloud folders, and Pete's earlier picks applied.</summary>
+    /// <summary>Every group with its keeper decided (the star), which photos are in shared and cloud folders, and the user's earlier picks applied.</summary>
     public IReadOnlyList<DecidedGroup> Decided { get; init; } = Array.Empty<DecidedGroup>();
 
     /// <summary>Different photos that look alike (only when switched on in Settings). Never counted as duplicates in the headline.</summary>

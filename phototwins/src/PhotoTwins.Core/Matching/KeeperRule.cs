@@ -80,7 +80,7 @@ public enum GroupKind { Exact, Same, LookAlike }
 
 /// <summary>
 /// A group of duplicates with its keeper decided. This is what the screen shows and what a removal plan is built from.
-/// The keeper can be moved by Pete, but never off the shared copies when there are any.
+/// The keeper can be moved by the user, but never off the shared copies when there are any.
 /// </summary>
 public sealed class DecidedGroup
 {
@@ -106,7 +106,7 @@ public sealed class DecidedGroup
     public IReadOnlyList<PhotoFile> Files => _files;
     public PhotoFile Keeper { get; private set; }
     public bool KeeperChosenByUser { get; private set; }
-    /// <summary>A stable name for this group (made from the contents of its photos), so Pete's choice of keeper survives a rescan.</summary>
+    /// <summary>A stable name for this group (made from the contents of its photos), so the user's choice of keeper survives a rescan.</summary>
     public string Key { get; }
 
     public bool IsShared(PhotoFile f) => _shared.ContainsKey(f.Path);
@@ -203,13 +203,13 @@ public sealed class DecidedGroup
     }
 }
 
-/// <summary>What the scan needs to know to decide keepers: which folders are shared or cloud, and which keepers Pete picked before.</summary>
+/// <summary>What the scan needs to know to decide keepers: which folders are shared or cloud, and which keepers the user picked before.</summary>
 /// <param name="LookAlikes">Returns how strict to be about look-alikes, or null when they are switched off (the default).</param>
 public sealed record DecisionContext(SharedFolderDetector? Shared, CloudFolderDetector? Cloud, Func<IReadOnlyDictionary<string, string>> Picks, Func<Strictness?>? LookAlikes = null);
 
 public static class GroupDecider
 {
-    /// <summary>Gives every group its keeper (the rule above), notes which photos are in shared and cloud folders, and applies Pete's earlier picks.</summary>
+    /// <summary>Gives every group its keeper (the rule above), notes which photos are in shared and cloud folders, and applies the user's earlier picks.</summary>
     public static List<DecidedGroup> Decide(MatchResult matches, SharedFolderDetector? shared, CloudFolderDetector? cloud, IReadOnlyDictionary<string, string>? picks, Action? checkpoint = null)
     {
         var list = new List<DecidedGroup>();
@@ -218,7 +218,7 @@ public static class GroupDecider
         return list;
     }
 
-    /// <summary>Turns groups of look-alike photos into decided groups (with keepers, shared and cloud notes, and Pete's earlier picks).</summary>
+    /// <summary>Turns groups of look-alike photos into decided groups (with keepers, shared and cloud notes, and the user's earlier picks).</summary>
     public static List<DecidedGroup> DecideLookAlikes(IEnumerable<List<PhotoFile>> groups, SharedFolderDetector? shared, CloudFolderDetector? cloud, IReadOnlyDictionary<string, string>? picks, Action? checkpoint = null) =>
         groups.Select(g => Make(GroupKind.LookAlike, g, null, shared, cloud, picks, checkpoint)).ToList();
 

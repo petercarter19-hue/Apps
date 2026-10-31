@@ -3,7 +3,7 @@ using System.Windows.Controls;
 
 namespace PhotoTwins;
 
-/// <summary>The question Pete answers before photos are removed. The button that Enter presses is the safe one when there is a safer choice.</summary>
+/// <summary>The question the user answers before photos are removed. The button that Enter presses is the safe one when there is a safer choice.</summary>
 public partial class ConfirmView : UserControl
 {
     public event Action<DialogChoice>? Chosen;

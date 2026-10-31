@@ -124,7 +124,7 @@ public sealed class ScanPolicy
     public bool IsInsideOtherProfile(string path) => _otherProfiles.Any(p => IsSameOrInside(path, p));
     public bool IsGoogleDriveVolume(string path) => _isGoogleDriveVolume(path);
 
-    /// <summary>Why this folder must not be picked as a scan folder, or null if it's fine. Plain English, shown to Pete.</summary>
+    /// <summary>Why this folder must not be picked as a scan folder, or null if it's fine. Plain English, shown to the user.</summary>
     public string? WhyNotAllowedAsRoot(string path)
     {
         var full = Normalize(path);
@@ -184,7 +184,7 @@ public readonly record struct RootCheck(string Path, string? Problem)
 
 public static class ScanRoots
 {
-    /// <summary>Checks a folder Pete picked. Returns the cleaned-up path, or a plain-English reason it can't be used.</summary>
+    /// <summary>Checks a folder the user picked. Returns the cleaned-up path, or a plain-English reason it can't be used.</summary>
     public static RootCheck Check(string path, IFileSystem fs, ScanPolicy policy)
     {
         if (string.IsNullOrWhiteSpace(path)) return new RootCheck("", "Pick a folder.");

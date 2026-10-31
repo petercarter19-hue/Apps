@@ -7,7 +7,7 @@ using PhotoTwins.Tests.Support;
 namespace PhotoTwins.Tests;
 
 /// <summary>
-/// How long Pete waits for the pictures in the first groups to appear, measured on a folder of 2,000 made-up photos (JPEG and HEIC).
+/// How long the user waits for the pictures in the first groups to appear, measured on a folder of 2,000 made-up photos (JPEG and HEIC).
 /// Not part of the normal run (the folder takes a few minutes to make the first time): set PHOTOTWINS_BENCH=label to run it.
 /// The folder is kept in test-work\bench and reused. Results are written to test-work\bench\result-label.txt.
 /// </summary>

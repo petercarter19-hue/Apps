@@ -9,7 +9,7 @@ public enum PlanKind { OneGroup, AllExactCopies, AllSamePhoto }
 public sealed record PlannedGroup(DecidedGroup Group, PhotoFile Keeper, IReadOnlyList<PhotoFile> Targets);
 
 /// <summary>
-/// What Pete asked to remove. There are only three ways to make one, and nothing else in the app can:
+/// What the user asked to remove. There are only three ways to make one, and nothing else in the app can:
 ///   - <see cref="ForGroup"/>: "Remove the others" on ONE group (exact copies, same photo or look-alikes);
 ///   - <see cref="ForAllExactCopies"/>: every exact-copy group at once, only ever exact copies;
 ///   - <see cref="ForAllSamePhoto"/>: every same-photo group at once, only ever same-photo groups whose photos all have a
@@ -20,7 +20,7 @@ public sealed class RemovalPlan
 {
     public PlanKind Kind { get; }
     public IReadOnlyList<PlannedGroup> Groups { get; }
-    /// <summary>The folders Pete picked. Nothing outside them is ever touched.</summary>
+    /// <summary>The folders the user picked. Nothing outside them is ever touched.</summary>
     public IReadOnlyList<string> PickedRoots { get; }
 
     // internal (not private) only so tests can hand the safety gate a plan the public methods could never make
@@ -48,7 +48,7 @@ public sealed class RemovalPlan
 
     /// <summary>
     /// "Remove all same-photo copies": every same-photo group at once. Refuses (throws) any group that is not a same-photo group, and any
-    /// same-photo group where some photo has no date taken: nothing can tell those apart from burst shots, so Pete checks them one at a time.
+    /// same-photo group where some photo has no date taken: nothing can tell those apart from burst shots, so the user checks them one at a time.
     /// </summary>
     public static RemovalPlan ForAllSamePhoto(IEnumerable<DecidedGroup> groups, IReadOnlyList<string> pickedRoots)
     {

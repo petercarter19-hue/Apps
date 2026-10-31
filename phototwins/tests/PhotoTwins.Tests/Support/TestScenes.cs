@@ -16,7 +16,7 @@ public sealed record Meta(
 
 /// <summary>
 /// Makes made-up "photos": a seeded scene (sky gradient, soft clouds, a few shapes, a little noise) and every kind of copy
-/// of it Pete's computer could hold: resized, re-saved, other type, chat-app version, rotated, burst neighbour, friend's shot.
+/// of it the user's computer could hold: resized, re-saved, other type, chat-app version, rotated, burst neighbour, friend's shot.
 /// Same seed = same scene, every run. Nothing here reads any real photo.
 /// </summary>
 public static class TestScenes

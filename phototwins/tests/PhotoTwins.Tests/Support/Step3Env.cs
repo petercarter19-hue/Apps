@@ -4,7 +4,7 @@ using PhotoTwins.Core.Sharing;
 
 namespace PhotoTwins.Tests.Support;
 
-/// <summary>A scripted stand-in for the questions Pete is asked: records exactly what was asked, and answers as the test says.</summary>
+/// <summary>A scripted stand-in for the questions the user is asked: records exactly what was asked, and answers as the test says.</summary>
 public sealed class FakeDialogs : IDialogs
 {
     private readonly Queue<DialogChoice> _answers = new();

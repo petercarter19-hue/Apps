@@ -4,7 +4,7 @@ namespace PhotoTwins;
 
 public enum DialogChoice { Primary, Secondary, Cancel }
 
-/// <summary>A question for Pete before something is removed.</summary>
+/// <summary>A question for the user before something is removed.</summary>
 public sealed record ConfirmRequest(
     string Title,
     string Message,
@@ -15,7 +15,7 @@ public sealed record ConfirmRequest(
     DialogChoice Default,
     string? Detail = null);
 
-/// <summary>How the app asks Pete things. The real one opens a window; tests supply a scripted one that records exactly what was asked.</summary>
+/// <summary>How the app asks the user things. The real one opens a window; tests supply a scripted one that records exactly what was asked.</summary>
 public interface IDialogs
 {
     Task<DialogChoice> ConfirmAsync(ConfirmRequest request);

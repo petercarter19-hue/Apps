@@ -6,17 +6,17 @@ namespace PhotoTwins.Core.Settings;
 public sealed class AppSettings
 {
     public int Version { get; set; } = 1;
-    /// <summary>The folders Pete picked to scan, remembered between runs.</summary>
+    /// <summary>The folders the user picked to scan, remembered between runs.</summary>
     public List<string> Folders { get; set; } = new();
     /// <summary>True once the starting folder (Pictures) has been offered, so removing it later sticks.</summary>
     public bool FoldersInitialized { get; set; }
-    /// <summary>Folders Pete marked as shared with other people (in case Windows can't see the sharing itself).</summary>
+    /// <summary>Folders the user marked as shared with other people (in case Windows can't see the sharing itself).</summary>
     public List<string> SharedFolders { get; set; } = new();
-    /// <summary>Look-alikes (different photos that look alike, like burst shots) are off until Pete turns them on.</summary>
+    /// <summary>Look-alikes (different photos that look alike, like burst shots) are off until the user turns them on.</summary>
     public bool LookAlikesOn { get; set; }
     /// <summary>"Strict", "Normal" or "Loose".</summary>
     public string LookAlikeStrictness { get; set; } = "Normal";
-    /// <summary>Keeper choices Pete made: group name (made from the photos' contents) to the path of the photo he starred.</summary>
+    /// <summary>Keeper choices the user made: group name (made from the photos' contents) to the path of the photo they starred.</summary>
     public Dictionary<string, string> KeeperPicks { get; set; } = new();
 }
 

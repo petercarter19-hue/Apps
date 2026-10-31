@@ -159,7 +159,7 @@ public class KeeperTests
         Assert.Equal(sharedBigger.Path, KeeperRule.Rank(new[] { bigOriginal, tinySharedCopy, sharedBigger }, Shared)[0].Path);   // among shared: the rule applies as usual
     }
 
-    // ---------- on real scans: what Pete will see
+    // ---------- on real scans: what the user will see
 
     [Fact]
     public void In_the_step_2_birthday_group_the_original_JPG_gets_the_star_not_the_bigger_PNG()
@@ -194,7 +194,7 @@ public class KeeperTests
         var again = h.Scan().Decided.Single();
 
         Assert.Equal(g.Key, again.Key);                    // the group keeps its name
-        Assert.Equal(other.Path, again.Keeper.Path);       // and Pete's pick
+        Assert.Equal(other.Path, again.Keeper.Path);       // and the user's pick
         Assert.True(again.KeeperChosenByUser);
 
         // a pick that no longer exists falls back to the rule

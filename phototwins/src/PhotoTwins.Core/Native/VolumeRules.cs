@@ -142,7 +142,7 @@ public class VolumeRules
 
 /// <summary>
 /// Keeps a running total for ONE removal action, drive by drive: how full each drive's Recycle Bin is, plus everything this
-/// action has already put in it. Windows permanently deletes the OLDEST items in a bin that overflows, which could be Pete's other
+/// action has already put in it. Windows permanently deletes the OLDEST items in a bin that overflows, which could be the user's other
 /// deleted files or photos removed earlier, so a photo that would tip the bin over goes to the "Duplicates to delete" folder instead.
 /// </summary>
 public sealed class BinLedger

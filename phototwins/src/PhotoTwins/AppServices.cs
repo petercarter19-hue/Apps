@@ -87,7 +87,7 @@ public sealed class AppServices : IDisposable
         return notes;
     }
 
-    /// <summary>Remembers the keeper Pete chose for a group, so it survives a rescan.</summary>
+    /// <summary>Remembers the keeper the user chose for a group, so it survives a rescan.</summary>
     public void RememberKeeper(string groupKey, string path)
     {
         Settings.KeeperPicks[groupKey] = path;

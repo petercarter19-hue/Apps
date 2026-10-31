@@ -380,14 +380,14 @@ public class RemovalTests
         var holding = Path.Combine(h.Ws.Pictures, "Duplicates to delete");
         var beachHolding = Path.Combine(holding, "Trips", "Beach");
         var tripsHolding = Path.Combine(holding, "Trips");
-        // something else of Pete's sits in the holding folder next to them: it must survive, and so must its folder
+        // something else of the user's sits in the holding folder next to them: it must survive, and so must its folder
         File.WriteAllText(Path.Combine(holding, "Trips", "keep-me.txt"), "mine");
         var inBeach = result.Removed.Where(e => e.Destination!.StartsWith(beachHolding, StringComparison.OrdinalIgnoreCase)).ToList();
 
         foreach (var e in result.Removed) Assert.True(h.Mutations.PutBack(e).Ok);
 
         Assert.False(Directory.Exists(beachHolding) && !Directory.EnumerateFileSystemEntries(beachHolding).Any());   // the emptied sub-folder is gone
-        Assert.True(Directory.Exists(tripsHolding));            // it still holds Pete's file
+        Assert.True(Directory.Exists(tripsHolding));            // it still holds the user's file
         Assert.True(File.Exists(Path.Combine(tripsHolding, "keep-me.txt")));
         Assert.True(Directory.Exists(holding));                 // the holding folder itself is never removed
         Assert.NotEmpty(inBeach);

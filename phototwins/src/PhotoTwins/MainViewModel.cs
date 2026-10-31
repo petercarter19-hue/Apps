@@ -278,7 +278,7 @@ public sealed class MainViewModel : ObservableObject, IRestoreTarget
     public IReadOnlyList<GroupVm> LookAlikeGroups { get => _lookAlikeGroups; private set { Set(ref _lookAlikeGroups, value); Raise(nameof(LookAlikeTabHeader)); Raise(nameof(LookAlikeEmptyVisibility)); } }
     public string LookAlikeTabHeader => $"Look-alikes ({_lookAlikeGroups.Count:N0})";
     public Visibility LookAlikeEmptyVisibility => _lookAlikeGroups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>The Look-alikes tab only exists when Pete has switched look-alikes on in Settings.</summary>
+    /// <summary>The Look-alikes tab only exists when the user has switched look-alikes on in Settings.</summary>
     public Visibility LookAlikeTabVisibility => _s.Folders.LookAlikesOn ? Visibility.Visible : Visibility.Collapsed;
     public string ExactTabHeader => $"Exact copies ({_exactGroups.Count:N0})";
     public string SameTabHeader => $"Same photo ({_sameGroups.Count:N0})";
@@ -554,7 +554,7 @@ public sealed class MainViewModel : ObservableObject, IRestoreTarget
         await RunPlanAsync(RemovalPlan.ForAllExactCopies(groups, Roots));
     }
 
-    /// <summary>The button on the Same photo tab. Groups with a missing date are left out and named in the question; Pete removes those one by one.</summary>
+    /// <summary>The button on the Same photo tab. Groups with a missing date are left out and named in the question; the user removes those one by one.</summary>
     public async Task RemoveAllSamePhotoAsync()
     {
         if (!CanChangeThings) return;

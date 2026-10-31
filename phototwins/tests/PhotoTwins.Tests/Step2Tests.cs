@@ -16,7 +16,7 @@ public class Step2Tests
 {
     private static readonly Meta Mine = new("2026:10:12 14:03:09", "07", "Apple", "iPhone 15 Pro", Gps: true);
 
-    /// <summary>Pete's phone photo in every shape it might turn up in, plus look-alikes that must not be grouped with it.</summary>
+    /// <summary>The user's phone photo in every shape it might turn up in, plus look-alikes that must not be grouped with it.</summary>
     internal static void MakeBirthdayPhotos(TestWorkspace ws)
     {
         using var cake = TestScenes.Scene(1);

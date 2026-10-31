@@ -6,7 +6,7 @@ namespace PhotoTwins.Core.Settings;
 
 public sealed record FolderStatus(string Path, string? Problem, string? SharedReason = null);
 
-/// <summary>The list of folders Pete scans: starts with Pictures, remembered between runs, every pick checked against the folder rules.</summary>
+/// <summary>The list of folders the user scans: starts with Pictures, remembered between runs, every pick checked against the folder rules.</summary>
 public sealed class FolderList
 {
     private readonly AppSettings _settings;
@@ -21,10 +21,10 @@ public sealed class FolderList
 
     public IReadOnlyList<string> Folders => _settings.Folders;
 
-    /// <summary>Set by the app so the list can say which folders Windows (or Pete) says are shared.</summary>
+    /// <summary>Set by the app so the list can say which folders Windows (or the user) says are shared.</summary>
     public SharedFolderDetector? SharedDetector { get; set; }
 
-    /// <summary>Folders Pete marked as shared with other people (in case Windows can't see the sharing).</summary>
+    /// <summary>Folders the user marked as shared with other people (in case Windows can't see the sharing).</summary>
     public IReadOnlyList<string> SharedFolders => _settings.SharedFolders;
 
     public bool LookAlikesOn => _settings.LookAlikesOn;
@@ -64,7 +64,7 @@ public sealed class FolderList
         return _store.SaveProblem;
     }
 
-    /// <summary>First run only: offer Windows' Pictures folder (if it's allowed). After that Pete's list is his own, even if empty.</summary>
+    /// <summary>First run only: offer Windows' Pictures folder (if it's allowed). After that the user's list is their own, even if empty.</summary>
     public void EnsureDefaults(string picturesFolder)
     {
         if (_settings.FoldersInitialized) return;

@@ -15,7 +15,7 @@ public sealed record MutationResult(bool Ok, JournalEntry Entry, string? Problem
 /// THE one place that changes photos on disk. Everything else in the app only reads. Nothing here can permanently delete a photo:
 ///   - a photo goes to the Recycle Bin when the drive has one, with a guard that cancels any delete Windows would make permanent;
 ///   - otherwise it is MOVED (a same-drive rename, never copy-then-delete) into a "Duplicates to delete" folder inside the
-///     folder Pete picked;
+///     folder the user picked;
 ///   - every step is written to the undo journal BEFORE it happens, so it can be put back, and recovered if the PC stops midway;
 ///   - the photo to keep is never touched.
 /// </summary>
@@ -269,7 +269,7 @@ public sealed class FileMutations
         return new MutationResult(false, failed, why);
     }
 
-    /// <summary>"Duplicates to delete" goes INSIDE the picked folder, keeping the photo's sub-folders, so nothing leaves the folders Pete picked.</summary>
+    /// <summary>"Duplicates to delete" goes INSIDE the picked folder, keeping the photo's sub-folders, so nothing leaves the folders the user picked.</summary>
     public static string HoldingPath(string pickedRoot, string photoPath)
     {
         var root = ScanPolicy.Normalize(pickedRoot);
@@ -416,7 +416,7 @@ public sealed class FileMutations
 
     /// <summary>
     /// If the app or the PC stopped in the middle of a removal, some journal entries are still "starting". Work out what really
-    /// happened to each photo and fix the record, before anything else happens. Returns a plain note for each thing worth telling Pete.
+    /// happened to each photo and fix the record, before anything else happens. Returns a plain note for each thing worth telling the user.
     /// </summary>
     public List<string> Reconcile()
     {

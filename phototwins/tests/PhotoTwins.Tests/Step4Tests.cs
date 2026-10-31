@@ -140,7 +140,7 @@ public class Step4Tests
         {
             var w = new FoldersWindow(e.S.Folders);
             var initial = (on: w.LookAlikesCheck.IsChecked == true, normal: w.StrictNormal.IsChecked == true, enabled: w.StrictnessPanel.IsEnabled);
-            w.LookAlikesCheck.IsChecked = true;                       // Pete ticks "Also look for look-alikes"
+            w.LookAlikesCheck.IsChecked = true;                       // The user ticks "Also look for look-alikes"
             var enabledAfter = w.StrictnessPanel.IsEnabled;
             w.StrictLoose.IsChecked = true;                            // and picks Loose
             return (initial, enabledAfter, w.Changed, w.MessageText.Text);

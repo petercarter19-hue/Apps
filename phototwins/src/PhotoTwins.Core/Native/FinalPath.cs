@@ -6,7 +6,7 @@ namespace PhotoTwins.Core.Native;
 
 /// <summary>
 /// The real place a path leads to, with shortcut links, substituted drive letters and mapped drives all seen through.
-/// Used to prove a photo really is inside a folder Pete picked before anything is done to it.
+/// Used to prove a photo really is inside a folder the user picked before anything is done to it.
 /// </summary>
 public static class FinalPath
 {
