@@ -65,7 +65,7 @@ def search_roots():
 
 def _set_thread_dpi_aware():
     """Make THIS THREAD DPI-aware so window sizes come back in real pixels. Thread-only on purpose: setting it for the
-    whole process would change how VoiceTool's own pill and cards are drawn."""
+    whole process would change how VoiceTool's own light and cards are drawn."""
     try:
         return ctypes.windll.user32.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))  # per-monitor v2
     except Exception:

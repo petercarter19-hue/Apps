@@ -12,8 +12,8 @@ sent anywhere.
   Ctrl+click, Ctrl+scroll): only Ctrl on its own, held or double-tapped, is a command.
 - **Shift + tap Left Ctrl** with a misheard word selected: type what it should be. VoiceTool fixes it and
   remembers.
-- A small light at the bottom of the screen shows when it is listening. Soft beeps: higher means listening, a double
-  beep means hands-free is on, lower means done.
+- A small glass microphone at the bottom of the screen glows green while it is listening (blue for a command). Soft
+  beeps: higher means listening, a double beep means hands-free is on, lower means done.
 
 The first start takes about 10 seconds. VoiceTool beeps twice when it is ready. Open the VoiceTool window from the
 Start menu or the microphone icon by the clock (it may be under the ^ arrow).

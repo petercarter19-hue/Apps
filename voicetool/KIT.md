@@ -33,7 +33,7 @@ Hold a key, talk, and your words appear wherever your cursor is: in email, docum
 
 <p align="center"><img src="docs/kit/home.jpg" alt="The app window's Home page: the on switch, the four ways to use it, today's numbers and the most recent dictation" width="640"><br><sub>What you'll have: your own app window, with your history, your words and a switch for every feature.</sub></p>
 
-<p align="center"><img src="docs/kit/light-listening.png" alt="A small dark pill that says Listening" width="312"><br><sub>And a small light at the bottom of the screen whenever it's listening.</sub></p>
+<p align="center"><img src="docs/kit/light-listening.png" alt="A small glass microphone with a green glow" width="240"><br><sub>And a small microphone at the bottom of the screen that glows green while it's listening.</sub></p>
 
 Building it takes an afternoon of mostly waiting. You'll send about a dozen short messages, or four if you let the AI build it all in one go.
 
@@ -111,7 +111,7 @@ TIDYING MY WORDS
 
 BUILD ORDER (all of it by the end)
 1. Dictation.
-2. A small "Listening" light that never takes focus from my app, soft and quiet sounds (not loud beeps), and it starts when I sign in. If it can't hear me or something breaks, it tells me and fixes itself; it never fails silently.
+2. A small microphone light at the bottom of the screen that glows green while I talk (the glow grows with my voice) and never takes focus from my app, soft and quiet sounds (not loud beeps), and it starts when I sign in. If it can't hear me or something breaks, it tells me and fixes itself; it never fails silently.
 3. Command key: rewrite selected text ("make this friendlier"), write at my cursor, answer questions, fix a misheard word ("that should be…").
 4. Learning: a word list and fixes it remembers, which I can edit in the app.
 5. The app: an icon by the clock, a Start menu entry, and a simple, good-looking window with Home, History, Words & fixes, Settings (an on/off switch and one-line explanation for every feature, showing each key) and Usage.
@@ -140,19 +140,19 @@ After each step, try it with your real voice. If it works, just say **"Works. Ne
 
 In Notepad, hold your talk key: "Testing one two three." Let go. Then double-tap, talk for 20 seconds, tap to stop. Check Alt+Tab still works.
 
-<p align="center"><img src="docs/kit/light-listening.png" alt="The light says Listening" width="312"><br><sub>While you hold the key, the light says "Listening".</sub></p>
+<p align="center"><img src="docs/kit/light-listening.png" alt="The microphone glowing green" width="240"><br><sub>While you hold the key, the microphone glows green, brighter as you talk.</sub></p>
 
 ### Step 2 · Light and start-up
 
-Dictate into an email. The light shows "Listening", then "Writing…", and the text lands in the email.
+Dictate into an email. The microphone glows green, then an amber light runs round it while it writes, and the text lands in the email.
 
-<p align="center"><img src="docs/kit/light-writing.png" alt="The light says Writing" width="312"><br><sub>When you let go, it says "Writing…" until the words land.</sub></p>
+<p align="center"><img src="docs/kit/light-writing.png" alt="An amber light running round the microphone" width="240"><br><sub>When you let go, an amber light runs round it until the words land.</sub></p>
 
 ### Step 3 · Command key
 
 Select a blunt sentence and say "make this friendlier". In an empty email, say "write a thank-you note to Sam for the help yesterday".
 
-<p align="center"><img src="docs/kit/light-command.png" alt="The Command key's purple light" width="312"><br><sub>The Command key's light is purple, so you know which key is listening.</sub></p>
+<p align="center"><img src="docs/kit/light-command.png" alt="The microphone glowing blue for the Command key" width="240"><br><sub>For the Command key it glows blue, so you know which key is listening.</sub></p>
 
 ### Step 4 · Learning
 
@@ -204,7 +204,7 @@ Once it works, change anything by asking for it. Some starting points:
 
 Always tell the AI what you did and what happened, and ask it to read the log. It fixes most things in one message.
 
-<p align="center"><img src="docs/kit/light-didnt-catch.png" alt="The light says Didn't catch that" width="312"><br><sub>If it didn't hear you, the light says so for a moment instead of failing silently.</sub></p>
+<p align="center"><img src="docs/kit/light-didnt-catch.png" alt="The microphone gray with a gray ring" width="240"><br><sub>If it didn't hear you, the microphone turns gray for a moment instead of failing silently.</sub></p>
 
 | What happens | Say to the AI |
 |---|---|

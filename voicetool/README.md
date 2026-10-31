@@ -64,7 +64,7 @@ VoiceTool goes into `%LOCALAPPDATA%\VoiceTool` (or `C:\VoiceTool` if your Window
 - **Fix a word:** select a word it misheard, then **Shift + tap Left Ctrl** and type what it should be. VoiceTool fixes it and remembers. Your learned fixes and the names it must spell exactly are on the **Words & fixes** page.
 - **Meeting notes** are off until you turn them on in Settings. Each time, it asks you to make sure everyone on the call agrees to be recorded, then writes a Word document with a summary, decisions and action items. The other people's audio is deleted as soon as the notes are written.
 - **Read aloud:** select text and say "read this to me". It uses Windows' own voices. Esc stops it.
-- A small light at the bottom of the screen shows when it's listening. Soft beeps: higher means listening, a double beep means hands-free is on, lower means done.
+- A small glass microphone at the bottom of the screen glows green while it's listening (blue for a command; an amber light runs round it while it writes). Soft beeps: higher means listening, a double beep means hands-free is on, lower means done.
 - **The window** (Start menu, or the microphone icon by the clock) has Home, History, Words & fixes, My style, Styles & apps, Commands, Meetings and Settings, with an on/off switch and a one-line explanation for every feature.
 - **Off until you turn them on:** meeting notes, spoken answers, saving recordings, and email and calendar drafts. Email and calendar drafts need an AI coding app on your PC that is signed in and connected to your mail ([AGENTS.md](AGENTS.md) says which); they only ever make drafts, and you press Send.
 - **Not in this version:** transcribing YouTube or podcast links (the kit shows how to build it into yours).

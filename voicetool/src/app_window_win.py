@@ -1,9 +1,9 @@
 """The VoiceTool app window on Windows: ui/index.html (the same page the Mac shows) in Edge WebView2, through pywebview.
 
 Why a second process: pywebview wants the main thread, and VoiceTool's main thread already belongs to the tkinter loop
-that draws the pill and cards. So the window runs in its own small process, started by the tool:
+that draws the light and cards. So the window runs in its own small process, started by the tool:
 
-    VoiceTool (keys, tray, pill, ui_api.API)  <-- JSON lines over the child's stdin/stdout -->  this file, --child
+    VoiceTool (keys, tray, light, ui_api.API)  <-- JSON lines over the child's stdin/stdout -->  this file, --child
 
 The channel is the child's own stdin/stdout pipes. No port is opened, no named pipe or file is shared, and only the
 two processes at either end of those pipes can use it, so nothing else on this PC or network can reach VoiceTool's

@@ -28,6 +28,7 @@ import actions_windows as aw
 import commands
 import corrections
 import local_cleanup_win
+import mic_light
 import meetings
 import meetings_windows
 import read_aloud
@@ -3768,6 +3769,134 @@ def test_light_error_flash_goes_away_by_itself_and_meeting_states_exist():
     assert {"listening", "handsfree", "working", "error", "command", "command_handsfree", "thinking", "claude", "meeting", "meeting_notes"} <= set(vt.Light.LOOKS)
 
 
+# ---------- the light (the glass microphone): every state, placed bottom-centre, glowing with the voice ----------
+
+WORK = (0, 0, 1920, 1040)  # the main monitor's work area (above a 40-pixel taskbar)
+
+
+class FakeMicWindow:
+    """Stands in for mic_light.MicWindow: remembers each picture (size, x, y) instead of showing it."""
+    def __init__(self):
+        self.paints, self.frames, self.visible, self.hides = [], [], False, 0
+
+    def paint(self, image, x, y, now=0.0):
+        self.paints.append((image.size, x, y))
+        self.frames.append(image)
+        self.visible = True
+
+    def hide(self):
+        if self.visible:
+            self.hides += 1
+        self.visible = False
+
+
+def make_light(monkeypatch):
+    light = vt.Light.__new__(vt.Light)
+    light.root, light.window, light.painter = object(), FakeMicWindow(), mic_light.MicPainter()
+    light.state, light.shown, light.level, light.error_until = None, None, 0.0, 0.0
+    light.claude_busy, light.meeting = 0, None
+    light._placed, light._glow, light._painted = None, 0.0, None
+    monkeypatch.setattr(vt.Light, "_monitor", staticmethod(lambda: (WORK, 96)))
+    return light
+
+
+def coloured(frame, rgb, tolerance=40):
+    """How many clearly visible pixels of the frame are near this colour."""
+    a = np.asarray(frame, np.int32)
+    near = (np.abs(a[..., :3] - np.array(rgb)).sum(axis=2) < tolerance) & (a[..., 3] > 60)
+    return int(near.sum())
+
+
+def test_light_draws_every_state_bottom_centre_and_hides_again(monkeypatch):
+    side, x, y = mic_light.geometry(WORK, 96)
+    assert (side, x, y) == (96, 912, 944)  # the circle's centre is where the old pill's was: (960, 992)
+    for state in vt.Light.LOOKS:
+        light = make_light(monkeypatch)
+        if state == "error":
+            light.set("error")
+        elif state == "claude":
+            light.claude_busy = 1
+        elif state in ("meeting", "meeting_notes"):
+            light.meeting = state
+        else:
+            light.set(state)
+        light.draw()
+        assert light.shown == state and light.window.paints == [((96, 96), 912, 944)], state
+        light.set(None)
+        light.error_until, light.claude_busy, light.meeting = 0.0, 0, None
+        light.draw()
+        assert light.shown is None and not light.window.visible and light.window.hides == 1, state
+
+
+def test_light_hidden_draws_nothing_show_light_off_or_no_window_keeps_it_off(monkeypatch):
+    light = make_light(monkeypatch)
+    light.draw()
+    assert light.window.paints == [] and light.shown is None
+    light.set("listening")
+    monkeypatch.setitem(vt.CONFIG, "show_light", False)
+    light.draw()
+    assert light.window.paints == [] and light.shown is None
+    monkeypatch.setitem(vt.CONFIG, "show_light", True)
+    light.window = None  # (the window could not be made: VoiceTool carries on without it)
+    light.draw()
+    assert light.shown is None
+
+
+def test_light_is_painted_only_when_something_on_it_changes(monkeypatch):
+    light = make_light(monkeypatch)
+    light.set("listening")
+    light.draw()
+    light.draw()
+    light.draw()
+    assert len(light.window.paints) == 1
+
+
+def test_the_glow_is_green_and_grows_with_the_voice_then_fades_softly(monkeypatch):
+    light = make_light(monkeypatch)
+    light.set("listening")
+    light.draw()
+    quiet = light.window.frames[-1]
+    light.level = 0.2  # loud (the recorder's level times 12 is a full glow)
+    light.draw()
+    loud = light.window.frames[-1]
+    assert light._glow == 1.0
+    assert np.asarray(loud)[..., 3].sum() > np.asarray(quiet)[..., 3].sum() * 1.5  # a bigger, brighter glow
+    green = mic_light.hex_rgb(mic_light.GREEN)
+    assert coloured(loud, green) > coloured(quiet, green) > 0
+    light.level = 0.0
+    light.draw()
+    assert 0.5 < light._glow < 1.0  # falls back gently, not at once
+    corners = np.asarray(loud)[[0, 0, -1, -1], [0, -1, 0, -1], 3]
+    assert (corners == 0).all()  # the square's corners are see-through: no box round the light
+
+
+def test_each_kind_of_moment_has_its_own_colour_and_hands_free_its_badge():
+    p = mic_light.MicPainter()
+    green, blue, amber = (mic_light.hex_rgb(c) for c in (mic_light.GREEN, mic_light.BLUE, mic_light.AMBER))
+    talk, ask, write = p.frame("listening", 96, 0.6), p.frame("command", 96, 0.6), p.frame("working", 96, 0.0, t=0.3)
+    assert coloured(talk, green) > 50 and coloured(talk, blue) == 0
+    assert coloured(ask, blue) > 50 and coloured(ask, green) == 0
+    assert coloured(write, amber) > 10 and coloured(write, green) == 0
+    assert not np.array_equal(np.asarray(write), np.asarray(p.frame("working", 96, 0.0, t=0.6)))  # the light runs round
+    locked = np.asarray(p.frame("handsfree", 96, 0.6))
+    assert (np.asarray(talk)[..., 3] != locked[..., 3]).any()  # the lock badge
+    for state in vt.Light.LOOKS:
+        for dpi in (96, 120, 144):
+            assert p.frame(state, dpi, 0.5, t=1.0).size == (mic_light.scaled(96, dpi),) * 2
+
+
+def test_the_light_window_never_takes_focus_and_lets_clicks_through():
+    for flag in (0x00080000, 0x00000020, 0x08000000, 0x00000080, 0x00000008):  # layered, click-through, no focus, no taskbar, on top
+        assert mic_light.EX_STYLE & flag
+    assert mic_light.HTTRANSPARENT == -1 and mic_light.MA_NOACTIVATE == 3
+
+
+def test_the_light_has_no_text_and_the_old_pill_is_gone():
+    assert not hasattr(vt.Light, "KEY") and not hasattr(vt.Light, "W")
+    for name in ("voicetool.py", "ui_api.py", "README.md"):
+        assert "pill" not in (HERE / name).read_text(encoding="utf-8").lower(), name
+
+
 def test_corrections_module_is_the_pcs_and_preloaded_fix_works():
     assert corrections.add("Zeph Ear", "Zephyr", "test")
     assert corrections.apply("Open zeph  ear today") == "Open Zephyr today"
@@ -4032,7 +4161,7 @@ def test_no_garbled_characters_in_the_code_sam_sees():
            if "â€" in line or "Â·" in line or "Ã©" in line]
     bad = [b for b in bad if not b.startswith(Path(__file__).name)]  # (this test names them)
     assert bad == []
-    assert '"Writing…"' in (HERE / "voicetool.py").read_text(encoding="utf-8")
+    assert "Drafting the follow-up email…" in (HERE / "voicetool.py").read_text(encoding="utf-8")
 
 
 def test_the_tool_never_touches_the_real_folder(isolated):

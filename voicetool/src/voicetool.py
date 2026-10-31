@@ -40,6 +40,7 @@ from pynput import keyboard
 import commands
 import corrections
 import local_cleanup_win
+import mic_light
 import settings_window
 import styles
 import usage
@@ -529,21 +530,13 @@ def paste(text):
 # ---------- the recording light ----------
 
 class Light:
-    """A small pill at the bottom of the screen. It never takes focus and clicks pass straight through it."""
-    W, H = 280, 40
-    KEY = "#010203"  # drawn in this colour = see-through
-    LOOKS = {  # state: (dot colour, text)
-        "listening": ("#ff4d4f", "Listening"),
-        "handsfree": ("#ff4d4f", "Hands-free · tap to stop"),
-        "working": ("#f5b700", "Writing…"),
-        "error": ("#9aa0a6", "Didn't catch that"),
-        "command": ("#2bbfae", "Command · listening"),
-        "command_handsfree": ("#2bbfae", "Command hands-free · tap to stop"),
-        "thinking": ("#2bbfae", "Thinking…"),
-        "claude": ("#d97757", "Claude is working…"),
-        "meeting": ("#ff4d4f", "Taking meeting notes"),
-        "meeting_notes": ("#f5b700", "Writing meeting notes…"),
-    }
+    """The recording light: a small glass microphone at the bottom middle of the screen whose glow breathes with your voice
+    (mic_light draws it). It never takes focus and clicks pass straight through it. The Tk root it is given stays an
+    invisible host for VoiceTool's other small windows and its loop."""
+    LOOKS = mic_light.LOOKS  # state: (colour, name, motion)
+    RECORDING = ("listening", "handsfree", "command", "command_handsfree")  # the states where the glow follows your voice
+    VOICE_GAIN = 12.0  # the recorder's loudness times this is a full glow
+    FALL = 0.82  # how much of the glow is kept each frame (30 a second) when your voice drops: rises at once, fades softly
 
     def __init__(self, root, previous=None):
         import win32gui
@@ -551,28 +544,22 @@ class Light:
         self.error_until = 0.0
         self.claude_busy = 0  # Claude jobs running in the background; shown whenever nothing else is
         self.meeting = None  # "meeting" while taking notes, "meeting_notes" while writing them up
+        self._placed = None  # (side, x, y, dpi) it was last placed at
+        self._glow, self._painted = 0.0, None
         root.overrideredirect(True)
-        root.attributes("-topmost", True)
         root.attributes("-alpha", 0.0)
-        root.config(bg=self.KEY)
-        root.attributes("-transparentcolor", self.KEY)
-        work = win32api.GetMonitorInfo(win32api.MonitorFromPoint((0, 0)))["Work"]
-        x = (work[0] + work[2]) // 2 - self.W // 2
-        y = work[3] - self.H - 28
-        root.geometry(f"{self.W}x{self.H}+{x}+{y}")
-        self.canvas = tk.Canvas(root, width=self.W, height=self.H, bg=self.KEY, highlightthickness=0)
-        self.canvas.pack()
-        r, w, h = self.H // 2, self.W, self.H
-        self.canvas.create_oval(0, 0, 2 * r, h, fill="#1f1f23", outline="")
-        self.canvas.create_oval(w - 2 * r, 0, w, h, fill="#1f1f23", outline="")
-        self.canvas.create_rectangle(r, 0, w - r, h, fill="#1f1f23", outline="")
-        self.dot = self.canvas.create_oval(0, 0, 0, 0, fill="#ff4d4f", outline="")
-        self.text = self.canvas.create_text(46, h // 2, anchor="w", fill="#f2f2f2", font=("Segoe UI", 10))
+        root.geometry("1x1+0+0")
         root.update()
         hwnd = win32gui.GetParent(root.winfo_id()) or root.winfo_id()
         style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
         win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style | win32con.WS_EX_NOACTIVATE
                                | win32con.WS_EX_TOOLWINDOW | win32con.WS_EX_TRANSPARENT | win32con.WS_EX_LAYERED)
+        self.painter = mic_light.MicPainter()
+        try:
+            self.window = mic_light.MicWindow()
+        except Exception:  # (never stop dictation over the light)
+            log.exception("could not make the light's window; VoiceTool carries on without it")
+            self.window = None
         # Creating a Tk window makes it the active window; hand focus straight back to whatever had it.
         if previous and win32gui.GetForegroundWindow() != previous:
             try:
@@ -582,10 +569,15 @@ class Light:
 
     def set(self, state):
         """Safe to call from any thread; the main loop draws it."""
-        if state == "error":  # a brief flash: draw() shows it until error_until, then the pill hides by itself
+        if state == "error":  # a brief flash: draw() shows it until error_until, then the light hides by itself
             self.error_until = time.monotonic() + 1.5
             state = None
         self.state = state
+
+    @staticmethod
+    def _monitor():
+        """(work area, dpi) where the light goes: the main monitor, in the 96-dpi pixels Windows gives this app."""
+        return tuple(win32api.GetMonitorInfo(win32api.MonitorFromPoint((0, 0)))["Work"]), 96
 
     def draw(self):
         state = self.state
@@ -595,23 +587,26 @@ class Light:
             state = self.meeting
         if state is None and self.claude_busy:
             state = "claude"
-        if not CONFIG.get("show_light", True):
+        if not CONFIG.get("show_light", True) or self.window is None:
             state = None
-        if state != self.shown:
-            if state is None:
-                self.root.attributes("-alpha", 0.0)
-            else:
-                colour, words = self.LOOKS[state]
-                self.canvas.itemconfigure(self.dot, fill=colour)
-                self.canvas.itemconfigure(self.text, text=words)
-                self.root.attributes("-alpha", 0.92)
+        if state is None:
+            if self.shown is not None and self.window is not None:
+                self.window.hide()
+            self.shown, self._painted, self._glow = None, None, 0.0
+            return
+        if state != self.shown:  # it appears or changes: placed again, bottom-centre
+            work, dpi = self._monitor()
+            self._placed = mic_light.geometry(work, dpi) + (dpi,)
             self.shown = state
-        if state in ("listening", "handsfree", "command", "command_handsfree"):  # the dot grows with your voice
-            size = 5 + min(5, self.level * 60)
-        else:
-            size = 5
-        cx, cy = 26, self.H // 2
-        self.canvas.coords(self.dot, cx - size, cy - size, cx + size, cy + size)
+        side, x, y, dpi = self._placed
+        heard = min(1.0, self.level * self.VOICE_GAIN) if state in self.RECORDING or state == "meeting" else 0.0
+        self._glow = max(heard, self._glow * self.FALL)
+        now = time.monotonic()
+        spin = mic_light.MicPainter.spin_index(now) if self.LOOKS[state][2] == "spin" else 0
+        key = (state, x, y, dpi, mic_light.MicPainter.level_step(self._glow), spin)
+        if key != self._painted:  # (only when something on it changed)
+            self.window.paint(self.painter.frame(state, dpi, self._glow, now), x, y, now)
+            self._painted = key
 
 
 # ---------- teaching a word by typing ----------
@@ -1087,7 +1082,7 @@ class VoiceTool:
         return False
 
     def run(self, hardware=True):
-        """The main thread: draw the pill and cards, run the tray icon, handle the keys. hardware=False (test mode)
+        """The main thread: draw the light and cards, run the tray icon, handle the keys. hardware=False (test mode)
         leaves out the keyboard hook, the tray icon and the call watcher, so a test copy can run beside the real one."""
         import win32gui
         previous = win32gui.GetForegroundWindow()
@@ -1388,9 +1383,11 @@ class VoiceTool:
             if self.icon is not None:
                 self.icon.stop()
         finally:
+            if self.light.window is not None:
+                self.light.window.destroy()
             self.light.root.destroy()
 
-    # ---------- small helpers for the pill, cards and spoken answers ----------
+    # ---------- small helpers for the light, cards and spoken answers ----------
 
     def _light(self, state):
         if self.light is not None:
@@ -2328,7 +2325,7 @@ class VoiceTool:
 
 class WinHost:
     """The PC half of the app window's host: everything ui_api.API can ask for that depends on this computer.
-    Called from the window's request threads, so anything that touches the pill, cards, tray or recorder is queued onto
+    Called from the window's request threads, so anything that touches the light, cards, tray or recorder is queued onto
     the main thread (tool.ui) instead of done here."""
 
     def __init__(self, tool):

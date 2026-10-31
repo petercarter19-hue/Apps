@@ -24,7 +24,7 @@ FEATURES = [
     ("Talking", "cleanup", "Tidy-up", None,
      "Removes ums, fixes punctuation, applies your word list. Runs on this computer."),
     ("Talking", "show_light", "Recording light", None,
-     "The small 'Listening' pill at the bottom of the screen."),
+     "A small glass microphone at the bottom of the screen that glows green while you talk."),
     ("Talking", "beeps", "Beeps", None,
      "Short sounds when it starts listening, locks hands-free, and finishes."),
     ("Talking", "offline_only", "Keep everything on this computer", None,
