@@ -95,10 +95,11 @@ internal sealed class TrayApp : ApplicationContext
         if (_settings.FirstRun)
         {
             if (!Settings.IsTempCopy) Settings.SetStartWithWindows(true);
-            _ramIcon.ShowBalloon("Glance is running",
-                "Your memory use is the number by the clock. Don't see it? Click the ^ arrow by the clock and drag Glance onto the taskbar.");
+            if (!Instance.IsTest) // a test copy never pops notices on the person's screen
+                _ramIcon.ShowBalloon("Glance is running",
+                    "Your memory use is the number by the clock. Don't see it? Click the ^ arrow by the clock and drag Glance onto the taskbar.");
         }
-        else if (restarted) _ramIcon.ShowBalloon("Glance restarted", "It's back by the clock.");
+        else if (restarted && !Instance.IsTest) _ramIcon.ShowBalloon("Glance restarted", "It's back by the clock.");
 
         if (pinnedAtStart) OpenCard(_ramIcon, pinned: true);
     }
@@ -266,7 +267,8 @@ internal sealed class TrayApp : ApplicationContext
     {
         var tree = ProcessKiller.CollectTree(g.Pids, _scanner.Procs);
         var r = ProcessKiller.Kill(tree);
-        if (r.Denied > 0) _card.MarkNeedsAdmin(g.Key);
+        if (r.Denied > 0) _card.MarkNeedsAdmin(g.Key);       // Windows said no (or wouldn't say whose it is): an admin copy may be able to look
+        else if (r.Refused > 0) _card.MarkFailed(g.Key);     // it belongs to someone else: no copy of Glance may end it
         _rescan.Start();
     }
 
@@ -323,7 +325,8 @@ internal sealed class TrayApp : ApplicationContext
     private void RemoveFromPc()
     {
         var answer = MessageBox.Show(
-            "This turns off Start with Windows, removes Glance from the Start menu, deletes its settings, and closes it.\n\n" +
+            "This turns off Start with Windows, removes Glance from the Start menu, deletes only Glance's own settings, log and preview pictures, and closes it. " +
+            "Your documents and photos are never touched.\n\n" +
             $"After that you can delete the app file itself:\n{Environment.ProcessPath}",
             "Remove Glance from this PC", MessageBoxButtons.OKCancel, MessageBoxIcon.None, MessageBoxDefaultButton.Button2);
         if (answer != DialogResult.OK) return;
@@ -337,7 +340,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             try
             {
-                using var ev = new EventWaitHandle(false, EventResetMode.AutoReset, Program.QuitEventName);
+                using var ev = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.QuitEventName);
                 ev.WaitOne();
                 if (!_exiting) _card.BeginInvoke(Quit);
             }

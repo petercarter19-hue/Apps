@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Safety tests for the real source files in ..\..\src, run against made-up processes (a fake stand-in for Windows).
+       Run it from the glance folder with the dotnet run command for tools/Tests that README (Tests) shows.
+       Nothing real is ended. The one live check starts and ends a harmless process this test launched itself. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Glance.Tests</RootNamespace>
+    <AssemblyName>GlanceTests</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Instance.cs" LinkBase="src" />
+    <Compile Include="..\..\src\ProcessRules.cs" LinkBase="src" />
+    <Compile Include="..\..\src\ProcessApi.cs" LinkBase="src" />
+    <Compile Include="..\..\src\ProcessKiller.cs" LinkBase="src" />
+    <Compile Include="..\..\src\Native.cs" LinkBase="src" />
+    <Compile Include="..\..\src\Settings.cs" LinkBase="src" />
+    <Compile Include="..\..\src\Shortcut.cs" LinkBase="src" />
+  </ItemGroup>
+
+</Project>

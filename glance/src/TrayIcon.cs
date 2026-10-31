@@ -14,7 +14,7 @@ internal sealed class TrayWindow : NativeWindow
     {
         // A real (hidden) top-level window, not a message-only one: HWND_BROADCAST messages such as
         // TaskbarCreated only reach top-level windows, and we need that to survive an Explorer restart.
-        CreateHandle(new CreateParams { Caption = "Glance tray", ExStyle = 0x80 });
+        CreateHandle(new CreateParams { Caption = Instance.TrayTitle, ExStyle = 0x80 });
     }
 
     internal void Register(TrayIcon icon, int id) => _icons[id] = icon;

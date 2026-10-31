@@ -10,7 +10,7 @@
     <ApplicationIcon>glance.ico</ApplicationIcon>
     <AssemblyName>Glance</AssemblyName>
     <RootNamespace>Glance</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Product>Glance</Product>
     <Description>Tray memory and CPU monitor with a hover card to end apps</Description>
     <InvariantGlobalization>true</InvariantGlobalization>

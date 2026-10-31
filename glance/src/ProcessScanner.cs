@@ -6,9 +6,6 @@ namespace Glance;
 
 internal enum SortMode { Memory, Cpu }
 
-/// <summary>What End needs to know about one process: its parent, when it started, which sign-in session it's in, and its exe name.</summary>
-internal readonly record struct ProcInfo(int Parent, long Created, uint Session, string Exe);
-
 /// <summary>All processes that share one executable, the way Task Manager rolls Chrome's forty processes into one row.</summary>
 internal sealed class ProcessGroup
 {
@@ -38,14 +35,6 @@ internal sealed class ProcessGroup
 
 internal sealed class ProcessScanner
 {
-    // Windows pieces that must never get an End button. Everything else is fair game and simply respawns if Windows needs it.
-    private static readonly HashSet<string> ProtectedNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "system", "system idle process", "memcompression", "registry", "secure system", "smss", "csrss", "wininit",
-        "winlogon", "services", "lsass", "lsaiso", "svchost", "dwm", "fontdrvhost", "msmpeng", "audiodg", "sihost",
-        "taskhostw", "ctfmon", "ntoskrnl",
-    };
-
     private static readonly Dictionary<string, string> FriendlyNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ["system"] = "System",
@@ -62,6 +51,7 @@ internal sealed class ProcessScanner
     private static readonly TimeSpan HistoryStep = TimeSpan.FromSeconds(10);
 
     private Dictionary<(int pid, long created), long> _lastCpu = new();
+    private Dictionary<(int pid, long created), string?> _owners = new(); // who owns each process; asked once, not every scan
     private readonly Dictionary<string, string> _names = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Bitmap?> _icons = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<(DateTime at, Dictionary<string, long> mem)> _history = new();
@@ -73,7 +63,7 @@ internal sealed class ProcessScanner
     /// <summary>Every process from the latest scan, used to end a whole app tree safely.</summary>
     public Dictionary<int, ProcInfo> Procs { get; private set; } = new();
 
-    public static bool IsProtectedName(string exeNoExt) => ProtectedNames.Contains(exeNoExt);
+    public static bool IsProtectedName(string exeNoExt) => ProcessRules.IsProtectedName(exeNoExt);
 
     public List<ProcessGroup> Scan(int topN, SortMode sort)
     {
@@ -84,6 +74,7 @@ internal sealed class ProcessScanner
         var groups = new Dictionary<string, ProcessGroup>(StringComparer.OrdinalIgnoreCase);
         var procs = new Dictionary<int, ProcInfo>();
         var nextCpu = new Dictionary<(int, long), long>();
+        var nextOwners = new Dictionary<(int pid, long created), string?>();
 
         IntPtr snap = Native.CreateToolhelp32Snapshot(Native.TH32CS_SNAPPROCESS, 0);
         if (snap == IntPtr.Zero || snap == new IntPtr(-1)) return new List<ProcessGroup>();
@@ -102,6 +93,7 @@ internal sealed class ProcessScanner
                     long mem = 0;
                     double cpu = 0;
                     long created = 0;
+                    string? owner = null;
 
                     IntPtr h = Native.OpenProcess(Native.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
                     if (h != IntPtr.Zero)
@@ -117,6 +109,8 @@ internal sealed class ProcessScanner
                                 nextCpu[key] = t;
                                 if (elapsed > 0 && _lastCpu.TryGetValue(key, out long prev))
                                     cpu = Math.Max(0, (t - prev) / (elapsed * 1e7) / _cores * 100.0);
+                                if (!_owners.TryGetValue(key, out owner)) owner = Native.OwnerSid(h);
+                                nextOwners[key] = owner;
                             }
                             int cap = _pathBuf.Capacity;
                             _pathBuf.Clear();
@@ -126,7 +120,7 @@ internal sealed class ProcessScanner
                     }
 
                     uint session = Native.ProcessIdToSessionId(pid, out uint sid) ? sid : uint.MaxValue;
-                    procs[pid] = new ProcInfo((int)e.th32ParentProcessID, created, session, Path.GetFileNameWithoutExtension(exe));
+                    procs[pid] = new ProcInfo((int)e.th32ParentProcessID, created, session, Path.GetFileNameWithoutExtension(exe), owner);
 
                     string gkey = (path ?? exe).ToLowerInvariant();
                     if (!groups.TryGetValue(gkey, out var g))
@@ -144,6 +138,7 @@ internal sealed class ProcessScanner
         finally { Native.CloseHandle(snap); }
 
         _lastCpu = nextCpu;
+        _owners = nextOwners;
         Procs = procs;
         RecordHistory(groups);
 
@@ -174,7 +169,7 @@ internal sealed class ProcessScanner
         string exeNoExt = Path.GetFileNameWithoutExtension(g.ExePath ?? g.Name);
         g.IsSelf = g.Pids.Contains(_selfPid);
         g.IsExplorer = exeNoExt.Equals("explorer", StringComparison.OrdinalIgnoreCase);
-        g.Protected = !g.IsSelf && (g.ExePath == null || ProtectedNames.Contains(exeNoExt));
+        g.Protected = !g.IsSelf && (g.ExePath == null || ProcessRules.IsProtectedName(exeNoExt));
 
         if (g.IsSelf) g.Name = "Glance";
         else if (FriendlyNames.TryGetValue(exeNoExt, out var friendly)) g.Name = friendly;

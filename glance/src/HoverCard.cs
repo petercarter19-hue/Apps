@@ -56,7 +56,7 @@ internal sealed class HoverCard : Form
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        Text = "Glance";
+        Text = Instance.CardTitle;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         _timer.Tick += (_, _) =>
         {

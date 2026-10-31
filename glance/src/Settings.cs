@@ -11,10 +11,10 @@ internal sealed class Settings
     /// <summary>True the first time Glance runs on this PC (no settings file yet).</summary>
     [JsonIgnore] public bool FirstRun { get; private set; }
 
-    public static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Glance");
+    public static string Dir => Instance.StateDir;
     private static string FilePath => Path.Combine(Dir, "settings.json");
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValue = "Glance";
+    private static string RunValue => Instance.EntryName;
 
     public static Settings Load()
     {
@@ -77,12 +77,24 @@ internal sealed class Settings
         catch (Exception ex) { Log.Write(ex); }
     }
 
-    /// <summary>"Remove Glance from this PC": no startup entry, no Start menu shortcut, no settings or log.</summary>
+    /// <summary>The only files Glance ever writes in its settings folder.</summary>
+    internal static readonly string[] OwnFiles = { "settings.json", "log.txt", "preview.txt", "card.png", "tiles.png" };
+
+    /// <summary>
+    /// "Remove Glance from this PC": no startup entry, no Start menu shortcut, and none of Glance's own files (settings, log, preview pictures).
+    /// It deletes those named files only, never "everything in the folder", and removes the folder only if that leaves it empty.
+    /// Documents, photos and anything else are never touched.
+    /// </summary>
     public static void RemoveAll()
     {
         SetStartWithWindows(false);
         Shortcut.Remove();
-        try { if (Directory.Exists(Dir)) Directory.Delete(Dir, recursive: true); }
+        foreach (var name in OwnFiles)
+        {
+            try { File.Delete(Path.Combine(Dir, name)); }
+            catch { }
+        }
+        try { if (Directory.Exists(Dir) && !Directory.EnumerateFileSystemEntries(Dir).Any()) Directory.Delete(Dir); }
         catch { }
     }
 }

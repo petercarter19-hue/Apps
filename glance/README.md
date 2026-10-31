@@ -25,7 +25,7 @@ It takes about an hour and a half, mostly waiting. You need a Windows PC and an 
 | [docs/build-it-yourself-kit.pdf](docs/build-it-yourself-kit.pdf) | The same kit, ready to print |
 | [prompts/](prompts/) | Every message to paste, as files you can copy, with [the order to send them](prompts/README.md) |
 | [src/](src/) | The finished code of our copy, which we call Glance. Compare it with yours, or build it directly |
-| [tools/](tools/) | The tests our copy passed, and the small test program they use |
+| [tools/](tools/) | The tests our copy passed (safe to run on your own PC), and the small test program they use |
 | [AGENTS.md](AGENTS.md) | Notes your AI app reads to build and test the finished code (Codex reads it automatically; `CLAUDE.md` and `GEMINI.md` point other apps to it) |
 
 Every lesson from our own build is already a line in the kickoff message. That includes what a second, independent review found before we shared it. So your first try should go more smoothly than ours did.
@@ -46,7 +46,7 @@ dotnet publish Glance.csproj -c Release -r win-x64 --self-contained true -p:Publ
 
 The app is `dist\Glance.exe`. Because you built it on your own PC, Windows opens it without any warning.
 
-**Just want to try ours?** A ready-made Glance.exe is on the [Glance 1.1.0 release](https://github.com/petercarter19-hue/Apps/releases/tag/glance-v1.1.0). Windows shows "Windows protected your PC" for downloaded apps that aren't code-signed. Click **More info**, then **Run anyway**.
+**Just want to try ours?** A ready-made Glance.exe is on the [Glance 1.1.1 release](https://github.com/petercarter19-hue/Apps/releases/tag/glance-v1.1.1). Windows shows "Windows protected your PC" for downloaded apps that aren't code-signed. Click **More info**, then **Run anyway**.
 
 ## Using it
 
@@ -59,7 +59,7 @@ The app is `dist\Glance.exe`. Because you built it on your own PC, Windows opens
 
 End works like Task Manager's "End task": anything unsaved in that app is lost.
 
-**To remove it,** right-click the number and choose **Remove Glance from this PC**, then delete the app file.
+**To remove it,** right-click the number and choose **Remove Glance from this PC**, then delete the app file. Removing turns off Start with Windows and deletes only Glance's own settings, log and preview pictures (in `%LocalAppData%\Glance`) and its Start menu shortcut. It never deletes your documents or photos.
 
 **Privacy:** it only reads numbers Windows already has, makes no network connections, and collects nothing. Its settings live in `%LocalAppData%\Glance`.
 
@@ -70,21 +70,26 @@ C# / .NET 10 WinForms, no main window, Windows 10 or 11 (64-bit).
 - **`TrayIcon`** talks to `Shell_NotifyIcon` at version 4, so Windows sends `NIN_POPUPOPEN` on hover. That is what lets the card replace the stock tooltip.
 - **`ProcessScanner`** reads each process's private working set (Task Manager's "Memory" number) and CPU time, and groups processes by executable.
 - **`ProcessKiller`** ends an app plus the processes it started:
-  - It stays inside the user's own session.
+  - It ends only the user's own programs: same sign-in session **and** same account. The account (SID) is read from the very same open process handle, right before the process is ended; if Windows won't say whose it is, it isn't ended.
   - A process only counts as a child if it started after its parent, because Windows reuses process numbers.
   - Each process is checked by its start time right before it's ended.
   - Windows' protected processes and Explorer are never swept in.
-  - **As admin** runs a second copy of the app elevated with `--end`, which makes the same checks.
+  - **As admin** runs a second copy of the app elevated with `--end`, which makes the same checks again, as the account that approved the prompt. (If you approve the prompt with a different administrator account, it refuses to end your programs, by design.)
+  - Every route (the card, a program's children, the admin copy, the Explorer restart) ends processes through the one `ProcessKiller.Kill` method, so there is one place to check.
 - **`HoverCard`** is a borderless, custom-painted window that follows the Windows light or dark setting and sits next to the tile on any taskbar edge.
 - **`Shortcut`** keeps the Start menu entry.
 - **Opening the app while it's running** signals the running copy to quit and takes its place.
 
-**Tests** (in `tools\`). They never move your mouse, take pictures of your screen, or end anything except the test program:
+**Tests** (in `tools\`). They are safe to run on your own PC. They never move your mouse, press keys, take pictures of your screen, or stop any program except the ones the test itself started (checked by process number and start time). They also never touch the copy of Glance you actually use, or its settings, startup entry or Start menu shortcut:
 
-- `release-test.ps1` runs 22 checks: first run, restart, quit, a moved file, End with a child process, the start-time check, and a leak check.
-- `message-test.ps1` sends Windows' own hover and click messages to the app.
+- `Tests\` is a small program that runs the real `src` files against a made-up Windows: foreign and unknown owners, other sign-in sessions, children, the admin copy and the Explorer restart. Nothing real is ended. Run it from this folder with `dotnet run --project tools\Tests -c Release`.
+- `release-test.ps1` runs 26 checks: first run, restart, quit, a moved file, End with a child process, the start-time check, a leak check, and a check that your real Glance is untouched.
+- `message-test.ps1` and `hover-test.ps1` send Windows' own hover and click events to the test copy's own window.
 - `smoke-test.ps1` runs End against a test program that holds 3 GB.
-- **Before running them:** publish `tools\Hog` into `tools\Hog\dist` first.
+- `safety-lint.ps1` checks that none of those scripts can capture the screen, move the pointer, press keys, stop a program by name, or touch your real Glance state. Run it whenever you change a script.
+- **Before running them:** publish `tools\Hog` into `tools\Hog\dist` first (the scripts that use it take `-HogDir` or `-HogExe` if you put it elsewhere).
+- **How the test copy stays separate:** the scripts set two environment variables for the copy they start. `GLANCE_TEST_NS` (1 to 24 letters or digits) gives it its own single-copy lock, quit signal, Start with Windows entry, shortcut and window titles. `GLANCE_TEST_DIR` (a full path) gives it its own settings folder. They exist for tests only; a bad value makes Glance refuse to start rather than fall back to the real names.
+- `disposable-vm-only\` holds the one experiment that does need a real pointer and a real screen. It refuses to run anywhere except Windows Sandbox, and nothing runs it for you.
 
 **Debug flags:**
 

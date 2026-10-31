@@ -7,7 +7,7 @@ namespace Glance;
 /// <summary>Keeps a "Glance" entry in the Start menu that opens this copy, so it's easy to start (or restart) from Start.</summary>
 internal static class Shortcut
 {
-    private static string LinkPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Glance.lnk");
+    private static string LinkPath => Path.Combine(Instance.ShortcutDir, Instance.EntryName + ".lnk");
 
     public static void Ensure()
     {
@@ -15,6 +15,7 @@ internal static class Shortcut
         {
             string? exe = Environment.ProcessPath;
             if (exe == null) return;
+            Directory.CreateDirectory(Instance.ShortcutDir);
             if (File.Exists(LinkPath) && string.Equals(Target(LinkPath), exe, StringComparison.OrdinalIgnoreCase)) return;
 
             var link = (IShellLinkW)new CShellLink();

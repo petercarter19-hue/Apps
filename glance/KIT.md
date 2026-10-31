@@ -106,9 +106,9 @@ WHAT IT DOES
 
 SAFETY
 - Never end anything without my two clicks. Windows' own system parts show a lock instead of an End button. Windows Explorer (my taskbar and desktop) gets "Restart" instead of "End".
-- End must never close the wrong program. Windows reuses process numbers, so check each process is still the one I picked right before ending it. Only end things in my own sign-in, and never sweep in Windows' own parts or Explorer. "As administrator" makes the same checks.
+- End must never close the wrong program. Windows reuses process numbers, so check each process is still the one I picked right before ending it. Only end programs that belong to my own account in my own sign-in, never another user's, and never sweep in Windows' own parts or Explorer. "As administrator" makes the same checks.
 - If Windows refuses to end something, say so on the card and offer to try again as administrator, with the normal Windows permission prompt. Never fail silently: show problems on the card and write them to a log.
-- It never deletes files and never sends anything anywhere.
+- It never deletes my documents or photos and never sends anything anywhere. Choosing "Remove from this PC" in the menu deletes only the app's own settings, log and preview pictures and its Start menu shortcut.
 - Tests only ever end a test program you make for the purpose, never my real apps. Tests never take pictures of my real screen, move my mouse or press real keys: use the app's own pictures of itself instead.
 
 FIT MY SCREEN
@@ -212,7 +212,7 @@ Always tell the AI what you did and what you saw, and ask it to read the log. It
 - **"As administrator" is for when you mean it.** Windows asks first; say yes only for an app you know.
 - **Tests use a test program, never your apps.** The message tells the AI to test End on a program it makes for the purpose.
 - **Keep a backup of the working copy.** Before you ask for a big change, say "save a copy of the working app first," so you can always go back to the version that worked.
-- **Nothing leaves your computer.** The app only reads your PC's own numbers. It never deletes files or sends anything.
+- **Nothing leaves your computer.** The app only reads your PC's own numbers. It never deletes your documents or photos and never sends anything. If you choose **Remove from this PC** in the menu, it deletes only its own settings, log and preview pictures and its Start menu shortcut.
 - **Only download from trusted sources.** The message tells the AI to get its building tools from Microsoft or other well-known sources.
 
 ## 10. 🎁 Give it to a friend

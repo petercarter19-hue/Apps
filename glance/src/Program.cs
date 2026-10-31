@@ -2,16 +2,16 @@ namespace Glance;
 
 internal static class Program
 {
-    public const string QuitEventName = "Glance.Quit.v1";
-    public const string MutexName = "Glance.SingleInstance.v1";
-
     [STAThread]
     private static void Main(string[] args)
     {
+        // Test copies (GLANCE_TEST_NS) have their own names for everything; a bad test setting must never fall back to the real ones.
+        if (!Instance.EnvironmentIsUsable(out _)) { Environment.ExitCode = 2; return; }
+
         if (args.Contains("--quit", StringComparer.OrdinalIgnoreCase))
         {
             // Ask the running instance to exit, then leave.
-            using var ev = new EventWaitHandle(false, EventResetMode.AutoReset, QuitEventName);
+            using var ev = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.QuitEventName);
             ev.Set();
             return;
         }
@@ -23,8 +23,8 @@ internal static class Program
             return;
         }
 
-        using var mutex = new Mutex(true, MutexName, out bool first);
-        using var quitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, QuitEventName);
+        using var mutex = new Mutex(true, Instance.MutexName, out bool first);
+        using var quitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.QuitEventName);
         bool restarted = false;
         if (!first)
         {
@@ -41,7 +41,7 @@ internal static class Program
         Application.ThreadException += (_, e) => Log.Write(e.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Write(e.ExceptionObject as Exception);
 
-        // --preview: write card state and renders to %LocalAppData%\Glance every second (used by tools\smoke-test.ps1).
+        // --preview: write card state and renders to %LocalAppData%\Glance every second (used by the scripts in tools\).
         // --pinned: also open the card pinned at startup.
         bool preview = args.Contains("--preview", StringComparer.OrdinalIgnoreCase);
         bool pinned = args.Contains("--pinned", StringComparer.OrdinalIgnoreCase);

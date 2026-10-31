@@ -24,6 +24,7 @@ internal static class Native
     public const int VK_LBUTTON = 0x01, VK_RBUTTON = 0x02, VK_ESCAPE = 0x1B;
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWA_BORDER_COLOR = 34, DWMWCP_ROUND = 2;
     public const int PROCESS_TERMINATE = 0x0001, PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    public const int TOKEN_QUERY = 0x0008, TokenUser = 1;
     public const uint TH32CS_SNAPPROCESS = 0x2;
     public const uint SHGFI_ICON = 0x100, SHGFI_LARGEICON = 0x0, SHGFI_SMALLICON = 0x1;
 
@@ -134,6 +135,9 @@ internal static class Native
     [DllImport("kernel32.dll")] public static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
     [DllImport("kernel32.dll", SetLastError = true)] public static extern IntPtr OpenProcess(int access, bool inherit, int pid);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll")] public static extern IntPtr GetCurrentProcess();
+    [DllImport("advapi32.dll", SetLastError = true)] public static extern bool OpenProcessToken(IntPtr process, int access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true)] public static extern bool GetTokenInformation(IntPtr token, int infoClass, IntPtr info, int length, out int returned);
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool TerminateProcess(IntPtr handle, uint exitCode);
     [DllImport("kernel32.dll")] public static extern bool ProcessIdToSessionId(int pid, out uint session);
     [DllImport("kernel32.dll")] public static extern bool GetProcessTimes(IntPtr handle, out long creation, out long exit, out long kernel, out long user);
@@ -145,4 +149,29 @@ internal static class Native
     [DllImport("psapi.dll")] public static extern bool GetProcessMemoryInfo(IntPtr handle, out PROCESS_MEMORY_COUNTERS_EX2 counters, uint cb);
 
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    /// <summary>
+    /// The account (SID text, like S-1-5-21-...) that owns an open process, read from that same handle so it can't be a different
+    /// program that inherited the number. Null when Windows won't say, which callers must treat as "not allowed".
+    /// </summary>
+    public static string? OwnerSid(IntPtr process)
+    {
+        IntPtr token = IntPtr.Zero, buf = IntPtr.Zero;
+        try
+        {
+            if (!OpenProcessToken(process, TOKEN_QUERY, out token)) return null;
+            GetTokenInformation(token, TokenUser, IntPtr.Zero, 0, out int need);
+            if (need <= 0 || need > 4096) return null;
+            buf = Marshal.AllocHGlobal(need);
+            if (!GetTokenInformation(token, TokenUser, buf, need, out _)) return null;
+            IntPtr sid = Marshal.ReadIntPtr(buf); // TOKEN_USER starts with the SID pointer
+            return sid == IntPtr.Zero ? null : new System.Security.Principal.SecurityIdentifier(sid).Value;
+        }
+        catch { return null; }
+        finally
+        {
+            if (buf != IntPtr.Zero) Marshal.FreeHGlobal(buf);
+            if (token != IntPtr.Zero) CloseHandle(token);
+        }
+    }
 }
