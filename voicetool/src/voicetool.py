@@ -546,6 +546,7 @@ class Light:
         self.meeting = None  # "meeting" while taking notes, "meeting_notes" while writing them up
         self._placed = None  # (side, x, y, dpi) it was last placed at
         self._glow, self._painted = 0.0, None
+        self._ever_shown = False  # (the first showing is logged with where it went)
         root.overrideredirect(True)
         root.attributes("-alpha", 0.0)
         root.geometry("1x1+0+0")
@@ -606,6 +607,9 @@ class Light:
         key = (state, x, y, dpi, mic_light.MicPainter.level_step(self._glow), spin)
         if key != self._painted:  # (only when something on it changed)
             self.window.paint(self.painter.frame(state, dpi, self._glow, now), x, y, now)
+            if self._painted is None and not self._ever_shown:
+                self._ever_shown = True
+                log.info("light shown for the first time: %s at (%d, %d), %d dpi", state, x, y, dpi)
             self._painted = key
 
 
@@ -1130,10 +1134,14 @@ class VoiceTool:
         one that is still installed passes every key straight on, so a key is never handled twice."""
         gen = self._hook_gen + 1
         old = self.listener
+        heard = []
 
         def on_key(msg, data):
             if gen != self._hook_gen:
                 return True
+            if not heard:  # (once per hook: the log then shows whether Windows is giving it any keys at all)
+                heard.append(True)
+                log.info("keyboard hook is hearing keys")
             return self._filter(msg, data)
 
         listener = KeyboardHook(on_key)
@@ -1684,6 +1692,7 @@ class VoiceTool:
         elif t is not None and t.state == HOLDING and not t.cued and now - t.pressed_at >= CONFIG["hold_seconds"]:
             # Held long enough to be a real hold, not a shortcut: now show the light and beep.
             t.cued = True
+            log.info("%s key held: listening", t.name)  # (every hold says so, so a dead key always shows where it stopped)
             self.light.set(t.looks[0])
             beep((880, 40) if t.name == "dictate" else (740, 40))
         self.light.level = self.recorder.level

@@ -3796,6 +3796,7 @@ def make_light(monkeypatch):
     light.state, light.shown, light.level, light.error_until = None, None, 0.0, 0.0
     light.claude_busy, light.meeting = 0, None
     light._placed, light._glow, light._painted = None, 0.0, None
+    light._ever_shown = False
     monkeypatch.setattr(vt.Light, "_monitor", staticmethod(lambda: (WORK, 96)))
     return light
 
@@ -4837,6 +4838,38 @@ def test_only_the_newest_hook_acts_and_the_old_one_is_stopped(tool, monkeypatch)
     assert first.filter(vt.win32con.WM_KEYDOWN, data) is True and tool.events.empty()  # the old hook just passes it on
     assert second.filter(vt.win32con.WM_KEYDOWN, data) is False
     assert drain(tool.events)[0][:3] == ("trigger", tool.triggers[DICTATE], True)
+
+
+def test_each_hook_says_once_that_windows_gives_it_keys_and_each_hold_is_logged(tool, monkeypatch):
+    """A key that does nothing must still leave a trace: the log shows whether the hook hears keys at all, and each hold."""
+    made, said = [], []
+    monkeypatch.setattr(vt.log, "info", lambda msg, *a, **k: said.append(msg % a if a else msg))
+
+    class FakeKeyboardListener(AliveListener):
+        installed, error = True, 0
+
+        def __init__(self, on_key):
+            super().__init__()
+            self.filter = on_key
+            made.append(self)
+
+        def start(self):
+            pass
+
+        def wait(self):
+            return True
+    monkeypatch.setattr(vt, "KeyboardHook", FakeKeyboardListener)
+    monkeypatch.setattr(vt.win32api, "keybd_event", lambda *a: None)
+    tool._install_hook()
+    data = SimpleNamespace(vkCode=DICTATE, scanCode=0x38, flags=0)
+    for _ in range(5):
+        made[0].filter(vt.win32con.WM_SYSKEYDOWN, data)  # a held Left Alt repeats
+    assert said.count("keyboard hook is hearing keys") == 1
+    tool._tick_once()
+    t = tool.triggers[DICTATE]
+    t.pressed_at -= vt.CONFIG["hold_seconds"] + 0.1
+    tool._tick_once()
+    assert "dictate key held: listening" in said and tool.light.state == "listening"
 
 
 def test_a_long_hold_with_no_sound_is_logged_not_silent(tool, monkeypatch):
