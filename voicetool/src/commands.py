@@ -106,6 +106,115 @@ def capture_context(open_clipboard, save_clipboard, restore_clipboard):
     return info
 
 
+# ---------- bounded requests to the model, and what happens when it can't answer in time ----------
+
+class CommandFailed(RuntimeError):
+    """A spoken command could not be carried out because the MODEL did not do its part (not because of what was said).
+    str(e) is one short plain sentence for the person, safe to show on a card. `reason` is a short word for the log."""
+
+    def __init__(self, message, reason="failed"):
+        super().__init__(message)
+        self.message, self.reason = message, reason
+
+
+class ModelTimeout(CommandFailed):
+    """The model took too long, couldn't be reached, or was still loading. One type for all three, so the app has one
+    thing to catch: it saves the command in History and shows str(e). reason is "timeout", "connection" or "loading"."""
+
+
+# What each kind of request is allowed to say, in model tokens (a token is a bit under a word). Small caps matter: a
+# model on a processor makes only a few tokens a second, so a reply that can't run on is a reply that finishes.
+ROUTE_BASE_TOKENS = 256     # the routing reply is a few words of JSON, but "write" and "answer" put their text inside it
+ROUTE_MAX_TOKENS = 600
+REWRITE_FLOOR_TOKENS = 96   # a rewrite is about as long as the selection: 1.5x its tokens, never less than this
+REWRITE_GROWTH = 1.5
+REWRITE_MAX_TOKENS = 4096
+WRITE_TOKENS = 600          # new text with nothing selected (a note, a reply): about 450 words
+
+
+def estimate_tokens(text):
+    """A quick, slightly high guess at how many model tokens `text` is (3 characters each; English is nearer 4)."""
+    return -(-len(text or "") // 3)
+
+
+def route_budget(instruction):
+    return min(ROUTE_MAX_TOKENS, ROUTE_BASE_TOKENS + int(REWRITE_GROWTH * estimate_tokens(instruction)))
+
+
+def rewrite_budget(selection):
+    if not (selection or "").strip():
+        return WRITE_TOKENS
+    return min(REWRITE_MAX_TOKENS, max(REWRITE_FLOOR_TOKENS, int(REWRITE_GROWTH * estimate_tokens(selection)) + 48))
+
+
+TIMEOUT_TEXT = ("{where} took too long on that command. It's saved in History, so nothing is lost. Try a shorter request, "
+                "wait a minute and say it again (the model may still be waking up), or close other busy programs.")
+CONNECTION_TEXT = ("VoiceTool couldn't reach {where} for that command. It's saved in History, so nothing is lost. "
+                   "Try again in a moment; if it keeps happening, restart VoiceTool.")
+LOADING_TEXT = ("The on-device model is still loading. That command is saved in History, so nothing is lost; "
+                "say it again in a minute.")
+TOO_LONG_TEXT = ("The model ran out of room before it finished that command. It's saved in History. "
+                 "Try a shorter request.")
+
+
+def as_command_failure(error, client=None, local=None):
+    """A ModelTimeout for an error that means "the model was too slow, unreachable or still loading" (a timeout, a refused
+    or dropped connection, or a 502/503/504 from the server), else None. Never raises. Every model request in this file
+    goes through it; the app can use it for the step before one too (starting the model's program: local=True)."""
+    if isinstance(error, CommandFailed):
+        return error
+    if local is None:
+        local = type(client).__name__ == "LocalClient"
+    status = getattr(error, "status_code", None)
+    if status == 503 and local:
+        return ModelTimeout(LOADING_TEXT, "loading")
+    names = {c.__name__.lower() for c in type(error).__mro__}
+    if isinstance(error, TimeoutError) or any("timeout" in n or "timedout" in n for n in names):
+        return ModelTimeout(TIMEOUT_TEXT.format(where="Your PC" if local else "The online model"), "timeout")
+    if (isinstance(error, (ConnectionError, EOFError)) or status in (502, 503, 504)
+            or any(("connect" in n or "remoteprotocol" in n or "readerror" in n or "networkerror" in n) for n in names)):
+        return ModelTimeout(CONNECTION_TEXT.format(where="the model on this PC" if local else "the online model"), "connection")
+    return None
+
+
+def _chat(client, max_tokens, **request):
+    """One request to the model with an output limit; a model that is too slow, gone or loading becomes ModelTimeout."""
+    try:
+        return client.chat.completions.create(max_completion_tokens=max_tokens, **request)
+    except CommandFailed:
+        raise
+    except Exception as e:
+        failure = as_command_failure(e, client)
+        if failure is None:
+            raise
+        raise failure from e
+
+
+def _cut_to_sentence(text):
+    """A reply that hit its limit, trimmed back to its last whole sentence or line (as it is if it has none)."""
+    text = (text or "").rstrip()
+    for i in range(len(text) - 1, len(text) // 3, -1):
+        if text[i] in ".!?\n" and (i + 1 == len(text) or text[i + 1].isspace() or text[i + 1] in "\"')"):
+            return text[:i + 1].rstrip()
+    return text
+
+
+def _salvage_route(raw):
+    """What can be read of a routing reply that was cut off: {"route": name, "text": the words so far}, or None."""
+    import re
+    named = re.search(r'"route"\s*:\s*"(\w+)"', raw or "")
+    if not named:
+        return None
+    data = {"route": named.group(1)}
+    said = re.search(r'"text"\s*:\s*"((?:[^"\\]|\\.)*)', raw)
+    if said:
+        try:
+            data["text"] = json.loads('"' + said.group(1) + '"')
+        except ValueError:
+            data["text"] = said.group(1)
+    return data
+
+
 # ---------- quick jobs on the model that runs on this computer ----------
 
 ROUTER = """You are the command key of a voice tool on the user's Windows PC. The user held the key and spoke an instruction.
@@ -190,6 +299,12 @@ def _route_name(data):
     return ""  # no route at all (a garbled reply): never guessed as a Claude action; the app shows its "couldn't do that" card
 
 
+def warm_up_messages():
+    """A request made only to have the model read the router's instructions ahead of time (see LocalCleaner.warm_up)."""
+    user = "App: unknown\nWindow title: unknown\nSelected text: (none)\n\nThe user said: hello"
+    return [{"role": "system", "content": ROUTER}, {"role": "user", "content": user}]
+
+
 def route(client, model, instruction, context, style=""):
     selection = context.get("selection") or ""
     if not selection.strip():
@@ -197,11 +312,24 @@ def route(client, model, instruction, context, style=""):
     user = (f"App: {context.get('app') or 'unknown'}\nWindow title: {context.get('title') or 'unknown'}\n"
             f"Selected text: {selection or '(none)'}\n\nThe user said: {instruction}")
     system = ROUTER + (f"\n\nFor \"write\" and \"rewrite\", sound like the user. Their style guide:\n{style}" if style else "")
-    reply = client.chat.completions.create(
-        model=model, reasoning_effort="none", response_format={"type": "json_object"},
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}])
+    reply = _chat(client, route_budget(instruction),
+                  model=model, reasoning_effort="none", response_format={"type": "json_object"},
+                  messages=[{"role": "system", "content": system}, {"role": "user", "content": user}])
     usage.azure(reply, model, "command routing")
-    data = json.loads(reply.choices[0].message.content)
+    try:
+        data = json.loads(reply.choices[0].message.content)
+    except ValueError:
+        # Cut off at its limit: only a reply that is clearly a write or an answer is used, and a cut-off draft is never
+        # pasted (the focused writing step below does it again). Anything else asks for a shorter request.
+        data = _salvage_route(reply.choices[0].message.content) if getattr(reply.choices[0], "finish_reason", None) == "length" else None
+        if data is None:
+            raise
+        if data.get("route") in ("write", "rewrite"):
+            data["text"] = ""
+        elif data.get("route") == "answer":
+            data["text"] = _cut_to_sentence(data.get("text"))
+        else:
+            raise CommandFailed(TOO_LONG_TEXT, "too long")
     kind = _route_name(data)
     extra = {k: str(data.get(k) or "").strip() for k in ("target", "recipient", "topic", "value")}
     text = (data.get("text") or "").strip()
@@ -232,11 +360,14 @@ REWRITE_PROMPT = """You edit text for the user. You get their spoken INSTRUCTION
 def rewrite(client, model, instruction, selection, style=""):
     system = REWRITE_PROMPT + (f"\n\nSound like the user. Their style guide:\n{style}" if style else "")
     user = (f"INSTRUCTION: {instruction}\n\nTEXT:\n{selection}" if selection else f"INSTRUCTION: {instruction}")
-    reply = client.chat.completions.create(
-        model=model, reasoning_effort="none",
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}])
+    reply = _chat(client, rewrite_budget(selection),
+                  model=model, reasoning_effort="none",
+                  messages=[{"role": "system", "content": system}, {"role": "user", "content": user}])
     usage.azure(reply, model, "rewrite")
-    return americanize((reply.choices[0].message.content or "").strip().strip('"').strip())
+    out = (reply.choices[0].message.content or "").strip()
+    if getattr(reply.choices[0], "finish_reason", None) == "length":
+        out = _cut_to_sentence(out)  # it ran to its limit: keep the whole sentences it finished
+    return americanize(out.strip('"').strip())
 
 
 # ---------- actions through Claude (drafts only; off unless turned on) ----------

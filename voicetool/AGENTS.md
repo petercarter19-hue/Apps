@@ -26,7 +26,7 @@ This folder is a finished, working Windows app: a voice app that types what the 
 
 From this folder:
 
-- `src\.venv\Scripts\python.exe -m pytest tools` runs the Python tests (dictation, commands, learning, the window, meetings, the downloader). They work in throwaway folders. One check expects the temp folder on drive C:.
+- `src\.venv\Scripts\python.exe -m pytest tools` runs the Python tests (dictation, commands, learning, the window, meetings, the downloader). They work in throwaway folders and never use the real microphone, keys or screen. The one check that records the real microphone and speakers for 4 seconds runs only if you set `VOICETOOL_LIVE_AUDIO=1` (and deletes the recording at once).
 - `powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_setup_functions.ps1` and `tools\test_uninstall.ps1` check Setup and Uninstall with throwaway folders, task names and shortcuts (`VoiceTool-unit*`). They need Python 3.13 in `%LOCALAPPDATA%\Programs\Python\Python313`.
 - `<install>\.venv\Scripts\python.exe -I tools\dryrun_check.py <install folder>` checks an installed copy end to end: speech to text, tidy-up and a few commands, with nothing sent off the computer.
 

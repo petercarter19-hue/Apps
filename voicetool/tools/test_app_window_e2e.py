@@ -287,7 +287,8 @@ def test_voice_notes_go_to_a_folder_picked_with_the_windows_dialog(window):
     js(window, "document.querySelector('#choosefolder').click()")
     until(lambda: window.t.host.called("choose_folder"))
     until(lambda: window.t.config["notes_folder"] == "C:/Picked/Notes")
-    assert js(window, "document.querySelector('#notefolder').value") == "C:/Picked/Notes"
+    # (the setting is saved before the page has drawn the answer: wait for the box to show it)
+    until(lambda: js(window, "document.querySelector('#notefolder').value") == "C:/Picked/Notes")
     before = len(window.t.host.called("open_path"))
     js(window, "document.querySelector('#opennotes').click()")
     until(lambda: len(window.t.host.called("open_path")) > before)

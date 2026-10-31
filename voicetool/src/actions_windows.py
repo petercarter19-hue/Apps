@@ -2,8 +2,10 @@
 (The Mac has its own file, actions_mac.py, with the same function names.)
 
 Everything here only OPENS or READS. Nothing is ever run as a command:
-- open_path() refuses programs and scripts (.exe, .bat, .ps1 ...); only documents, folders, links and Start-menu
-  shortcuts open. The one exception is an app you listed yourself as a voice shortcut of kind "app".
+- open_path() refuses programs, scripts, shortcuts and links (.exe, .bat, .ps1, .lnk, .url ..., and a symbolic link
+  or junction that leads to one); a file search never lists them either. Only documents and folders open that way.
+- Shortcuts open only from the trusted Start menu (find_app, open_app) or when you listed them as a voice shortcut;
+  a program opens only when you listed it yourself as a voice shortcut of kind "app".
 - voice shortcuts are an allow-list in shortcuts.json (kinds: url, app, file, shortcut), checked by voice_actions.
 """
 import ctypes
@@ -21,8 +23,22 @@ from urllib.parse import urlparse
 STOPWORDS = {"the", "my", "a", "an", "open", "launch", "start", "show", "me", "app", "application", "program", "file",
              "folder", "document", "please"}
 # Programs and scripts: found by name, they are never opened (a stray "open the build script" must not run it).
-RISKY_EXT = {".exe", ".bat", ".cmd", ".com", ".scr", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
-             ".msi", ".msp", ".msc", ".cpl", ".hta", ".reg", ".jar", ".pif", ".gadget"}
+PROGRAM_EXT = {".exe", ".com", ".bat", ".cmd", ".scr", ".pif", ".ps1", ".psm1", ".psd1", ".ps1xml", ".psc1", ".pssc",
+               ".cdxml", ".msh", ".msh1", ".msh2", ".mshxml", ".msh1xml", ".msh2xml", ".vbs", ".vbe", ".vb", ".js",
+               ".jse", ".wsf", ".wsh", ".ws", ".wsc", ".sct", ".msi", ".msp", ".mst", ".msc", ".cpl", ".hta", ".reg",
+               ".inf", ".ins", ".isp", ".jar", ".jnlp", ".gadget", ".application", ".xbap", ".vsto", ".appx",
+               ".appxbundle", ".msix", ".msixbundle", ".appinstaller", ".diagcab", ".diagcfg", ".diagpkg", ".wsb",
+               ".ppkg", ".chm", ".hlp", ".shs", ".shb", ".dll", ".ocx", ".sys", ".drv", ".xll", ".py", ".pyw", ".pyz",
+               ".pyzw", ".pyc", ".pyo", ".ahk", ".sh", ".bash"}
+# Shortcuts and links: a double-click on one can start a program with arguments. Found by a file search they are never
+# opened; only an app from the Start menu (find_app) or a voice shortcut you listed can open one.
+LINK_EXT = {".lnk", ".url", ".pif", ".scf", ".appref-ms", ".website", ".library-ms", ".settingcontent-ms", ".search-ms",
+            ".searchconnector-ms", ".desklink", ".mapimail", ".rdp", ".xnk"}
+RISKY_EXT = PROGRAM_EXT | LINK_EXT  # everything a file search never lists and open_path never opens
+_SHELL_GUID = re.compile(r"\.\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}[. ]*(?=[\\/]|$)", re.I)
+_DRIVE = re.compile(r"^(?:\\\\\?\\)?[a-z]:(?=[\\/]|$)", re.I)
+_REPARSE_NAME_SURROGATE = 0x20000000  # symbolic links, junctions and mount points point at another name
+_REPARSE_APPEXECLINK = 0x8000001B     # the program aliases in WindowsApps (python.exe, winget.exe ...)
 SKIP_DIRS = {".venv", "venv", "node_modules", ".git", "__pycache__", "site-packages", "$recycle.bin",
              "system volume information", ".cache", ".tox", "appdata"}
 SEARCH_SECONDS = 4.0        # hard limit for one file search, however slow a network or cloud drive is
@@ -309,15 +325,100 @@ def _normalise(name):
     return re.sub(r"[_\-.()\[\]]+", " ", name.lower())
 
 
-def search_files(words, limit=5, roots=None, seconds=SEARCH_SECONDS):
-    """Files and folders whose name contains every spoken word, newest first. Looks in Desktop, Documents, Downloads,
-    OneDrive, skips project internals (.venv, node_modules, .git),
-    never lists programs or scripts, and gives up after `seconds` (cloud and network drives can be slow)."""
+# Why something is not opened (finishes the sentence "it's ...").
+PROGRAM_WHY = "a program or script"
+LINK_WHY = "a Windows shortcut or link, which can start a program"
+SPECIAL_WHY = "a special Windows folder, which can start a program"
+STREAM_WHY = "not a plain file or folder"
+DANGLING_WHY = "a link to something that isn't there"
+
+
+def _ext(name):
+    """The extension Windows goes by, in lower case. Windows drops trailing dots and spaces ("x.lnk." and "x.lnk " open
+    as x.lnk), and a name with no stem (".lnk") still has one."""
+    base = str(name).rstrip(". ")
+    dot = base.rfind(".")
+    return base[dot:].lower() if dot >= 0 else ""
+
+
+def _name_why(path):
+    """Why a path's NAME alone rules it out (a program, a shortcut or link, a special shell folder), or None. A name
+    with an alternate data stream ("x.pdf:y.lnk") is judged by every part."""
+    text = str(path)
+    if _SHELL_GUID.search(text):  # a folder named "x.{GUID}" is a shell object, not a folder
+        return SPECIAL_WHY
+    exts = {_ext(part) for part in re.split(r"[\\/]", text)[-1].split(":")}
+    if exts & PROGRAM_EXT:
+        return PROGRAM_WHY
+    if exts & LINK_EXT:
+        return LINK_WHY
+    return None
+
+
+def _special_folder(folder):
+    """A folder whose desktop.ini names a CLSID is a shell object (a "folder shortcut" and the like), not a folder."""
+    try:
+        with open(os.path.join(folder, "desktop.ini"), "rb") as f:
+            raw = f.read(65536)
+    except OSError:
+        return False
+    text = raw.decode("utf-16", "ignore") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("latin-1")
+    return "clsid" in text.lower()
+
+
+def why_not_open(path, allow_link=False):
+    """None if `path` may be opened as an ordinary document or folder; otherwise a short reason ("a program or script").
+    Used when a file search finds something AND again right before anything opens. Checks the name as given (any case,
+    trailing dots or spaces, alternate data streams) and also where a symbolic link, junction or other link really
+    leads, so a document-named link to a program can't pass. Folders open in File Explorer, whatever their name, unless
+    they are special shell folders. allow_link: a Windows shortcut you listed yourself (still never a program)."""
+    text = str(path)
+    if ":" in _DRIVE.sub("", text, count=1) or text.startswith(("\\\\.\\", "\\\\?\\GLOBALROOT")):
+        return STREAM_WHY  # an alternate data stream (x.pdf:s), a device, or an address like shell: or ms-settings:
+    try:
+        info = os.lstat(text)
+    except (OSError, ValueError):
+        info = None
+    names, real = [text], text
+    if info is not None:
+        tag = getattr(info, "st_reparse_tag", 0)
+        if tag == _REPARSE_APPEXECLINK:
+            return PROGRAM_WHY
+        try:
+            real = os.path.realpath(text)
+        except (OSError, ValueError):
+            real = text
+        if (tag & _REPARSE_NAME_SURROGATE or os.path.islink(text)) and not os.path.exists(real):
+            return DANGLING_WHY
+        if os.path.normcase(real) != os.path.normcase(text):
+            names.append(real)
+        if os.path.isdir(real):
+            if any(_SHELL_GUID.search(n) for n in names) or _special_folder(real):
+                return SPECIAL_WHY
+            return None
+    for name in names:
+        why = _name_why(name)
+        if why and not (why == LINK_WHY and allow_link):
+            return why
+    return None
+
+
+def refusal(name, why):
+    """The sentence the person sees when something isn't opened."""
+    tail = " If you trust it, add it as a voice shortcut in the VoiceTool window." if why in (PROGRAM_WHY, LINK_WHY) else ""
+    return f"VoiceTool won't open “{name}”: it's {why}.{tail}"
+
+
+def search_files(words, limit=5, roots=None, seconds=SEARCH_SECONDS, skipped=None):
+    """Files and folders whose name contains every spoken word, newest first. Looks in Desktop, Documents, Downloads
+    and OneDrive, skips project internals (.venv, node_modules, .git), and gives up after `seconds` (cloud and network
+    drives can be slow). Never lists programs, scripts, shortcuts or links (why_not_open); if `skipped` is a list, the
+    ones it left out are added to it as (path, reason)."""
     terms = _clean_words(words)
     if not terms:
         return []
     roots = roots if roots is not None else search_roots()
-    hits, seen = [], set()
+    hits, seen, refused = [], set(), []
     deadline = time.monotonic() + seconds
     entries = [0]
 
@@ -346,10 +447,12 @@ def search_files(words, limit=5, roots=None, seconds=SEARCH_SECONDS):
                     continue  # (VoiceTool's own saved voice clips)
                 if is_dir and depth + 1 < max_depth:
                     stack.append((entry.path, depth + 1))
-                if Path(name).suffix.lower() in RISKY_EXT and not is_dir:
-                    continue
                 flat = _normalise(name)
                 if all(t in flat for t in terms):
+                    why = why_not_open(entry.path)
+                    if why:
+                        refused.append((entry.path, why))  # never a match; the person is told why if nothing else is
+                        continue
                     hits.append(entry.path)
 
     def run():
@@ -366,6 +469,8 @@ def search_files(words, limit=5, roots=None, seconds=SEARCH_SECONDS):
     worker.start()
     worker.join(seconds + 0.5)  # a drive that never answers can't hold the command up past this
     found = list(dict.fromkeys(hits))
+    if skipped is not None:
+        skipped.extend(refused[:20])
 
     def age(p):
         try:
@@ -377,13 +482,29 @@ def search_files(words, limit=5, roots=None, seconds=SEARCH_SECONDS):
 
 # ---------- opening things ----------
 
-def open_path(path, allow_launch=False):
-    """Open a document, folder, link or Start-menu shortcut with whatever Windows uses for it. Programs and scripts
-    are refused unless allow_launch (only for an app you listed as a voice shortcut)."""
+def open_path(path, allow_launch=False, allow_link=False):
+    """Open a document or folder with whatever Windows uses for it. This is the last check before anything opens:
+    programs, scripts, shortcuts and links (also a symbolic link or junction that leads to one) are refused with a
+    short reason (why_not_open). allow_link: a Windows shortcut you listed as a voice shortcut, or a Start-menu app
+    (open_app). allow_launch: a program you listed as a voice shortcut of kind "App"."""
     text = str(path)
-    if not text.lower().startswith("shell:appsfolder") and Path(text).suffix.lower() in RISKY_EXT and not allow_launch:
-        raise PermissionError(f"VoiceTool only opens documents, folders, links and apps, not programs or scripts: {Path(text).name}")
+    if allow_launch:
+        why = STREAM_WHY if ":" in _DRIVE.sub("", text, count=1) else None
+    else:
+        why = why_not_open(text, allow_link=allow_link)
+    if why:
+        raise PermissionError(refusal(Path(text).name, why))
     os.startfile(text)
+
+
+def open_app(app):
+    """Open an app that find_app found in the Start menu: its shortcut, or a Store app's shell:AppsFolder address. The
+    Start menu is the trusted list of installed apps, so its shortcuts may start programs; a program file never opens."""
+    text = str(app)
+    if re.fullmatch(r"shell:AppsFolder\\[\w.\-]+![\w.\-]+", text, re.I):
+        os.startfile(text)
+        return
+    open_path(text, allow_link=True)
 
 
 def open_shortcut(sc):
@@ -401,21 +522,25 @@ def open_shortcut(sc):
             found = find_app(target)
             if not found:
                 raise FileNotFoundError(f"I couldn't find an app called “{target}”")
-            open_path(found)
+            open_app(found)
     elif kind == "file":
         path = Path(os.path.expandvars(os.path.expanduser(target)))
         if not path.exists():
             raise FileNotFoundError(f"That isn't there: {target}")
+        why = why_not_open(path)
+        if why:  # a File shortcut opens documents and folders only
+            raise PermissionError(f"VoiceTool won't open “{path.name}” from a File shortcut: it's {why}. List a Windows "
+                                  f"shortcut with the kind “Windows shortcut”, or a program with the kind “App”.")
         open_path(path)
     elif kind == "shortcut":
         path = Path(os.path.expandvars(target))
-        if path.suffix.lower() in (".lnk", ".url") and path.exists():
-            open_path(path)
+        if _ext(path.name) in (".lnk", ".url") and path.exists():
+            open_path(path, allow_link=True)  # listed by its exact path: still never a link that leads to a program
         else:
             items = _start_menu_items()
             if target.lower() not in items:
                 raise FileNotFoundError(f"I couldn't find a Windows shortcut called “{target}”")
-            open_path(items[target.lower()])
+            open_app(items[target.lower()])
     else:
         raise ValueError(f"unknown shortcut kind {kind!r}")
 

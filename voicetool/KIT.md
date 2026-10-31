@@ -39,7 +39,7 @@ Building it takes an afternoon of mostly waiting. You'll send about a dozen shor
 
 ## 2. 🧰 What you need
 
-- **A Windows 10 or 11 PC** with about 6 GB of free space, and a microphone (a headset or USB mic works best; a laptop's built-in mic is fine).
+- **A Windows 10 or 11 PC** with about 6 GB of free space, and a microphone (a headset or USB mic works best; a laptop's built-in mic is fine). Without a graphics card it all runs on the processor: 4 or more cores and 8 GB of memory are recommended (2 cores work, just slower).
 - **An AI app that can build on your computer:** one that can create files and run programs for you, not just chat, for example Antigravity, Claude Code, Codex or Cursor. Any of them works; nothing here is tied to one. The AI does the building. Your AI plan is the only thing you pay for.
 - A graphics card makes it faster, but you don't need one.
 
@@ -180,9 +180,7 @@ Select a paragraph: "read this to me". Then: "volume to 30", "pause the music", 
 
 ### Step 8 · Link transcriber
 
-Copy a YouTube link and say "transcribe this". Open the document.
-
-<p align="center"><img src="docs/kit/transcribe.jpg" alt="The Transcribe page: paste a link, and past transcripts with a summary you can open in Word" width="640"><br><sub>Each link becomes a document with a summary and chapters.</sub></p>
+Copy a YouTube link and say "transcribe this". Open the document. This is an optional extra: the finished free VoiceTool leaves it out, so you won't see it in its Commands page above. If you add it, give it its own page in the window (paste a link, then a list of past transcripts with their summaries).
 
 ## 7. ✨ Make it your own
 

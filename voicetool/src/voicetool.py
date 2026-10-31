@@ -901,6 +901,36 @@ class MouseHook(KeyboardHook):
                 self.armed = False
 
 
+class Capture:
+    """What the Command key copied off the screen for ONE recording (the window, its program and the selected text).
+    Each recording gets a new one, so a selection still being copied for an earlier recording lands in that recording's
+    job and never in the next one's."""
+
+    def __init__(self):
+        self.context = None  # None until the copy is done; {} if it failed
+
+
+class Job:
+    """One finished recording waiting to be written, with its own frozen copy of where it came from. The Trigger is reused
+    for the next recording at once (its key can be held again while this one is still being written), so the job never
+    reads the Trigger again."""
+
+    def __init__(self, t, target=None):
+        self.name = t.name
+        self.pressed_at = t.pressed_at
+        self.app = dict(t.app or {})  # dictation: the program in front when the key went down (for app rules)
+        self.capture = t.capture  # command: this recording's own selection copy (see Capture)
+        self.target = target  # the window in front when the recording stopped: where its text may be typed
+
+    @property
+    def context(self):
+        return self.capture.context
+
+    @property
+    def looks(self):
+        return ("listening", "handsfree") if self.name == "dictate" else ("command", "command_handsfree")
+
+
 class Trigger:
     """One key and where it is in its hold / double-tap / tap gesture."""
 
@@ -924,6 +954,10 @@ class Trigger:
         self.hook_down = False
         self.hook_alone = False
         self.mask_on_release = False  # the hook's note for this press: slip an unused key in before a lone release
+        # Ctrl only: "lock" (a double-tap) or "stop" (a tap while hands-free), done when Ctrl is let go and only if nothing
+        # else was pressed or clicked meanwhile. Deciding on the way down would make Ctrl+C lock the microphone or send
+        # a hands-free command before the C arrives.
+        self.pending = None
         # The watchdog's own view of the key (Windows' key state, polled): when it went down / up without the hook
         # saying so. None when the hook and Windows agree.
         self.missed_down_since = None
@@ -931,9 +965,17 @@ class Trigger:
         self.hook_at = 0.0  # when the hook last heard this key (a held key repeats, so this keeps moving while held)
         # Command key: what was on screen. Captured after a release, never while the key is down: our own Ctrl+C would
         # send a Ctrl release the person never made (and a Ctrl key that is simply tapped sends no Ctrl+C at all).
-        self.context = None
+        self.capture = Capture()  # this recording's copy of the screen (a new one for every recording)
         self.capturing = False
         self.app = {}  # dictation key: the program and window in front when the key went down (for app rules)
+
+    @property
+    def context(self):
+        return self.capture.context
+
+    @context.setter
+    def context(self, value):
+        self.capture.context = value
 
     @property
     def looks(self):
@@ -957,6 +999,7 @@ class VoiceTool:
         self.transcribe = transcriber or Transcriber()
         self.azure = cleaner if cleaner is not None else Cleaner()
         self._busy_lock = threading.Lock()
+        self._timers = set()  # clean-up timers still waiting (cancelled on Quit; see _forget_later)
         self.claude_session = commands.ClaudeSession(CONFIG.get("claude_model", "sonnet"))
         self.with_ui = with_ui
         self.light = None
@@ -1337,6 +1380,7 @@ class VoiceTool:
                 self.mouse_listener.stop()
             self.claude_session.stop()
             self._hush()
+            self._cancel_timers()
             if getattr(self.azure, "local", None) is not None:
                 self.azure.local.stop()
             if self.app_window is not None:
@@ -1381,12 +1425,29 @@ class VoiceTool:
                 path = read_aloud.azure_speech_file(self.azure._client(), CONFIG, text)
                 self._read_file = path
                 actions_windows.play_audio_file(path)
-                threading.Timer(1800, lambda: Path(path).unlink(missing_ok=True)).start()
+                self._forget_later(path)
                 return
         except Exception as e:
             log.warning("natural voice unavailable (%s); using Windows' voice", str(e)[:120])
         actions_windows.speak(text, voice=CONFIG.get("read_voice", ""), rate=CONFIG.get("read_rate", "normal"),
                               limit=read_aloud.MAX_CHARS, log=log)
+
+    def _forget_later(self, path, seconds=1800):
+        """Delete a spoken-answer audio file after half an hour (if Esc or the next answer hasn't already). The timer is a
+        daemon and is cancelled on Quit, so it never keeps VoiceTool (or a test run) alive."""
+        def forget():
+            Path(path).unlink(missing_ok=True)
+            self._timers.discard(timer)
+        timer = threading.Timer(seconds, forget)
+        timer.daemon = True
+        self._timers.add(timer)
+        timer.start()
+        return timer
+
+    def _cancel_timers(self):
+        for timer in list(self._timers):
+            timer.cancel()
+        self._timers.clear()
 
     def _hush(self):
         import actions_windows
@@ -1651,6 +1712,7 @@ class VoiceTool:
     def _drop(self, t, quietly=True):
         self.recorder.stop()
         t.mic_on = False
+        t.pending = None
         t.state = IDLE
         t.swallow_release = t.key_down
         self.active = None
@@ -1659,11 +1721,27 @@ class VoiceTool:
             log.info("cancelled")
             beep((400, 120))
 
+    def _shortcut_used(self, t):
+        """Another key (or, for Ctrl, the mouse) was used while this trigger's key is down: it is part of a shortcut."""
+        if t.state in (HOLDING, TEACH):
+            self._drop(t)  # e.g. Alt+Tab, Ctrl+C, Ctrl+Shift+T: not ours
+        elif t.pending == "lock":
+            self._drop(t)  # Ctrl tapped, then Ctrl + something: that was a shortcut, not a double-tap
+        elif t.pending == "stop":
+            t.pending = None  # a shortcut while hands-free is on: the recording carries on
+
+    def _hands_free_on(self, t):
+        """Double-tap: keep recording hands-free."""
+        t.state = LOCKED
+        self._light(t.looks[1])
+        log.info("%s hands-free on", t.name)
+        beep((1320, 50), (1320, 50))
+
     def _handle(self, kind, trigger, value, at):
         t = self.active
         if kind == "mouse":  # a click or the wheel while Ctrl is held: Ctrl+click, Ctrl+scroll... not a command
-            if t is not None and t.is_ctrl and t.state in (HOLDING, TEACH):
-                self._drop(t)
+            if t is not None and t.is_ctrl and t.key_down:
+                self._shortcut_used(t)
             return
         if kind == "other":
             if value == win32con.VK_ESCAPE:
@@ -1672,8 +1750,8 @@ class VoiceTool:
                 return
             if value == win32con.VK_ESCAPE and t.state in (HOLDING, LOCKED, TAP_WAIT) and (t.mic_on or not t.is_ctrl):
                 self._drop(t, quietly=False)  # (Ctrl+Esc, which opens Start, is no cancel: nothing was recording yet)
-            elif t.state in (HOLDING, TEACH):
-                self._drop(t)  # the key was part of a shortcut (e.g. Alt+Tab, Ctrl+C), not ours
+            else:
+                self._shortcut_used(t)
             return
         t, down = trigger, value
         if self.active is not None and self.active is not t:
@@ -1685,21 +1763,20 @@ class VoiceTool:
             if t.key_down:
                 return  # key auto-repeat
             t.key_down = True
-            if t.state == LOCKED:
+            if t.is_ctrl and t.state in (LOCKED, TAP_WAIT):
+                t.pending = "stop" if t.state == LOCKED else "lock"  # done when Ctrl is let go, if it was pressed alone
+            elif t.state == LOCKED:
                 self._finish(t)
                 t.swallow_release = True
             elif t.state == TAP_WAIT:
-                if not t.mic_on and not self._open_mic(t):  # (a Ctrl tap was too short to have opened it yet)
+                if not t.mic_on and not self._open_mic(t):
                     self._drop(t)
                     return
-                t.state = LOCKED
                 t.swallow_release = True
-                self._light(t.looks[1])
-                log.info("%s hands-free on", t.name)
-                beep((1320, 50), (1320, 50))
+                self._hands_free_on(t)
             elif (t.state == IDLE and t.name == "command" and CONFIG.get("typed_fix", True)
                   and win32api.GetAsyncKeyState(win32con.VK_SHIFT) & 0x8000):
-                t.state, t.context, t.capturing = TEACH, None, False  # Shift + command key: type a fix instead
+                t.state, t.capture, t.capturing = TEACH, Capture(), False  # Shift + command key: type a fix instead
                 self.active = t
             elif t.state == IDLE:
                 # Record from the first instant so no word is lost; the light and beep wait until it's clearly a hold.
@@ -1707,18 +1784,28 @@ class VoiceTool:
                 if t.mic_delay <= 0 and not self._open_mic(t):
                     return
                 t.state, t.pressed_at, t.cued = HOLDING, at, False
-                t.context, t.capturing = None, False
+                t.capture, t.capturing = Capture(), False  # (a new one: an earlier recording keeps its own)
                 t.app = self._front_window() if t.name == "dictate" else {}
                 self.active = t
                 if t.mic_delay <= 0:
                     self._warm_up(t)
         else:
             t.key_down = False
+            pending, t.pending = t.pending, None
+            if pending == "stop":
+                self._finish(t)
+                return
+            if pending == "lock":
+                if not t.mic_on and not self._open_mic(t):  # (a Ctrl tap was too short to have opened it yet)
+                    self._drop(t)
+                    return
+                self._hands_free_on(t)
+                if t.name == "command" and not t.capturing:
+                    t.capturing = True  # a Ctrl double-tap: now that the key is up, copy the selection
+                    threading.Thread(target=self._capture, args=(t, t.capture), daemon=True).start()
+                return
             if t.swallow_release:
                 t.swallow_release = False
-                if t.state == LOCKED and t.name == "command" and not t.capturing:
-                    t.capturing = True  # a Ctrl double-tap: now that the key is up, copy the selection
-                    threading.Thread(target=self._capture, args=(t,), daemon=True).start()
                 return
             if t.state == TEACH:
                 t.state = IDLE
@@ -1727,12 +1814,13 @@ class VoiceTool:
                 return
             if t.state != HOLDING:
                 return
-            held = at - t.pressed_at >= CONFIG["hold_seconds"]
+            # (A Ctrl key whose microphone never opened was only a tap, however long the key looked down.)
+            held = (t.mic_on or not t.is_ctrl) and at - t.pressed_at >= CONFIG["hold_seconds"]
             # (A Ctrl key that was only tapped copies nothing: a stray tap must never send Ctrl+C to the program in front.
             # Its selection is copied once it is a real hold or the hands-free lock.)
             if t.name == "command" and not t.capturing and (held or not t.is_ctrl):
                 t.capturing = True  # the key is up now, so copying the selection is safe
-                threading.Thread(target=self._capture, args=(t,), daemon=True).start()
+                threading.Thread(target=self._capture, args=(t, t.capture), daemon=True).start()
             if held:
                 self._finish(t)
             else:
@@ -1746,13 +1834,15 @@ class VoiceTool:
         except Exception:
             return {}
 
-    def _capture(self, t):
+    def _capture(self, t, box=None):
+        """Copy the window and selection into this recording's own Capture (`box`, by default the trigger's current one)."""
+        box = box or t.capture
         try:
             time.sleep(0.05)  # let Windows finish releasing the key first
-            t.context = commands.capture_context(_open_clipboard, save_clipboard, restore_clipboard)
+            box.context = commands.capture_context(_open_clipboard, save_clipboard, restore_clipboard)
         except Exception:
             log.exception("could not read the screen context")
-            t.context = {}
+            box.context = {}
 
     def _teach(self, t):
         """Shift + command key: grab the selection, then ask what it should have been."""
@@ -1817,7 +1907,8 @@ class VoiceTool:
                            "Check it's plugged in and not muted, and speak into the end of the mic.", seconds=10)
         elif len(audio) > RATE * 0.3:
             self._light("working" if t.name == "dictate" else "thinking")
-            self.jobs.put((t, audio))
+            # Frozen now: the next recording reuses `t` (and may start before this one is written).
+            self.jobs.put((Job(t, target=(self._front_window() or {}).get("hwnd")), audio))
         else:
             held = time.monotonic() - t.pressed_at
             if held >= 1.0:  # a real try that the microphone gave (almost) nothing for: never fail silently
@@ -1859,6 +1950,30 @@ class VoiceTool:
             if not any(x.key_down for x in self.triggers.values()):
                 return
             time.sleep(0.02)
+
+    def _deliver(self, t, text, target, what):
+        """Type `text` (a dictation or a command's result) where it was meant to go, once no trigger key is held. If the
+        window in front is no longer `target` (the person switched windows while it was being written), nothing is typed
+        into the other window: the text is kept (it's already in History) and a card offers to copy it. Returns True if
+        it was typed. A `target` of None (the window couldn't be read when it was recorded) types as before."""
+        self._wait_for_release(t)
+        now = (self._front_window() or {}).get("hwnd")
+        if target and now != target:
+            log.warning("%s not typed: the window in front changed while it was being written", what)
+            self._card("Not typed: you switched windows",
+                       f"Your {what} wasn't typed into the window you're in now. It's saved in History, or copy it here.",
+                       seconds=60, buttons=[("Copy", lambda: set_clipboard_text(text)), ("Close", lambda: None)])
+            return False
+        paste(text)
+        return True
+
+    @staticmethod
+    def _target(t, context=None):
+        """The window a job's text belongs in: for a command with a selection, the window it was copied from; otherwise
+        the window in front when the recording stopped (a Trigger handed straight in has no stop yet: its key-down window)."""
+        if context and context.get("selection") and context.get("hwnd"):
+            return context["hwnd"]
+        return getattr(t, "target", None) or (context or {}).get("hwnd") or (getattr(t, "app", None) or {}).get("hwnd")
 
     def _done(self, ok=True):
         if self.jobs.empty() and self.active is None:
@@ -1926,10 +2041,8 @@ class VoiceTool:
         # Saved before pasting, so a failed paste never loses what was said.
         self._history({"raw": raw, "text": text, "app": app.get("app") or "", "audio": self._save_audio(audio, "dictate"),
                        "fixes": fixes})
-        self._wait_for_release(t)
-        if text:
-            paste(text + " ")
-        self._done(bool(text))
+        typed = bool(text) and self._deliver(t, text + " ", self._target(t), "dictation")
+        self._done(typed or not text)
 
     _tidy_up_card_shown = False
 
@@ -1974,11 +2087,24 @@ class VoiceTool:
                 break
             time.sleep(0.02)
         context = t.context or commands.window_info()
-        client = self._model_client("Commands")
-        if client is None:  # the on-device model isn't downloaded yet: a plain card, nothing else
-            self._done()
+        try:
+            client = self._model_client("Commands")  # (starting the model can be the slow step on a slow PC)
+            if client is None:  # the on-device model isn't downloaded yet: a plain card, nothing else
+                self._done()
+                return
+            kind, text, extra = commands.route(client, CONFIG["cleanup_model"], said, context, self._style(context))
+        except Exception as e:  # (a timeout or a lost connection: keep the command, and say what happened)
+            failure = commands.as_command_failure(e, local=True) if hasattr(commands, "as_command_failure") else None
+            if failure is not None:
+                reason = str(failure)  # (too slow, unreachable or still loading: the model's own plain message)
+            else:
+                reason = "That command didn't go through. It's saved in History, so you can try it again."
+            log.warning("command failed | %s | %s", context.get("app"), str(e)[:200])
+            self._history({"command": said, "route": "failed", "app": context.get("app"), "title": context.get("title"),
+                           "result": "Not done: " + reason, "audio": self._save_audio(audio, "command")})
+            self._done(False)
+            self._card("Command not done", reason, 15)
             return
-        kind, text, extra = commands.route(client, CONFIG["cleanup_model"], said, context, self._style(context))
         log.info("command | %s | %s | %.2fs | selection %d chars", kind, context.get("app"), time.perf_counter() - t0,
                  len(context.get("selection") or ""))
         self._history({"command": said, "route": kind, "app": context.get("app"), "title": context.get("title"),
@@ -1987,17 +2113,15 @@ class VoiceTool:
             # "That should be ...": correct the selection now and remember the pair for every future dictation.
             text = {w.lower(): w for w in known_words()}.get(text.lower(), text)  # spelled-out letters lose capitals
             heard = context.get("selection") or ""
-            self._wait_for_release(t)
-            paste(keep_punctuation(heard, text))
-            self._remember(heard, text, "fix that")
+            self._deliver(t, keep_punctuation(heard, text), self._target(t, context), "fix")
+            self._remember(heard, text, "fix that")  # (learned even if it couldn't be typed)
             self._done()
         elif kind in ("rewrite", "write") and text:
             if kind == "rewrite":
                 # Keep the selection's own spaces and line breaks around the new text so it drops back in cleanly.
                 selected = context.get("selection") or ""
                 text = selected[:len(selected) - len(selected.lstrip())] + text + selected[len(selected.rstrip()):]
-            self._wait_for_release(t)
-            paste(text)
+            self._deliver(t, text, self._target(t, context), "rewrite" if kind == "rewrite" else "text")
             self._done()
         elif kind == "answer" and text:
             self._done()
@@ -2052,6 +2176,11 @@ class VoiceTool:
         import system_actions
         import system_windows
         self._wait_for_release(t)
+        if (extra.get("target") == "close_window" and context.get("hwnd")
+                and (self._front_window() or {}).get("hwnd") != context["hwnd"]):
+            log.warning("close window refused: the window in front changed")
+            self._card("Didn't close it", "You switched windows, so nothing was closed. Say it again in the window to close.", 8)
+            return
         try:
             msg = system_actions.run(system_windows, extra.get("target"), extra.get("value"), context)
             log.info("computer command: %s", extra.get("target"))

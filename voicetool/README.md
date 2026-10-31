@@ -32,7 +32,7 @@ Every lesson from our own build is already a line in the kickoff message, so you
 
 ## Install the finished code instead
 
-Want to skip to the end, or see how yours compares? It needs **Windows 10 or 11 (64-bit)**, **about 6 GB of free space**, a microphone, and internet only while it sets up.
+Want to skip to the end, or see how yours compares? It needs **Windows 10 or 11 (64-bit)**, **about 6 GB of free space**, a microphone, and internet only while it sets up. Without a graphics card everything runs on the processor: **4 or more cores and 8 GB of memory** are recommended. 2 cores work, but give it a minute or two after it starts, and allow 20 to 30 seconds for a rewrite.
 
 1. Download it from the [repository's main page](https://github.com/petercarter19-hue/Apps) (the green **Code** button, then **Download ZIP**). Right-click the zip, choose **Extract All**, and open the `voicetool\src` folder. (Setup doesn't work from inside the zip.)
 2. **Double-click `Setup`** (the file named Setup.cmd). A window opens and shows what it is doing. Windows may ask first:

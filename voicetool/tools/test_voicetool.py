@@ -6,7 +6,9 @@ Nothing here uses the microphone, the speech model, Claude or the keyboard, and 
 - every file the tool writes (history, usage, words, fixes, config, meetings, notes, journal, Drive notes) goes to a
   temporary folder, never the real VoiceTool folder, OneDrive or Google Drive;
 - paste, key presses, os.startfile, the browser, schtasks /Change and Claude are replaced by recorders;
-- the one live Azure check (a real tidy-up of a made-up sentence) only runs with VOICETOOL_LIVE_AZURE=1.
+- the one live Azure check (a real tidy-up of a made-up sentence) only runs with VOICETOOL_LIVE_AZURE=1;
+- the one live audio check (4 seconds of the REAL microphone and speakers, measured and deleted at once) only runs with
+  VOICETOOL_LIVE_AUDIO=1, and only with the person's say-so.
 """
 import json
 import os
@@ -214,9 +216,11 @@ def tool(monkeypatch):
     t = vt.VoiceTool(recorder=FakeRecorder(), transcriber=lambda a: "", cleaner=FakeCleaner(), with_ui=False)
     t.light = FakeLight()
     t.captured, t.taught, t.cards, t.card_buttons = [], [], [], []
-    monkeypatch.setattr(t, "_capture", lambda trig: t.captured.append(trig.name))  # never press Ctrl+C in tests
+    monkeypatch.setattr(t, "_capture", lambda trig, box=None: t.captured.append(trig.name))  # never press Ctrl+C in tests
     monkeypatch.setattr(t, "_teach", lambda trig: t.taught.append(trig.name))
-    monkeypatch.setattr(t, "_front_window", lambda: {"app": "notepad.exe", "title": "Untitled", "bundle": ""})
+    # (the window in front stays Notepad, window 2, the same window the tests' command contexts come from; a test that
+    # switches windows replaces this)
+    monkeypatch.setattr(t, "_front_window", lambda: {"app": "notepad.exe", "title": "Untitled", "bundle": "", "hwnd": 2})
     monkeypatch.setattr(t, "_card", lambda title, body, seconds=60, speak=False, buttons=None:
                         (t.cards.append((title, body, speak)), t.card_buttons.append(dict(buttons or []))))
     monkeypatch.setattr(vt.win32api, "GetAsyncKeyState", lambda vk: 0)
@@ -371,6 +375,8 @@ def test_command_double_tap_hands_free(tool):
     key(tool, COMMAND, True, t0)
     key(tool, COMMAND, False, t0 + 0.05)
     key(tool, COMMAND, True, t0 + 0.2)
+    assert tool.triggers[COMMAND].state == vt.TAP_WAIT  # (Ctrl: nothing is decided until it's let go alone)
+    key(tool, COMMAND, False, t0 + 0.25)
     assert tool.triggers[COMMAND].state == vt.LOCKED and tool.light.state == "command_handsfree"
 
 
@@ -676,10 +682,16 @@ def test_clicking_while_ctrl_hands_free_is_on_keeps_listening(tool):
     key(tool, COMMAND, True, t0)
     key(tool, COMMAND, False, t0 + 0.05)
     key(tool, COMMAND, True, t0 + 0.2)
+    key(tool, COMMAND, False, t0 + 0.25)
     assert tool.triggers[COMMAND].state == vt.LOCKED and tool.recorder.running
     tool._handle("mouse", None, 0x201, now())
     tool._handle("other", None, KEY_C, now())
     assert tool.triggers[COMMAND].state == vt.LOCKED and tool.recorder.running  # only a tap of Ctrl stops it
+    key(tool, COMMAND, True, t0 + 2)  # Ctrl+click and Ctrl+C while it listens: still listening, nothing sent
+    tool._handle("mouse", None, 0x201, t0 + 2.01)
+    tool._handle("other", None, KEY_C, t0 + 2.02)
+    key(tool, COMMAND, False, t0 + 2.05)
+    assert tool.triggers[COMMAND].state == vt.LOCKED and tool.recorder.running and jobs(tool) == 0
 
 
 def test_shift_tap_ctrl_fixes_a_word_and_cannot_switch_the_input_language(hooked, monkeypatch):
@@ -766,11 +778,11 @@ def test_ctrl_double_tap_turns_hands_free_on_and_copies_the_selection_once_the_k
     key(tool, COMMAND, False, t0 + 0.05)
     key(tool, COMMAND, True, t0 + 0.2)
     settle()
-    assert tool.triggers[COMMAND].state == vt.LOCKED and tool.recorder.running and tool.light.state == "command_handsfree"
-    assert tool.captured == []  # (Ctrl is still down: our own Ctrl+C would be mixed up with it)
+    assert tool.triggers[COMMAND].state == vt.TAP_WAIT and tool.captured == []  # (Ctrl is still down: nothing decided yet)
     key(tool, COMMAND, False, t0 + 0.3)
     settle()
-    assert tool.captured == ["command"]
+    assert tool.triggers[COMMAND].state == vt.LOCKED and tool.recorder.running and tool.light.state == "command_handsfree"
+    assert tool.captured == ["command"]  # copied once the key is up
     key(tool, COMMAND, True, t0 + 3)  # one more tap of Ctrl stops it
     key(tool, COMMAND, False, t0 + 3.05)
     settle()
@@ -794,6 +806,7 @@ def test_ctrl_that_cannot_open_the_microphone_gives_up_with_one_beep(tool, monke
     key(tool, COMMAND, True, t0)
     key(tool, COMMAND, False, t0 + 0.05)
     key(tool, COMMAND, True, t0 + 0.2)
+    key(tool, COMMAND, False, t0 + 0.25)  # (the lock is tried at the release)
     assert tool.active is None and tool.triggers[COMMAND].state == vt.IDLE and beeps == [((300, 300),)]
 
 
@@ -1187,8 +1200,10 @@ def test_the_server_command_is_the_tested_one_and_listens_only_on_this_computer(
     assert cmd == [str(tmp_path / "s.exe"), "-m", str(tmp_path / "m.gguf"), "--host", "127.0.0.1", "--port", "8766",
                    "-c", "16384", "--parallel", "1", "--no-webui", "-ngl", "99", "--device", "Vulkan0"]
     cpu = local_cleanup_win.LocalCleaner({**cfg, "offline_backend": "cpu"})._default_command(8766)  # no graphics-card arguments
+    threads = str(min(local_cleanup_win.MAX_CPU_THREADS, local_cleanup_win.physical_cores()))
     assert cpu == [str(tmp_path / "cpu.exe"), "-m", str(tmp_path / "m.gguf"), "--host", "127.0.0.1", "--port", "8766",
-                   "-c", "16384", "--parallel", "1", "--no-webui"]
+                   "-c", "16384", "--parallel", "1", "--no-webui",
+                   "-t", threads, "-n", "2560", "-cram", "1024"]  # (the processor server: its cores, a reply limit, a cache limit)
 
 
 def test_relative_paths_in_config_json_are_taken_from_the_install_folder(tmp_path, monkeypatch):
@@ -1314,8 +1329,8 @@ def test_any_other_failure_in_a_job_shows_a_plain_try_again_card_besides_the_err
     assert tool.cards[-1] == ("Couldn't do that", "Please try again.", False) and tool.light.history[-1] == "error"
     tool.azure = FakeCleaner(client=FakeClient("not json at all"))
     tool.transcribe = lambda audio: "do something"
-    run_worker_job(tool, "command")
-    assert tool.cards[-1][:2] == ("Couldn't do that", "Please try again.")
+    run_worker_job(tool, "command")  # a garbled reply from the model: the command is kept, and it says so
+    assert tool.cards[-1][:2] == ("Command not done", "That command didn't go through. It's saved in History, so you can try it again.")
 
 
 def test_a_garbled_command_reply_through_the_worker_never_shows_the_claude_card(tool):
@@ -2098,7 +2113,13 @@ def test_default_search_roots_are_only_this_users_own_folders():
     roots = [str(r) for r, _ in aw.search_roots()]
     assert any(r.endswith("Desktop") for r in roots) and any(r.endswith("Documents") for r in roots)
     assert any(r.endswith("Downloads") for r in roots)
-    assert not any(r[1:3] == ":\\" and r[0].upper() in "GX" for r in roots)  # no hard-coded drives
+    # Every folder searched is this person's own: under their user folder or their own OneDrive (which may be on any
+    # drive: in these tests it is a throwaway folder on whichever drive holds TEMP). No other drive or folder is searched.
+    # (Paths are compared as written, not resolved: a person's Downloads may itself be a link to another drive.)
+    norm = lambda x: os.path.normcase(os.path.abspath(x)).rstrip("\\") + "\\"
+    own = [norm(os.environ["USERPROFILE"])] + ([norm(os.environ["OneDrive"])] if os.environ.get("OneDrive") else [])
+    for r in roots:
+        assert any(norm(r).startswith(o) for o in own), r
 
 
 @pytest.fixture
@@ -2136,8 +2157,8 @@ def test_open_path_refuses_programs_and_scripts_but_opens_documents_and_apps(tmp
         with pytest.raises(PermissionError):
             aw.open_path(tmp_path / bad)
     aw.open_path(tmp_path / "deck.pptx")
-    aw.open_path("C:\\Start\\Edge.lnk")
-    aw.open_path("shell:AppsFolder\\MSTeams_x!MSTeams")
+    aw.open_app("C:\\Start\\Edge.lnk")  # Start-menu apps open through open_app (F1: open_path never opens a .lnk)
+    aw.open_app("shell:AppsFolder\\MSTeams_x!MSTeams")
     aw.open_path(tmp_path / "tool.exe", allow_launch=True)
     assert len(OPENED) == 4
 
@@ -2195,6 +2216,267 @@ def test_open_thing_tries_shortcuts_then_apps_then_files(isolated, monkeypatch, 
     msg = va.open_thing(aw, "NVIDIA deck")
     assert msg.startswith("Opened NVIDIA deck.pptx") and "old NVIDIA deck.pptx" in msg
     assert "Couldn't find" in va.open_thing(aw, "zzz")
+
+
+# ===================== F1 (outside review, October 30, 2026): "open ..." never launches a shortcut, link or program
+# A file search must never list, and open_path must never open, a launch-capable link or a program, in any spelling or
+# through a symbolic link or junction. Start-menu apps and voice shortcuts listed in shortcuts.json still open.
+# Everything here is inert bytes in throwaway folders, and os.startfile is the recorder (OPENED): nothing ever runs.
+
+F1_LINKS = (".lnk", ".url", ".pif", ".scf", ".appref-ms", ".website", ".library-ms", ".settingcontent-ms",
+            ".search-ms", ".searchconnector-ms", ".desklink", ".mapimail", ".rdp")
+F1_PROGRAMS = (".exe", ".com", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".msc",
+               ".msi", ".msp", ".hta", ".cpl", ".scr", ".jar", ".reg", ".application", ".gadget", ".inf", ".py", ".pyw")
+F1_GUID = ".{20D04FE0-3AEA-1069-A2D8-08002B30309D}"
+
+
+def _f1_mixed(ext):
+    return "".join(c.upper() if i % 2 else c for i, c in enumerate(ext))
+
+
+def _f1_raw(path):
+    """\\\\?\\ keeps a trailing dot or space in a file name, as a downloaded file can have."""
+    return "\\\\?\\" + str(path)
+
+
+def _f1_inert(path):
+    with open(_f1_raw(path), "wb") as f:
+        f.write(b"INERT TEST FIXTURE")
+
+
+def _f1_remove(folder):
+    for entry in os.scandir(_f1_raw(folder)):
+        try:
+            os.remove(entry.path)
+        except OSError:
+            pass
+
+
+def test_f1_review_reproduction_an_unlisted_shortcut_is_not_opened_and_the_person_is_told_why(tool, isolated, monkeypatch):
+    (isolated / "Quarterly budget.lnk").write_bytes(b"INERT TEST FIXTURE")
+    monkeypatch.setattr(aw, "find_app", lambda words: None)
+    monkeypatch.setattr(aw, "search_roots", lambda: [(isolated, 1)])
+    tool._more("open", "Quarterly budget", {"target": "Quarterly budget"}, {})
+    assert OPENED == []
+    title, text = tool.cards[-1][:2]
+    assert title == "Open" and "Quarterly budget.lnk" in text and "Windows shortcut" in text and "voice shortcut" in text
+
+
+def test_f1_the_risky_list_covers_every_program_and_link_type():
+    for ext in F1_LINKS + F1_PROGRAMS + (".lnk", ".url", ".pif"):
+        assert ext in aw.RISKY_EXT, ext
+    for ext in (".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md", ".png", ".jpg", ".mp3", ".mp4", ".csv", ".zip"):
+        assert ext not in aw.RISKY_EXT, ext
+
+
+@pytest.mark.parametrize("ext", F1_LINKS + F1_PROGRAMS)
+def test_f1_risky_names_in_any_spelling_are_never_found_or_opened(tmp_path, ext):
+    root = tmp_path / "found"
+    root.mkdir()
+    risky = [f"budget plan{ext}", f"budget plan mixed{_f1_mixed(ext)}", f"budget plan upper{ext.upper()}",
+             f"budget plan dot{ext}.", f"budget plan space{ext} ", f"budget plan both{ext} . ."]
+    try:
+        for name in risky:
+            _f1_inert(root / name)
+        (root / "budget plan.pdf").write_bytes(b"%PDF-1.4 inert")
+        assert len(os.listdir(_f1_raw(root))) == len(risky) + 1  # the trailing dots and spaces really are on disk
+        skipped = []
+        hits = aw.search_files("budget plan", roots=[(root, 2)], skipped=skipped)
+        assert [Path(h).name for h in hits] == ["budget plan.pdf"]  # discovery: only the document
+        assert len(skipped) == len(risky) and all(why in (aw.PROGRAM_WHY, aw.LINK_WHY) for _, why in skipped)
+        for name in risky:  # opening: the final guard, for each name as given and as it sits on disk
+            for path in (str(root / name), next(e.path for e in os.scandir(root) if e.name == name)):
+                with pytest.raises(PermissionError):
+                    aw.open_path(path)
+        doc = str(root / "budget plan.pdf")
+        for stream in (f"{doc}:hidden{ext}", f"{doc}:hidden{_f1_mixed(ext)}:$DATA", f"{root / 'budget plan'}{ext}::$DATA",
+                       f"{root / 'budget plan'}{ext}.:x"):  # alternate data streams never open
+            with pytest.raises(PermissionError):
+                aw.open_path(stream)
+        aw.open_path(doc)
+        assert OPENED == [doc]
+    finally:
+        _f1_remove(root)
+
+
+def test_f1_a_real_alternate_data_stream_is_never_opened(tmp_path):
+    doc = tmp_path / "Budget notes.pdf"
+    doc.write_bytes(b"%PDF-1.4 inert")
+    try:
+        with open(f"{doc}:payload.lnk", "wb") as f:
+            f.write(b"INERT TEST FIXTURE")
+    except OSError:
+        pytest.skip("this drive has no alternate data streams (not NTFS)")
+    assert [Path(h).name for h in aw.search_files("budget notes", roots=[(tmp_path, 2)])] == ["Budget notes.pdf"]
+    for stream in (f"{doc}:payload.lnk", f"{doc}:payload.lnk:$DATA", f"{doc}::$DATA"):
+        with pytest.raises(PermissionError):
+            aw.open_path(stream)
+    assert OPENED == []
+
+
+def test_f1_addresses_and_shell_objects_never_open_from_open_path(tmp_path):
+    for bad in ("shell:AppsFolder\\MSTeams_x!MSTeams", "shell:startup", "ms-settings:privacy", "search-ms:query=x",
+                "ms-msdt:/id PCWDiagnostic", "file:///C:/Windows/System32/calc.exe", "\\\\.\\PhysicalDrive0",
+                f"C:\\x\\Budget{F1_GUID}", f"C:\\x\\Budget{F1_GUID}\\plan.pdf", "C:\\x\\.lnk", "C:\\x\\plan.pdf.LnK"):
+        with pytest.raises(PermissionError):
+            aw.open_path(bad)
+    assert OPENED == []
+
+
+def test_f1_a_symbolic_link_that_leads_to_a_program_or_shortcut_is_refused(tool, tmp_path, monkeypatch):
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "calc.exe").write_bytes(b"INERT TEST FIXTURE")
+    (bin_ / "launcher.lnk").write_bytes(b"INERT TEST FIXTURE")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    try:
+        os.symlink(bin_ / "calc.exe", docs / "Budget report.pdf")
+        os.symlink(bin_ / "launcher.lnk", docs / "Budget summary.docx")
+        os.symlink(bin_ / "launcher.lnk", docs / "Budget listed.lnk")
+        os.symlink(bin_ / "gone.pdf", docs / "Budget missing.pdf")
+    except (OSError, NotImplementedError):
+        pytest.skip("this Windows account can't create symbolic links (needs Developer Mode or an admin)")
+    skipped = []
+    assert aw.search_files("budget", roots=[(docs, 2)], skipped=skipped) == []
+    why = {Path(p).name: w for p, w in skipped}
+    assert why["Budget report.pdf"] == aw.PROGRAM_WHY and why["Budget summary.docx"] == aw.LINK_WHY
+    assert why["Budget missing.pdf"] == aw.DANGLING_WHY
+    for name in ("Budget report.pdf", "Budget summary.docx", "Budget missing.pdf"):
+        with pytest.raises(PermissionError):
+            aw.open_path(docs / name)
+    with pytest.raises(PermissionError):  # a listed shortcut is still never a link to a program
+        aw.open_path(docs / "Budget report.pdf", allow_link=True)
+    with pytest.raises(PermissionError):
+        aw.open_shortcut({"kind": "file", "target": str(docs / "Budget report.pdf")})
+    monkeypatch.setattr(aw, "find_app", lambda words: None)
+    monkeypatch.setattr(aw, "search_roots", lambda: [(docs, 2)])
+    tool._more("open", "Budget report", {"target": "Budget report"}, {})
+    assert OPENED == [] and tool.cards[-1][0] == "Open" and "program or script" in tool.cards[-1][1]
+
+
+def test_f1_a_link_to_a_program_is_refused_even_where_symbolic_links_cant_be_made(tool, tmp_path, monkeypatch):
+    """The same check as above with the link's destination faked, so it runs on every PC (no Developer Mode needed)."""
+    (tmp_path / "bin").mkdir()
+    program = tmp_path / "bin" / "calc.exe"
+    program.write_bytes(b"INERT TEST FIXTURE")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    link = docs / "Budget report.pdf"
+    link.write_bytes(b"INERT TEST FIXTURE")
+    real_realpath, real_islink = os.path.realpath, os.path.islink
+    leads_to = lambda p: os.path.normcase(str(p)) == os.path.normcase(str(link))
+    monkeypatch.setattr(os.path, "realpath", lambda p, *a, **k: str(program) if leads_to(p) else real_realpath(p, *a, **k))
+    monkeypatch.setattr(os.path, "islink", lambda p: True if leads_to(p) else real_islink(p))
+    skipped = []
+    assert aw.search_files("budget report", roots=[(docs, 2)], skipped=skipped) == []
+    assert [w for _, w in skipped] == [aw.PROGRAM_WHY]
+    for allow_link in (False, True):
+        with pytest.raises(PermissionError):
+            aw.open_path(link, allow_link=allow_link)
+    monkeypatch.setattr(aw, "find_app", lambda words: None)
+    monkeypatch.setattr(aw, "search_roots", lambda: [(docs, 2)])
+    tool._more("open", "Budget report", {"target": "Budget report"}, {})
+    assert OPENED == [] and tool.cards[-1][0] == "Open" and "program or script" in tool.cards[-1][1]
+
+
+def test_f1_junctions_open_as_folders_but_a_broken_one_does_not(tmp_path):
+    import _winapi
+    target = tmp_path / "Real budget folder"
+    target.mkdir()
+    junction = tmp_path / "Budget folder"
+    try:
+        _winapi.CreateJunction(str(target), str(junction))
+    except OSError:
+        pytest.skip("this drive can't hold junctions")
+    assert aw.why_not_open(junction) is None
+    aw.open_path(junction)
+    assert OPENED == [str(junction)]
+    target.rmdir()
+    assert aw.why_not_open(junction) == aw.DANGLING_WHY
+    with pytest.raises(PermissionError):
+        aw.open_path(junction)
+    assert len(OPENED) == 1
+    os.rmdir(junction)
+
+
+def test_f1_special_shell_folders_are_never_found_or_opened(tmp_path):
+    root = tmp_path / "r"
+    (root / f"Budget{F1_GUID}").mkdir(parents=True)
+    shell_folder = root / "Budget shell"
+    shell_folder.mkdir()
+    (shell_folder / "desktop.ini").write_text("[.ShellClassInfo]\r\nCLSID2={0AFACED1-E828-11D1-9187-B532F1E9575D}\r\n")
+    plain = root / "Budget plain"
+    plain.mkdir()
+    (plain / "desktop.ini").write_text("[.ShellClassInfo]\r\nIconResource=C:\\Windows\\System32\\imageres.dll,3\r\n")
+    skipped = []
+    assert [Path(h).name for h in aw.search_files("budget", roots=[(root, 2)], skipped=skipped)] == ["Budget plain"]
+    assert {Path(p).name for p, _ in skipped} == {f"Budget{F1_GUID}", "Budget shell"}
+    for bad in (root / f"Budget{F1_GUID}", shell_folder):
+        with pytest.raises(PermissionError):
+            aw.open_path(bad)
+    aw.open_path(plain)
+    assert OPENED == [str(plain)]
+
+
+def test_f1_documents_and_folders_still_open_by_voice(tool, isolated, monkeypatch):
+    docs = isolated / "Docs"
+    docs.mkdir()
+    (docs / "Tax plan.pdf").write_bytes(b"%PDF-1.4 inert")
+    (docs / "Letter draft.docx").write_bytes(b"PK inert")
+    (docs / "Next.js").mkdir()  # a folder, whatever its name, opens in File Explorer
+    monkeypatch.setattr(aw, "find_app", lambda words: None)
+    monkeypatch.setattr(aw, "search_roots", lambda: [(docs, 2)])
+    for said, name in (("Tax plan", "Tax plan.pdf"), ("Letter draft", "Letter draft.docx"), ("Next js", "Next.js")):
+        tool._more("open", said, {"target": said}, {})
+        assert OPENED[-1] == str(docs / name) and tool.cards[-1][:2] == ("Open", f"Opened {name}.")
+    assert len(OPENED) == 3
+
+
+def test_f1_start_menu_apps_still_launch(tool, monkeypatch, start_menu):
+    monkeypatch.setattr(aw, "search_roots", lambda: [])
+    tool._more("open", "Microsoft Edge", {"target": "Microsoft Edge"}, {})
+    assert OPENED[-1] == str(start_menu / "Microsoft Edge.lnk") and tool.cards[-1][:2] == ("Open", "Opened Microsoft Edge.")
+    tool._more("open", "teams", {"target": "teams"}, {})
+    assert OPENED[-1] == "shell:AppsFolder\\MSTeams_8wekyb3d8bbwe!MSTeams"
+    assert tool.cards[-1][:2] == ("Open", "Opened Microsoft Teams.")
+    with pytest.raises(PermissionError):  # open_app trusts the Start menu's shortcuts, never a program file
+        aw.open_app("C:\\Start\\calc.exe")
+    with pytest.raises(PermissionError):
+        aw.open_app("shell:AppsFolder\\..\\..\\Windows\\calc.exe")
+    assert len(OPENED) == 2
+
+
+def test_f1_a_listed_windows_shortcut_opens_but_an_unlisted_one_with_the_same_name_does_not(tool, isolated, monkeypatch):
+    listed = isolated / "Listed" / "Quarterly budget.lnk"
+    unlisted = isolated / "Downloads" / "Quarterly budget.lnk"
+    for p in (listed, unlisted):
+        p.parent.mkdir()
+        p.write_bytes(b"INERT TEST FIXTURE")
+    monkeypatch.setattr(aw, "find_app", lambda words: None)
+    monkeypatch.setattr(aw, "search_roots", lambda: [(unlisted.parent, 2), (listed.parent, 2)])
+    va.save_shortcuts([{"phrase": "quarterly budget", "kind": "shortcut", "target": str(listed)}])
+    tool._more("open", "quarterly budget", {"target": "quarterly budget"}, {})
+    assert OPENED == [str(listed)] and "quarterly budget" in tool.cards[-1][1]  # the listed one, by its exact phrase
+    va.save_shortcuts([{"phrase": "my budget shortcut", "kind": "shortcut", "target": str(listed).upper()}])
+    tool._more("open", "my budget shortcut", {"target": "my budget shortcut"}, {})
+    assert OPENED == [str(listed), str(listed).upper()]  # any case of its exact path
+    tool._more("open", "quarterly budget", {"target": "quarterly budget"}, {})  # not listed under these words now
+    assert len(OPENED) == 2 and "won't open it from a file search" in tool.cards[-1][1]
+    va.save_shortcuts([{"phrase": "quarterly budget", "kind": "file", "target": str(unlisted)}])
+    tool._more("open", "quarterly budget", {"target": "quarterly budget"}, {})  # a File shortcut never opens a .lnk
+    assert len(OPENED) == 2 and tool.cards[-1][0] == "Couldn't do that" and "Windows shortcut" in tool.cards[-1][1]
+
+
+def test_f1_the_final_guard_still_refuses_if_a_search_hit_changed_before_opening(tool, monkeypatch):
+    monkeypatch.setattr(aw, "find_app", lambda words: None)
+    monkeypatch.setattr(aw, "search_files", lambda w, limit=5: ["C:\\Users\\x\\Downloads\\Quarterly budget.lnk"])
+    tool._more("open", "Quarterly budget", {"target": "Quarterly budget"}, {})
+    assert OPENED == [] and tool.cards[-1][0] == "Couldn't do that" and "Windows shortcut" in tool.cards[-1][1]
+    with pytest.raises(PermissionError):  # and the window's own "open" (WinHost) uses the same guard
+        vt.WinHost(tool).open_path("C:\\Users\\x\\Desktop\\Report.url")
+    assert OPENED == []
+# ===================== end of F1 tests
 
 
 def test_the_real_start_menu_can_be_read(monkeypatch):
@@ -2534,10 +2816,16 @@ def _have_devices():
         return False
 
 
-@pytest.mark.skipif(not _have_devices(), reason="no microphone or speaker on this PC")
+LIVE_AUDIO = os.environ.get("VOICETOOL_LIVE_AUDIO") == "1"
+
+
+@pytest.mark.skipif(not LIVE_AUDIO, reason="records the REAL microphone and speakers: only with VOICETOOL_LIVE_AUDIO=1")
+@pytest.mark.skipif(LIVE_AUDIO and not _have_devices(), reason="no microphone or speaker on this PC")
 def test_live_microphone_and_loopback_record_four_seconds(tmp_path):
-    """The REAL microphone (the one in config.json) and the REAL speakers' loopback, 4 seconds through the real
-    recorder, into a temp folder. Only the lengths are checked; nothing is kept or transcribed."""
+    """OPT-IN ONLY (VOICETOOL_LIVE_AUDIO=1, and only with the person's say-so: it records whatever the room and the
+    speakers are playing). The REAL microphone (the one in config.json) and the REAL speakers' loopback, 4 seconds through
+    the real recorder, into pytest's temp folder. Only the lengths are checked; nothing is listened to or transcribed, and
+    the two files are deleted as soon as they're measured."""
     cfg = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
     want = cfg.get("mic_name_contains", "").lower()
     device = next((i for i, d in enumerate(vt.sd.query_devices())
@@ -2547,9 +2835,15 @@ def test_live_microphone_and_loopback_record_four_seconds(tmp_path):
     stopped = time.time()
     rec.stop()
     assert time.time() - stopped < 5  # stopping doesn't hang on an idle device
-    for name in ("me.wav", "others.wav"):
-        with wave.open(str(tmp_path / "audio" / name)) as w:
-            seconds = w.getnframes() / w.getframerate()
+    lengths = {}
+    try:
+        for name in ("me.wav", "others.wav"):
+            with wave.open(str(tmp_path / "audio" / name)) as w:
+                lengths[name] = w.getnframes() / w.getframerate()
+    finally:  # the room and the speakers were recorded: never keep them
+        for name in ("me.wav", "others.wav"):
+            (tmp_path / "audio" / name).unlink(missing_ok=True)
+    for name, seconds in lengths.items():
         assert 3.2 < seconds < 5.0, (name, seconds)  # both sides really were recorded, side by side
 
 
@@ -3695,7 +3989,7 @@ def test_the_typed_fix_copy_waits_until_shift_is_up(tool, monkeypatch):
         return 0x8000 if len(polls) <= 5 else 0  # held for five checks, then let go
 
     monkeypatch.setattr(vt.win32api, "GetAsyncKeyState", shift)
-    monkeypatch.setattr(tool, "_capture", lambda trig: events.append(("copy", len(polls))))
+    monkeypatch.setattr(tool, "_capture", lambda trig, box=None: events.append(("copy", len(polls))))
     vt.VoiceTool._teach(tool, tool.triggers[COMMAND])  # (the real one; the fixture replaces it on the instance)
     assert events == [("copy", 6)] and len(slept) == 5
     assert tool.ui.qsize() == 1  # the typed-fix box is queued for the window thread, not opened here
@@ -5361,3 +5655,642 @@ def test_an_incomplete_speech_model_folder_is_told_apart_from_a_missing_one(tmp_
     run_worker_job(tool, "dictate")
     assert tool.cards[-1] == ("Finish setup first", vt.SPEECH_INCOMPLETE_TEXT, False)
     assert vt.speech_model_missing(incomplete) is True
+
+
+# ====================================================================================================== review fixes (10-30)
+# An outside release review found these: Ctrl shortcuts never lock or submit (F2), each recording's job is frozen (F3), text is only typed
+# into the window it was meant for (F4), the clean-up timer never keeps a run alive (F5), and a failed command is kept.
+
+def _lock_command(tool):
+    at = now()
+    key(tool, COMMAND, True, at)
+    key(tool, COMMAND, False, at + 0.05)
+    key(tool, COMMAND, True, at + 0.2)
+    key(tool, COMMAND, False, at + 0.25)
+    return tool.triggers[COMMAND]
+
+
+@pytest.mark.parametrize("other", ["key", "mouse"])
+def test_review_ctrl_shortcut_after_a_lone_tap_never_locks_the_mic(tool, other):
+    at = now()
+    key(tool, COMMAND, True, at)
+    key(tool, COMMAND, False, at + 0.05)
+    key(tool, COMMAND, True, at + 0.2)  # (the second press could be a double-tap: nothing is decided yet)
+    if other == "key":
+        tool._handle("other", None, 0x43, at + 0.22)  # C: it was Ctrl+C
+    else:
+        tool._handle("mouse", None, None, at + 0.22)  # Ctrl+click
+    key(tool, COMMAND, False, at + 0.25)
+    assert not tool.recorder.running and tool.triggers[COMMAND].state == vt.IDLE and jobs(tool) == 0
+
+
+@pytest.mark.parametrize("other", ["key", "mouse"])
+def test_review_ctrl_shortcut_during_hands_free_never_submits_it(tool, other):
+    t = _lock_command(tool)
+    assert t.state == vt.LOCKED
+    at = now()
+    key(tool, COMMAND, True, at)
+    assert jobs(tool) == 0  # nothing is submitted on the way down
+    if other == "key":
+        tool._handle("other", None, 0x56, at + 0.02)  # V: Ctrl+V while it listens
+    else:
+        tool._handle("mouse", None, None, at + 0.02)
+    key(tool, COMMAND, False, at + 0.05)
+    assert jobs(tool) == 0 and t.state == vt.LOCKED and tool.recorder.running  # still listening hands-free
+    key(tool, COMMAND, True, at + 1.0)  # a lone tap still stops it, at the release
+    assert jobs(tool) == 0
+    key(tool, COMMAND, False, at + 1.05)
+    assert jobs(tool) == 1 and t.state == vt.IDLE
+
+
+def test_review_shift_first_and_other_modifiers_never_start_a_command(tool, monkeypatch):
+    for vk in (0x10, 0x12, 0x5B):  # Ctrl then Shift, Alt or Win (Ctrl+Shift+T, Ctrl+Alt+Del, Ctrl+Win+arrows)
+        at = now()
+        key(tool, COMMAND, True, at)
+        tool._handle("other", None, vk, at + 0.02)
+        key(tool, COMMAND, False, at + 1.0)
+        assert not tool.recorder.running and jobs(tool) == 0, vk
+        tool.triggers[COMMAND].state = vt.IDLE
+
+
+def test_review_queued_dictation_keeps_its_own_app_and_window(tool, monkeypatch):
+    t = tool.triggers[DICTATE]
+    t.app = {"app": "outlook.exe", "hwnd": 101, "title": "First message"}
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "outlook.exe", "hwnd": 101, "title": "First message"})
+    tool.recorder.start()
+    tool._finish(t)
+    job, _ = tool.jobs.get_nowait()
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "notepad.exe", "hwnd": 202, "title": "Second document"})
+    key(tool, DICTATE, True, now())  # the next recording starts while the first is still waiting
+    assert job.app["hwnd"] == 101 and job.app["app"] == "outlook.exe" and job.target == 101
+    assert t.app["hwnd"] == 202  # (the trigger moved on; the job didn't)
+
+
+def test_review_queued_command_keeps_its_own_selection_even_if_copied_late(tool, monkeypatch):
+    t = tool.triggers[COMMAND]
+    tool.recorder.start()
+    t.state, t.pressed_at = vt.HOLDING, now() - 1
+    box = t.capture
+    tool._finish(t)
+    job, _ = tool.jobs.get_nowait()
+    key(tool, COMMAND, True, now())  # the next command starts (a new capture) before the first copy has finished
+    assert t.capture is not box and job.capture is box
+    box.context = {"app": "outlook.exe", "hwnd": 101, "selection": "First selected text"}  # the first copy lands late
+    assert job.context["selection"] == "First selected text" and t.context is None
+
+
+def test_review_two_quick_recordings_in_different_apps_each_use_their_own(tool, monkeypatch):
+    """The first dictation is still being written (slow speech model) when the second is spoken in another app: each is
+    tidied with its own app's rule, saved with its own app, and typed only into its own window."""
+    styles.save({"styles": [], "app_rules": [{"apps": "WindowsTerminal.exe", "mode": "raw"}]})
+    windows = {"now": {"app": "WindowsTerminal.exe", "hwnd": 101, "title": "Windows Terminal"}}
+    monkeypatch.setattr(tool, "_front_window", lambda: dict(windows["now"]))
+    t = tool.triggers[DICTATE]
+    key(tool, DICTATE, True, now() - 1)
+    key(tool, DICTATE, False, now())
+    first, a1 = tool.jobs.get_nowait()
+    windows["now"] = {"app": "notepad.exe", "hwnd": 202, "title": "Notes"}
+    key(tool, DICTATE, True, now() - 1)
+    key(tool, DICTATE, False, now())
+    second, a2 = tool.jobs.get_nowait()
+    tool.transcribe = lambda audio: "git status please now"
+    tool.azure = FakeCleaner(result="Git status, please, now.")
+    windows["now"] = {"app": "WindowsTerminal.exe", "hwnd": 101, "title": "Windows Terminal"}
+    tool._dictate(first, a1)
+    assert PASTED == ["git status please now "] and tool.azure.calls == []  # the terminal's rule: exactly as said
+    windows["now"] = {"app": "notepad.exe", "hwnd": 202, "title": "Notes"}
+    tool._dictate(second, a2)
+    assert PASTED[-1] == "Git status, please, now. "
+    rows = [json.loads(line) for line in (vt.HERE / "history.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [r["app"] for r in rows] == ["WindowsTerminal.exe", "notepad.exe"]
+    assert t.state == vt.IDLE
+
+
+def test_review_dictation_is_not_typed_into_a_different_window(tool, monkeypatch):
+    t = tool.triggers[DICTATE]
+    t.app = {"app": "outlook.exe", "hwnd": 101, "title": "Private message"}
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "notepad.exe", "hwnd": 202})
+    monkeypatch.setattr(commands, "window_info", lambda: {"app": "notepad.exe", "hwnd": 202})
+    tool.transcribe = lambda audio: "Private message"
+    tool._dictate(t, np.full(vt.RATE, 0.3, np.float32))
+    assert not PASTED and tool.cards[-1][0] == "Not typed: you switched windows"
+    assert "Private message" in (vt.HERE / "history.jsonl").read_text(encoding="utf-8")  # kept
+    assert tool.light.state == "error"
+
+
+def test_review_a_job_is_typed_where_the_recording_stopped(tool, monkeypatch):
+    """Hands-free: he may start in one window and stop in another; the text goes where he was when he stopped."""
+    windows = {"now": {"app": "outlook.exe", "hwnd": 101}}
+    monkeypatch.setattr(tool, "_front_window", lambda: dict(windows["now"]))
+    t0 = now()
+    key(tool, DICTATE, True, t0)
+    key(tool, DICTATE, False, t0 + 0.05)
+    key(tool, DICTATE, True, t0 + 0.2)
+    key(tool, DICTATE, False, t0 + 0.25)
+    windows["now"] = {"app": "notepad.exe", "hwnd": 202}
+    key(tool, DICTATE, True, t0 + 3)
+    key(tool, DICTATE, False, t0 + 3.05)
+    job, audio = tool.jobs.get_nowait()
+    assert job.target == 202
+    tool.transcribe = lambda audio: "hello there"
+    tool._dictate(job, audio)
+    assert PASTED == ["hello there "]
+
+
+def test_review_rewrite_and_fix_are_not_typed_into_a_different_window(tool, monkeypatch):
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "notepad.exe", "hwnd": 202})
+    selection = {"app": "outlook.exe", "title": "x", "selection": "Private message to rewrite", "pid": 1, "hwnd": 101}
+    run_command(tool, "make this shorter", {"route": "rewrite", "text": ""}, selection, then=("Rewritten private message.",))
+    assert not PASTED and tool.cards[-1][0] == "Not typed: you switched windows"
+    run_command(tool, "that should be Zephyr", {"route": "fix", "text": "Zephyr"}, {**selection, "selection": "zef fir"})
+    assert not PASTED and ("zef fir", "Zephyr") in corrections.load()  # still learned; just not typed elsewhere
+    run_command(tool, "write a thank-you", {"route": "write", "text": "Thank you!"}, {**selection, "selection": ""})
+    assert not PASTED
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "outlook.exe", "hwnd": 101})  # back in the right window
+    run_command(tool, "make this shorter", {"route": "rewrite", "text": ""}, selection, then=("Shorter.",))
+    assert PASTED == ["Shorter."]
+
+
+def test_review_a_window_that_cannot_be_read_still_gets_its_text(tool, monkeypatch):
+    t = tool.triggers[DICTATE]
+    t.app = {}  # (the window couldn't be read when the key went down)
+    monkeypatch.setattr(tool, "_front_window", lambda: {})
+    tool.transcribe = lambda audio: "hello"
+    tool._dictate(t, np.full(vt.RATE, 0.3, np.float32))
+    assert PASTED == ["hello "]
+
+
+def test_review_close_window_only_closes_the_window_it_was_said_in(tool, monkeypatch):
+    sent = []
+    monkeypatch.setattr(system_windows, "close_window", lambda: sent.append("close"))
+    context = {"app": "notepad.exe", "title": "x", "selection": "", "pid": 1, "hwnd": 101}
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "outlook.exe", "hwnd": 202})
+    run_command(tool, "close this window", {"route": "system", "target": "close_window"}, context)
+    assert sent == [] and tool.cards[-1][0] == "Didn't close it"
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "notepad.exe", "hwnd": 101})
+    run_command(tool, "close this window", {"route": "system", "target": "close_window"}, context)
+    assert sent == ["close"]
+
+
+def test_review_a_command_that_fails_is_kept_in_history_with_a_reason(tool, monkeypatch):
+    def slow(*a, **kw):
+        raise TimeoutError("Request timed out.")
+    monkeypatch.setattr(commands, "route", slow)
+    run_command(tool, "make this shorter", {"route": "rewrite"})
+    rows = [json.loads(line) for line in (vt.HERE / "history.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert rows[-1]["command"] == "make this shorter" and rows[-1]["route"] == "failed"
+    assert rows[-1]["result"].startswith("Not done:") and "saved in History" in rows[-1]["result"]
+    assert tool.cards[-1][0] == "Command not done" and not PASTED and tool.light.state == "error"
+    shown = ui_api.API(SimpleNamespace(), vt.CONFIG, lambda c: None).api_history()["items"][0]
+    assert shown["said"] == "make this shorter" and shown["text"].startswith("Not done:")
+    if hasattr(commands, "CommandFailed"):  # the model's own timeout message is shown as it is
+        monkeypatch.setattr(commands, "route", lambda *a, **kw: (_ for _ in ()).throw(commands.CommandFailed("Took too long.")))
+        run_command(tool, "write a note", {"route": "write"})
+        assert tool.cards[-1] == ("Command not done", "Took too long.", False)
+
+
+def test_review_spoken_answer_clean_up_never_keeps_a_run_alive(tool, tmp_path):
+    path = tmp_path / "answer.wav"
+    path.write_bytes(b"x")
+    timer = tool._forget_later(str(path), seconds=0.05)
+    assert timer.daemon and timer in tool._timers
+    timer.join(2)
+    assert not path.exists() and timer not in tool._timers
+    path.write_bytes(b"x")
+    slow = tool._forget_later(str(path), seconds=3600)
+    tool._cancel_timers()
+    slow.join(2)
+    assert not slow.is_alive() and not tool._timers and path.exists()  # cancelled: Quit doesn't wait half an hour
+    assert not [th for th in threading.enumerate() if isinstance(th, threading.Timer) and th.is_alive() and not th.daemon]
+
+
+# ====================================================================================================== SLOW-PC COMMAND TIMEOUTS
+# Token budgets, the processor-aware wait (local_cleanup_win.request_timeout), commands.ModelTimeout, and the processor-only
+# server. Fakes only: no model runs here (a tiny local stand-in web server stands in for the model's timing and errors).
+
+class SlowPCServer:
+    """Stands in for LocalCleaner as far as LocalClient cares: does the model run on the processor?"""
+
+    def __init__(self, cpu):
+        self.cpu = cpu
+
+    def on_cpu(self):
+        return self.cpu
+
+
+def slowpc_client(raw, cpu=True, base=60):
+    return local_cleanup_win.LocalClient(raw, SlowPCServer(cpu), base)
+
+
+class SlowPCReply:
+    def __init__(self, content, finish="stop"):
+        self.choices = [SimpleNamespace(message=SimpleNamespace(content=content), finish_reason=finish)]
+        self.usage = None
+
+
+class SlowPCRaw:
+    """A model client that answers each request with the next item: a reply, or an error that is raised."""
+
+    def __init__(self, *items):
+        self.items, self.sent = list(items), []
+        self.chat = SimpleNamespace(completions=self)
+
+    def create(self, **kw):
+        self.sent.append(kw)
+        item = self.items.pop(0) if len(self.items) > 1 else self.items[0]
+        if isinstance(item, BaseException):
+            raise item
+        return item if isinstance(item, SlowPCReply) else SlowPCReply(item)
+
+    def with_options(self, **kw):
+        self.options = kw
+        return self
+
+
+def slowpc_errors():
+    """The errors the OpenAI client raises (built without a network)."""
+    import openai
+    response = lambda status: SimpleNamespace(status_code=status, headers={}, request=None)  # noqa: E731
+    return {"timeout": openai.APITimeoutError(request=None),
+            "connection": openai.APIConnectionError(message="Connection error.", request=None),
+            "loading": openai.InternalServerError("Loading model", response=response(503), body=None),
+            "bad_gateway": openai.InternalServerError("bad gateway", response=response(502), body=None),
+            "auth": openai.AuthenticationError("no", response=response(401), body=None),
+            "bad_request": openai.BadRequestError("too long for the context", response=response(400), body=None)}
+
+
+def test_slowpc_the_wait_for_a_request_is_decided_in_one_function_scaled_by_the_job():
+    rt = local_cleanup_win.request_timeout
+    # on a graphics card (or anything that is not the processor) nothing changes: the flat wait it always had
+    assert rt(1500, 600, cpu=False) == 60 and rt(1500, 600, cpu=False, base=45) == 45 and rt(0, 1, cpu=False) == 60
+    # on the processor every job gets what it needs: reading the prompt plus writing the reply, plus slack
+    route = rt(1500, commands.route_budget("make this shorter"), cpu=True)
+    rewrite = rt(400, commands.rewrite_budget("I will be a little late."), cpu=True)
+    write = rt(400, commands.WRITE_TOKENS, cpu=True)
+    tidy = rt(250, 64, cpu=True)
+    assert write > route > rewrite > tidy >= 60
+    assert (tidy, rewrite, route, write) == (64, 82, 193, 250)  # (the numbers a 4-core laptop's speeds give)
+    assert 120 < route < 300  # the old flat 60 s could never have covered the command router on a processor
+    # longer prompts and longer replies wait longer, up to ten minutes, and never less than the configured base
+    assert rt(3000, 100, True) > rt(1000, 100, True) and rt(1000, 900, True) > rt(1000, 100, True)
+    assert rt(10 ** 6, 10 ** 6, True) == 600 and rt(0, 1, True, base=200) == 200 and rt(0, None, True) == 600
+    assert local_cleanup_win.estimate_prompt_tokens([{"role": "system", "content": "s" * 3000}, {"role": "user", "content": "hello"}]) == 1002
+    assert local_cleanup_win.estimate_prompt_tokens([{"content": [{"type": "text", "text": "abc"}, {"type": "image_url"}]}, "x", {}]) == 1
+    assert local_cleanup_win.estimate_prompt_tokens(None) == 0
+
+
+def test_slowpc_the_processor_client_gives_each_request_its_own_wait_and_nothing_else_changes():
+    raw = SlowPCRaw("ok")
+    messages = [{"role": "system", "content": "s" * 3000}, {"role": "user", "content": "hello"}]
+    slowpc_client(raw).chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+    assert raw.sent[-1]["timeout"] == local_cleanup_win.request_timeout(1002, 100, True) and raw.sent[-1]["max_tokens"] == 100
+    slowpc_client(raw).chat.completions.create(model="m", messages=messages)  # no limit asked for: the server's own limit counts
+    assert raw.sent[-1]["timeout"] == local_cleanup_win.request_timeout(1002, None, True) == 600
+    slowpc_client(raw, base=500).chat.completions.create(model="m", messages=messages, max_completion_tokens=1)
+    assert raw.sent[-1]["timeout"] == 500  # the configured wait is a floor
+    slowpc_client(raw).chat.completions.create(model="m", messages=messages, max_completion_tokens=100, timeout=7)
+    assert raw.sent[-1]["timeout"] == 7  # a wait the caller chose is kept
+    # a graphics-card server, a client with no server, and a server that can't say: the client's own timeout, as before
+    for client in (slowpc_client(raw, cpu=False), local_cleanup_win.LocalClient(raw),
+                   local_cleanup_win.LocalClient(raw, SimpleNamespace(on_cpu=lambda: 1 / 0))):
+        client.chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+        assert "timeout" not in raw.sent[-1]
+    # a caller that fixed the wait itself (meeting notes: 15 minutes) is never overridden
+    client = slowpc_client(raw).with_options(timeout=900)
+    client.chat.completions.create(model="m", messages=messages, max_completion_tokens=2500)
+    assert raw.options == {"timeout": 900} and "timeout" not in raw.sent[-1]
+    client.with_options(max_retries=0).chat.completions.create(model="m", messages=messages)
+    assert "timeout" not in raw.sent[-1]  # (and it stays fixed through another with_options)
+    # an ordinary with_options (no timeout) keeps the per-request wait
+    slowpc_client(raw).with_options(max_retries=0).chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+    assert raw.sent[-1]["timeout"] == local_cleanup_win.request_timeout(1002, 100, True)
+
+
+def test_slowpc_every_command_request_has_a_reply_limit_for_its_job():
+    assert commands.route_budget("") == 256 and commands.route_budget("open notepad") < 300 and commands.route_budget("x" * 9000) == 600
+    assert commands.rewrite_budget("") == commands.rewrite_budget("   ") == commands.WRITE_TOKENS == 600  # new text: a fixed cap
+    assert commands.rewrite_budget("Short text.") == 96  # the floor
+    assert commands.rewrite_budget("w" * 900) == 498  # 300 tokens x 1.5, plus a little
+    assert commands.rewrite_budget("w" * 12000) == commands.REWRITE_MAX_TOKENS == 4096  # the longest selection VoiceTool copies
+    raw = SlowPCRaw(json.dumps({"route": "rewrite", "text": ""}), "Shorter.")
+    client = slowpc_client(raw)
+    selection = "I just wanted to reach out and let you know that I will be a little bit late."
+    assert commands.route(client, "local", "make this shorter", {"selection": selection})[:2] == ("rewrite", "Shorter.")
+    route_request, rewrite_request = raw.sent
+    assert route_request["max_tokens"] == commands.route_budget("make this shorter")
+    assert rewrite_request["max_tokens"] == commands.rewrite_budget(selection)
+    assert route_request["timeout"] > rewrite_request["timeout"] >= 60  # the router reads far more than a rewrite does
+    # "write ..." with nothing selected: the router decides (a tiny reply), then the focused writing step has the fixed cap
+    raw = SlowPCRaw(json.dumps({"route": "write", "text": ""}), "Hi Sam, thank you.")
+    assert commands.route(slowpc_client(raw), "local", "write a thank-you note to Sam", {"selection": ""})[:2] == ("write", "Hi Sam, thank you.")
+    assert raw.sent[0]["max_tokens"] == commands.route_budget("write a thank-you note to Sam") and raw.sent[1]["max_tokens"] == 600
+    # an answer, an open and a note come back from the one routing request (no second pass)
+    for reply, want in ((json.dumps({"route": "answer", "text": "Four."}), "answer"), (json.dumps({"route": "open", "target": "Notepad"}), "open"),
+                        (json.dumps({"route": "note", "text": "Buy milk.", "topic": "milk"}), "note")):
+        raw = SlowPCRaw(reply)
+        assert commands.route(slowpc_client(raw), "local", "what is two plus two", {"selection": ""})[0] == want and len(raw.sent) == 1
+        assert raw.sent[0]["max_tokens"] <= 600
+
+
+def test_slowpc_a_model_that_is_too_slow_gone_or_loading_raises_one_clear_exception_on_every_step():
+    errors = slowpc_errors()
+    selection = {"selection": "I just wanted to reach out and let you know that I will be a little bit late."}
+    # the routing request itself
+    for name, reason in (("timeout", "timeout"), ("connection", "connection"), ("loading", "loading"), ("bad_gateway", "connection")):
+        with pytest.raises(commands.ModelTimeout) as caught:
+            commands.route(slowpc_client(SlowPCRaw(errors[name])), "local", "make this shorter", selection)
+        e = caught.value
+        assert isinstance(e, commands.CommandFailed) and isinstance(e, RuntimeError) and e.reason == reason
+        assert e.__cause__ is errors[name] and str(e) == e.message and "History" in str(e) and "nothing is lost" in str(e)
+    assert str(commands.ModelTimeout("x")) == "x"
+    # the message is short, plain, and says what to do
+    with pytest.raises(commands.ModelTimeout) as caught:
+        commands.route(slowpc_client(SlowPCRaw(errors["timeout"])), "local", "mute", {})
+    assert str(caught.value).startswith("Your PC took too long on that command. It's saved in History") and "shorter request" in str(caught.value)
+    assert len(str(caught.value)) < 260
+    # the second pass of a rewrite (the router answered, the rewrite timed out), and of a write
+    for first, wanted in ((json.dumps({"route": "rewrite", "text": ""}), selection), (json.dumps({"route": "write", "text": ""}), {})):
+        raw = SlowPCRaw(first, errors["timeout"])
+        with pytest.raises(commands.ModelTimeout) as caught:
+            commands.route(slowpc_client(raw), "local", "make this shorter", wanted)
+        assert caught.value.reason == "timeout" and len(raw.sent) == 2
+    with pytest.raises(commands.ModelTimeout):  # (a rewrite called on its own)
+        commands.rewrite(slowpc_client(SlowPCRaw(errors["connection"])), "local", "shorter", "some text")
+    # the on-device model that is still loading says so; a model that is not on this computer is named as such
+    with pytest.raises(commands.ModelTimeout) as caught:
+        commands.route(slowpc_client(SlowPCRaw(errors["loading"])), "local", "mute", {})
+    assert "still loading" in str(caught.value)
+    with pytest.raises(commands.ModelTimeout) as caught:
+        commands.route(SlowPCRaw(errors["timeout"]), "gpt", "mute", {})  # (an online client, not the local one)
+    assert str(caught.value).startswith("The online model took too long")
+    with pytest.raises(commands.ModelTimeout) as caught:
+        commands.route(SlowPCRaw(errors["connection"]), "gpt", "mute", {})
+    assert "online model" in str(caught.value) and "PC" not in str(caught.value)
+    # other failures are not dressed up as a timeout: they reach the caller as they are
+    for name in ("auth", "bad_request"):
+        with pytest.raises(type(errors[name])):
+            commands.route(slowpc_client(SlowPCRaw(errors[name])), "local", "mute", {})
+    with pytest.raises(ValueError):
+        commands.route(slowpc_client(SlowPCRaw("this is not json")), "local", "mute", {})
+    already = commands.ModelTimeout("already", "timeout")
+    assert commands.as_command_failure(already) is already
+    for builtin in (TimeoutError(), ConnectionRefusedError(), ConnectionResetError(), EOFError()):
+        assert isinstance(commands.as_command_failure(builtin, local=True), commands.ModelTimeout)
+    assert commands.as_command_failure(KeyError("x")) is None and commands.as_command_failure(ValueError("x"), local=True) is None
+    assert commands.as_command_failure(TimeoutError("the model took too long to start"), local=True).message.startswith("Your PC took too long")
+
+
+class SlowPCStub:
+    """A tiny web server on 127.0.0.1 that answers every POST after `delay` seconds with `status` (a stand-in for a model that
+    is slow, still loading, or failing). It never runs a model."""
+
+    def __init__(self, delay=0.0, status=200, body=None):
+        import http.server
+        stub = self
+        stub.delay, stub.status, stub.body, stub.hits = delay, status, body or {}, 0
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                stub.hits += 1
+                time.sleep(stub.delay)
+                data = json.dumps(stub.body).encode()
+                try:
+                    self.send_response(stub.status)
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                except OSError:
+                    pass  # (the client gave up first)
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.server.daemon_threads = True
+        self.port = self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def client(self, timeout):
+        from openai import OpenAI
+        return slowpc_client(OpenAI(base_url=f"http://127.0.0.1:{self.port}/v1", api_key="local", timeout=timeout, max_retries=0), cpu=False)
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+def test_slowpc_real_client_errors_become_the_same_exception_a_slow_server_a_loading_server_and_a_closed_port():
+    from openai import OpenAI
+    slow = SlowPCStub(delay=2.0)
+    loading = SlowPCStub(status=503, body={"error": {"message": "Loading model", "type": "unavailable_error", "code": 503}})
+    try:
+        started = time.monotonic()
+        with pytest.raises(commands.ModelTimeout) as caught:  # the wait runs out
+            commands.route(slow.client(0.4), "local", "make this shorter", {"selection": "some words"})
+        assert caught.value.reason == "timeout" and time.monotonic() - started < 1.9 and slow.hits == 1
+        with pytest.raises(commands.ModelTimeout) as caught:  # the server answers "still loading"
+            commands.route(loading.client(5), "local", "mute", {})
+        assert caught.value.reason == "loading" and loading.hits == 1
+    finally:
+        slow.close()
+        loading.close()
+    dead_port = free_port()  # nothing listens here: connection refused
+    refused = slowpc_client(OpenAI(base_url=f"http://127.0.0.1:{dead_port}/v1", api_key="local", timeout=3, max_retries=0), cpu=False)
+    with pytest.raises(commands.ModelTimeout) as caught:
+        commands.route(refused, "local", "open Notepad", {})
+    assert caught.value.reason == "connection" and "couldn't reach" in str(caught.value)
+
+
+def test_slowpc_a_reply_cut_off_at_its_limit_is_never_pasted_half_written():
+    cut = lambda text: SlowPCReply(text, "length")  # noqa: E731
+    # a rewrite that ran to its limit keeps only whole sentences
+    raw = SlowPCRaw(json.dumps({"route": "rewrite", "text": ""}), cut("One is done. Two is done. Thr"))
+    assert commands.route(slowpc_client(raw), "local", "shorter", {"selection": "some text here"})[1] == "One is done. Two is done."
+    assert commands.rewrite(slowpc_client(SlowPCRaw(cut("No full sentence at all"))), "local", "x", "text") == "No full sentence at all"
+    # a routing reply cut off while writing: the draft is thrown away and the focused writing step writes it again
+    raw = SlowPCRaw(cut('{"route": "write", "text": "Hi Sam,\\n\\nThank you so much for'), "Hi Sam, thanks a lot.")
+    assert commands.route(slowpc_client(raw), "local", "write a thank-you note to Sam", {"selection": ""})[:2] == ("write", "Hi Sam, thanks a lot.")
+    assert len(raw.sent) == 2 and raw.sent[1]["max_tokens"] == commands.WRITE_TOKENS
+    raw = SlowPCRaw(cut('{"route": "rewrite", "te'), "Shorter.")
+    assert commands.route(slowpc_client(raw), "local", "shorter", {"selection": "words words"})[:2] == ("rewrite", "Shorter.")
+    # an answer cut off keeps its whole sentences
+    answer = ('{"route": "answer", "text": "The error means the file is missing and Windows cannot open it. '
+              'Check the path and try again, then if that keeps failing restart the')
+    kind, text, _ = commands.route(slowpc_client(SlowPCRaw(cut(answer))), "local", "what does this error mean", {"selection": ""})
+    assert (kind, text) == ("answer", "The error means the file is missing and Windows cannot open it.")
+    # a note, a journal entry or an open that was cut off is not guessed at: one clear message, not a timeout
+    for partial in ('{"route": "note", "text": "Buy mi', '{"route": "journal", "text": "today I', '{"route": "open", "target": "Note', '{"rou'):
+        with pytest.raises((commands.CommandFailed, ValueError)) as caught:
+            commands.route(slowpc_client(SlowPCRaw(cut(partial))), "local", "note: buy milk", {"selection": ""})
+        if partial != '{"rou':
+            assert type(caught.value) is commands.CommandFailed and "shorter request" in str(caught.value) and caught.value.reason == "too long"
+    # a reply that is not cut off and is not JSON still fails as it always did
+    with pytest.raises(ValueError):
+        commands.route(slowpc_client(SlowPCRaw(SlowPCReply('{"route": "wri', "stop"))), "local", "mute", {})
+    # a complete reply that happened to end exactly at the limit is used
+    done = SlowPCReply(json.dumps({"route": "open", "target": "Notepad"}), "length")
+    assert commands.route(slowpc_client(SlowPCRaw(done)), "local", "open Notepad", {})[0] == "open"
+
+
+def test_slowpc_the_processor_server_gets_its_cores_a_reply_limit_and_a_longer_start_while_the_graphics_card_one_is_unchanged(monkeypatch, tmp_path):
+    lc = local_cleanup_win
+    monkeypatch.setattr(lc, "physical_cores", lambda: 6)
+    cpu = lc.LocalCleaner({"offline_backend": "cpu"})
+    assert cpu.on_cpu() and cpu._args() == ["-c", "16384", "--parallel", "1", "--no-webui", "-t", "6", "-n", "2560", "-cram", "1024"]
+    assert "-ngl" not in cpu._args() and "--device" not in cpu._args() and "-c" in cpu._args() and "--parallel" in cpu._args()
+    monkeypatch.setattr(lc, "physical_cores", lambda: 40)
+    assert lc.LocalCleaner({"offline_backend": "cpu"})._args()[-6] == "-t" and lc.LocalCleaner({"offline_backend": "cpu"})._args()[-5] == "12"  # not more than 12
+    monkeypatch.setattr(lc, "physical_cores", lambda: 1)
+    assert lc.LocalCleaner({"offline_backend": "cpu"})._args()[-5] == "1"
+    # the person's own settings win, and are not repeated
+    own = lc.LocalCleaner({"offline_backend": "cpu", "offline_args": ["-c", "8192", "-ngl", "99", "--device", "Vulkan0", "-t", "2",
+                                                                       "--predict=300", "--cache-ram", "0"]})
+    assert own._args() == ["-c", "8192", "-t", "2", "--predict=300", "--cache-ram", "0"]
+    assert lc.cpu_server_args(["-c", "16384"], cores=4) == ["-c", "16384", "-t", "4", "-n", "2560", "-cram", "1024"]
+    assert lc.physical_cores() >= 1
+    # the graphics-card server is exactly what it was
+    gpu = lc.LocalCleaner({"offline_backend": "vulkan"})
+    assert not gpu.on_cpu() and gpu._args() == lc.BASE_ARGS + lc.GPU_ARGS
+    configured = ["-c", "16384", "--parallel", "1", "--no-webui", "-ngl", "99", "--device", "Vulkan0"]
+    assert lc.LocalCleaner({"offline_backend": "vulkan", "offline_args": configured})._args() == configured
+    # a Vulkan build that was started with no graphics-card options is on the processor; so is one that fell back
+    assert lc.LocalCleaner({"offline_backend": "vulkan", "offline_args": ["-c", "16384"]}).on_cpu()
+    fell = lc.LocalCleaner({"offline_backend": "vulkan"})
+    fell.backend, fell.fell_back = "cpu", True
+    assert fell.on_cpu() and "-t" in fell._args() and "-ngl" not in fell._args()
+    # how long the model may take to load: longer on a processor (a slow disk), unless the caller says otherwise
+    assert cpu.startup_seconds == lc.CPU_STARTUP_SECONDS == 240 and gpu.startup_seconds == lc.GPU_STARTUP_SECONDS == 90
+    assert lc.LocalCleaner({"offline_backend": "cpu"}, startup_seconds=7).startup_seconds == 7
+    # the real command line that starts the processor server
+    for name in ("c.exe", "m.gguf"):
+        (tmp_path / name).write_bytes(b"x")
+    monkeypatch.setattr(lc, "physical_cores", lambda: 4)
+    real = lc.LocalCleaner({"offline_backend": "cpu", "offline_server_cpu": str(tmp_path / "c.exe"), "offline_model": str(tmp_path / "m.gguf")})
+    command = real._default_command(8766)
+    assert command[0] == str(tmp_path / "c.exe") and command[-6:] == ["-t", "4", "-n", "2560", "-cram", "1024"] and "127.0.0.1" in command
+
+
+def test_slowpc_the_processor_server_reads_the_routers_instructions_once_after_loading_and_a_failure_is_only_logged():
+    lc = local_cleanup_win
+    raw = SlowPCRaw("")
+    logged = []
+    log = SimpleNamespace(info=lambda msg, *a: logged.append(msg % a if a else msg), warning=lambda *a: logged.append(a))
+    cpu = lc.LocalCleaner({"offline_backend": "cpu"}, log)
+    cpu.client = lambda timeout=60: slowpc_client(raw)
+    assert cpu.warm_up() is True and len(raw.sent) == 1
+    request = raw.sent[0]
+    assert request["messages"][0] == {"role": "system", "content": commands.ROUTER} and request["max_tokens"] == 1
+    assert request["timeout"] == lc.request_timeout(lc.estimate_prompt_tokens(request["messages"]), 1, True) > 60
+    assert any("warmed up" in m for m in logged)
+    # the real routing request starts with the same instructions, so the server can reuse what it read
+    routed = SlowPCRaw(json.dumps({"route": "system", "target": "mute"}))
+    commands.route(slowpc_client(routed), "local", "mute", {"selection": ""}, style="My style.")
+    assert routed.sent[0]["messages"][0]["content"].startswith(request["messages"][0]["content"])
+    # a failure never raises
+    cpu.client = lambda timeout=60: slowpc_client(SlowPCRaw(slowpc_errors()["timeout"]))
+    assert cpu.warm_up() is False and any("skipped" in m for m in logged if isinstance(m, str))
+    cpu.client = lambda timeout=60: (_ for _ in ()).throw(lc.ModelServerUnavailable("won't start"))
+    assert cpu.warm_up() is False
+    # the graphics-card server is never warmed up this way
+    gpu = lc.LocalCleaner({"offline_backend": "vulkan"}, log)
+    gpu.client = lambda timeout=60: pytest.fail("no request on a graphics card")
+    assert gpu.warm_up() is False
+
+
+def test_slowpc_starting_in_the_background_warms_a_processor_server_up_only_after_it_is_ready(monkeypatch):
+    lc = local_cleanup_win
+    events = []
+    cpu = lc.LocalCleaner({"offline_backend": "cpu"})
+    monkeypatch.setattr(cpu, "start", lambda: events.append("start"))
+    monkeypatch.setattr(cpu, "warm_up", lambda: events.append("warm"))
+    cpu.start_in_background()
+    for thread in threading.enumerate():
+        if thread.name == "local-model":
+            thread.join(5)
+    assert events == ["start", "warm"]
+    events.clear()
+    failing = lc.LocalCleaner({"offline_backend": "cpu"})
+    monkeypatch.setattr(failing, "start", lambda: (_ for _ in ()).throw(RuntimeError("the model program stopped while starting")))
+    monkeypatch.setattr(failing, "warm_up", lambda: events.append("warm"))
+    failing.start_in_background()
+    for thread in threading.enumerate():
+        if thread.name == "local-model":
+            thread.join(5)
+    assert events == []  # a server that didn't start is not warmed up (and nothing is raised)
+
+
+def test_slowpc_a_request_that_arrives_while_the_processor_server_is_still_loading_waits_for_it(fake_server, monkeypatch):
+    port = free_port()
+    slow_start = [BASE_PYTHON, "-c", "import sys, time, runpy; time.sleep(1.5); sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')",
+                  fake_server.script, str(port), "fake-model.gguf"]
+    c = local_cleanup_win.LocalCleaner({"offline_model": "C:/m/fake-model.gguf", "offline_port": port, "offline_backend": "cpu"},
+                                       command=lambda p: slow_start, startup_seconds=30)
+    monkeypatch.setattr(c, "warm_up", lambda: True)  # (the stand-in is not a model)
+    c.start_in_background()
+    time.sleep(0.4)
+    assert not c.running()  # still loading
+    started = time.monotonic()
+    assert tidy(c, "SYSTEM PROMPT", "hello there") == "CLEANED: hello there | SYSTE"  # the request waited for the load, then ran
+    assert time.monotonic() - started > 0.5
+    c.stop()
+    # a load that never finishes in time is one clear failure that the app can turn into the same message
+    never = local_cleanup_win.LocalCleaner({"offline_port": free_port(), "offline_backend": "cpu"},
+                                           command=lambda p: [BASE_PYTHON, "-c", "import time; time.sleep(60)"], startup_seconds=1)
+    with pytest.raises(TimeoutError) as caught:
+        never.start()
+    assert commands.as_command_failure(caught.value, local=True).reason == "timeout"
+    never.stop()
+
+
+def test_slowpc_a_request_queued_behind_the_start_up_warm_up_is_given_the_warm_up_time_too(monkeypatch):
+    lc = local_cleanup_win
+    messages = [{"role": "system", "content": "s" * 600}, {"role": "user", "content": "um hello there"}]
+    raw = SlowPCRaw("ok")
+    cpu = lc.LocalCleaner({"offline_backend": "cpu"})
+    client = lc.LocalClient(raw, cpu, 60)
+    alone = lc.request_timeout(lc.estimate_prompt_tokens(messages), 64, True)
+    client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
+    assert raw.sent[-1]["timeout"] == alone and cpu.warm_up_wait() == 0
+    started = threading.Event()
+    release = threading.Event()
+    monkeypatch.setattr(cpu, "start", lambda: (started.set(), release.wait(5)))
+    monkeypatch.setattr(cpu, "warm_up", lambda: release.wait(5))
+    cpu.start_in_background()
+    assert started.wait(5) and 60 < cpu.warm_up_wait() <= lc.request_timeout(1500, 1, True)  # (about 100 s while it may run)
+    client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
+    assert alone + 60 < raw.sent[-1]["timeout"] <= alone + lc.request_timeout(1500, 1, True)
+    release.set()
+    for thread in threading.enumerate():
+        if thread.name == "local-model":
+            thread.join(5)
+    assert cpu.warm_up_wait() == 0  # over: back to the plain wait
+    client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
+    assert raw.sent[-1]["timeout"] == alone
+    # a server that failed to start is not left "warming up"
+    failed = lc.LocalCleaner({"offline_backend": "cpu"})
+    monkeypatch.setattr(failed, "start", lambda: (_ for _ in ()).throw(RuntimeError("stopped while starting")))
+    failed.start_in_background()
+    for thread in threading.enumerate():
+        if thread.name == "local-model":
+            thread.join(5)
+    assert failed.warm_up_wait() == 0
+    # and a graphics-card server never has one
+    gpu = lc.LocalCleaner({"offline_backend": "vulkan"})
+    monkeypatch.setattr(gpu, "start", lambda: None)
+    gpu.start_in_background()
+    assert gpu.warm_up_wait() == 0
+
+
+def test_review_a_model_that_is_too_slow_to_start_keeps_the_command_and_says_so(tool, monkeypatch):
+    def slow_start():
+        raise TimeoutError("the model took too long to start")
+    tool.azure = FakeCleaner()
+    monkeypatch.setattr(tool.azure, "_client", slow_start)
+    t = tool.triggers[COMMAND]
+    t.context = {"app": "notepad.exe", "title": "x", "selection": "", "pid": 1, "hwnd": 2}
+    tool.transcribe = lambda audio: "write a thank-you note to Sam"
+    tool._command(t, np.full(vt.RATE, 0.3, np.float32))
+    rows = [json.loads(line) for line in (vt.HERE / "history.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert rows[-1]["command"] == "write a thank-you note to Sam" and rows[-1]["route"] == "failed"
+    assert tool.cards[-1][0] == "Command not done" and "saved in History" in tool.cards[-1][1] and not PASTED

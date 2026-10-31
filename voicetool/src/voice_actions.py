@@ -9,6 +9,7 @@
 - journal: "journal: today I…": tidied into journal/<date>.md, kept only on this computer.
 """
 import base64
+import inspect
 import json
 import os
 import re
@@ -73,15 +74,30 @@ def open_thing(platform, target):
         return f"Opened your shortcut “{sc['phrase']}”."
     app = platform.find_app(target)
     if app:
-        platform.open_path(app)
+        getattr(platform, "open_app", platform.open_path)(app)  # the Start menu's own shortcuts may start apps
         label = getattr(platform, "app_label", None)  # Store apps are named by their Start-menu title
         return f"Opened {label(app) if label else Path(app).stem}."
-    hits = platform.search_files(target, limit=5)
+    refused = []
+    hits = _search_files(platform, target, refused)
     if hits:
-        platform.open_path(hits[0])
+        platform.open_path(hits[0])  # documents and folders only; it checks once more right before opening
         others = "".join(f"\n• {Path(h).name}" for h in hits[1:4])
         return f"Opened {Path(hits[0]).name}." + (f"\nOther matches:{others}" if others else "")
+    if refused:  # found, but a program, shortcut or link: say so instead of "couldn't find"
+        path, why = refused[0]
+        return (f"I found “{Path(path).name}”, but it's {why}, so I won't open it from a file search. If you trust it, "
+                f"add it as a voice shortcut in the VoiceTool window.")
     return f"Couldn't find anything called “{target}”. Add it as a voice shortcut in the VoiceTool window."
+
+
+def _search_files(platform, target, refused):
+    """platform.search_files, collecting what it left out (programs, shortcuts, links) when it can say so."""
+    search = platform.search_files
+    try:
+        says_why = "skipped" in inspect.signature(search).parameters
+    except (TypeError, ValueError):
+        says_why = False
+    return search(target, limit=5, skipped=refused) if says_why else search(target, limit=5)
 
 
 # ---------- notes ----------

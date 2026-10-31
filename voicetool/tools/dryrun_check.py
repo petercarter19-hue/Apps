@@ -152,6 +152,7 @@ def main():
              ("read this to me", {"selection": "Hello there, this is some selected text."}, {"read"})]
     good = 0
     for said, ctx, want in cases:
+        t0 = time.perf_counter()
         try:
             kind, out, extra = commands.route(client, cfg.get("cleanup_model") or "local", said,
                                               dict({"app": "notepad.exe", "title": "Untitled - Notepad"}, **ctx))
@@ -159,7 +160,7 @@ def main():
             kind, out = f"error: {type(e).__name__}: {e}", ""
         ok = kind in want
         good += ok
-        print(f"      route {said!r:42} -> {kind}{'' if ok else '   (wanted ' + '/'.join(want) + ')'}", flush=True)
+        print(f"      route {said!r:42} -> {kind}{'' if ok else '   (wanted ' + '/'.join(want) + ')'}  [{time.perf_counter() - t0:.1f} s]", flush=True)
     check("Command router gave sensible routes", good >= 5, f"{good} of {len(cases)}")
 
     # --- 4. nothing leaves the computer, nothing Azure or Claude ---

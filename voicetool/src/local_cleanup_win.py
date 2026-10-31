@@ -70,6 +70,77 @@ def cpu_args(args):
     return out
 
 
+# ----- running on a processor only (no graphics card) -----
+#
+# A 4B model on a laptop's processor reads its prompt at tens of tokens a second and writes a few a second, so the same
+# request that takes a second on a graphics card can take a minute. Three things keep that workable: every request has a
+# bounded reply (see commands.py), the server is told how many cores to use and never to write more than a request could
+# need, and the wait allowed for a request (request_timeout, the ONE place that decides) is worked out from how much
+# the request has to read and write, at speeds a modest 4-core laptop reaches.
+CPU_PREFILL_TOKENS_PER_SECOND = 20.0   # reading the prompt (the command router's instructions are ~1,400 tokens)
+CPU_WRITE_TOKENS_PER_SECOND = 3.0      # writing the reply
+CPU_DEADLINE_OVERHEAD_SECONDS = 30     # waking the model up, the request waiting behind another, slack
+CPU_DEADLINE_MAX_SECONDS = 600
+SERVER_PREDICT_LIMIT = 2560            # the server never writes more than this for one request (meeting notes ask for 2,500)
+CPU_PROMPT_CACHE_MIB = 1024            # memory the server may keep for reusing the start of earlier prompts
+CPU_STARTUP_SECONDS = 240              # a processor-only PC may need this long to read the 2.5 GB model from a slow disk
+GPU_STARTUP_SECONDS = 90
+MAX_CPU_THREADS = 12                   # more cores than this stops helping (writing is limited by memory speed)
+
+
+def estimate_prompt_tokens(messages):
+    """A quick, slightly high guess at how many tokens a request's messages are (3 characters each; pictures count 0)."""
+    chars = 0
+    for message in messages or []:
+        content = message.get("content") if isinstance(message, dict) else None
+        if isinstance(content, str):
+            chars += len(content)
+        elif isinstance(content, list):
+            chars += sum(len(part.get("text") or "") for part in content if isinstance(part, dict))
+    return -(-chars // 3)
+
+
+def request_timeout(prompt_tokens, max_tokens, cpu, base=60):
+    """Seconds one request to the model on this computer may take before VoiceTool gives up.
+    On a graphics card (cpu False) that is `base` (offline_timeout_seconds, 60), as it always was. On a processor it is
+    the time to read the prompt plus the time to write a reply of up to `max_tokens` (None: as long as the server allows),
+    plus some slack, never less than `base` and never more than ten minutes."""
+    if not cpu:
+        return base
+    write = SERVER_PREDICT_LIMIT if not max_tokens else min(int(max_tokens), SERVER_PREDICT_LIMIT)
+    seconds = (CPU_DEADLINE_OVERHEAD_SECONDS + max(0, int(prompt_tokens)) / CPU_PREFILL_TOKENS_PER_SECOND
+               + write / CPU_WRITE_TOKENS_PER_SECOND)
+    return max(base, min(CPU_DEADLINE_MAX_SECONDS, round(seconds)))
+
+
+def physical_cores():
+    """How many real cores this computer has (not hyper-threads), at least 1."""
+    try:
+        import psutil
+        count = psutil.cpu_count(logical=False)
+    except Exception:
+        count = None
+    return max(1, count or (os.cpu_count() or 2) // 2)
+
+
+def _has_flag(args, *names):
+    return any(str(a) in names or str(a).split("=")[0] in names for a in args)
+
+
+def cpu_server_args(args, cores=None):
+    """`args` plus what a processor-only server needs, for each of these the person's own config didn't already say:
+    -t (threads: the real cores, up to MAX_CPU_THREADS), -n (the most one request may write) and -cram (how much memory
+    the prompt cache may use)."""
+    out = list(args)
+    if not _has_flag(out, "-t", "--threads"):
+        out += ["-t", str(min(MAX_CPU_THREADS, cores or physical_cores()))]
+    if not _has_flag(out, "-n", "--predict", "--n-predict"):
+        out += ["-n", str(SERVER_PREDICT_LIMIT)]
+    if not _has_flag(out, "-cram", "--cache-ram"):
+        out += ["-cram", str(CPU_PROMPT_CACHE_MIB)]
+    return out
+
+
 def configured_backend(config=None):
     return "cpu" if str((config or {}).get("offline_backend") or "vulkan").lower() == "cpu" else "vulkan"
 
@@ -125,7 +196,12 @@ class _Completions:
         self._owner = owner
 
     def create(self, **kwargs):
-        reply = self._owner._client.chat.completions.create(**adapt_params(kwargs))
+        params = adapt_params(kwargs)
+        if "timeout" not in params:
+            wait = self._owner.deadline(params.get("messages"), params.get("max_tokens"))
+            if wait is not None:
+                params["timeout"] = wait
+        reply = self._owner._client.chat.completions.create(**params)
         try:
             reply._voicetool_free = True  # usage.py logs these as free
         except Exception:
@@ -142,12 +218,33 @@ class LocalClient:
     """Looks like the OpenAI client the rest of VoiceTool uses (chat.completions.create, with_options), but talks to the
     on-device server and adapts the requests in one place."""
 
-    def __init__(self, client):
+    def __init__(self, client, server=None, base_timeout=60, fixed_timeout=False):
+        """server: the LocalCleaner whose program this talks to (it says whether that is on a processor only).
+        fixed_timeout: the caller chose the wait itself (with_options(timeout=...)), so it is never replaced."""
         self._client = client
+        self._server, self._base_timeout, self._fixed_timeout = server, base_timeout, fixed_timeout
         self.chat = _Chat(self)
 
     def with_options(self, **options):
-        return LocalClient(self._client.with_options(**options))
+        return LocalClient(self._client.with_options(**options), self._server, self._base_timeout,
+                           self._fixed_timeout or "timeout" in options)
+
+    def on_cpu(self):
+        try:
+            return bool(self._server is not None and self._server.on_cpu())
+        except Exception:
+            return False
+
+    def deadline(self, messages, max_tokens):
+        """The wait to give one request, or None to leave it to the client's own timeout (the graphics card, or a wait the
+        caller chose): the decision is request_timeout's."""
+        if self._fixed_timeout or not self.on_cpu():
+            return None
+        wait = request_timeout(estimate_prompt_tokens(messages), max_tokens, True, self._base_timeout)
+        try:  # a request that has to queue behind the start-up warm-up waits for that too
+            return wait + max(0, int(self._server.warm_up_wait()))
+        except Exception:
+            return wait
 
 
 def _get(port, path, timeout=2):
@@ -199,10 +296,11 @@ def _kill_with_me(proc, log=None):
 
 
 class LocalCleaner:
-    def __init__(self, config=None, log=None, command=None, startup_seconds=90):
+    def __init__(self, config=None, log=None, command=None, startup_seconds=None):
         """command: for tests, a function (port) or (port, backend) -> the argument list that starts a llama-server
-        stand-in."""
-        self.config, self.log, self.command, self.startup_seconds = config or {}, log, command, startup_seconds
+        stand-in. startup_seconds: how long to wait for the model to load (default: 90 s on a graphics card, 240 s on a
+        processor, which reads it more slowly)."""
+        self.config, self.log, self.command, self._startup_seconds = config or {}, log, command, startup_seconds
         self.proc = None  # the server we started (None if we are reusing one that was already running)
         self.port = None
         self.reused = False
@@ -210,6 +308,7 @@ class LocalCleaner:
         self.fell_back = False
         self.failed_starts = 0  # failed server starts (a Vulkan start that fails and then a CPU start that works counts none)
         self.gave_up = False
+        self._warm_until = 0.0  # (monotonic time) while the start-up warm-up may still be running
         self._job = None
         self._lock = threading.RLock()
 
@@ -224,11 +323,25 @@ class LocalCleaner:
         text = json.dumps(props).lower() if props else ""
         return status == 200 and self._model_name() in text
 
-    def _args(self):
+    @property
+    def startup_seconds(self):
+        if self._startup_seconds is not None:
+            return self._startup_seconds
+        return CPU_STARTUP_SECONDS if self.on_cpu() else GPU_STARTUP_SECONDS
+
+    def _base_args(self):
         configured = self.config.get("offline_args")
         if configured is None:
             return BASE_ARGS + (GPU_ARGS if self.backend == "vulkan" else [])
         return list(configured) if self.backend == "vulkan" else cpu_args(configured)
+
+    def on_cpu(self):
+        """True when the model runs on the processor: the CPU build, or any build started without graphics-card options."""
+        return self.backend == "cpu" or not _has_flag(self._base_args(), *GPU_FLAGS)
+
+    def _args(self):
+        args = self._base_args()
+        return cpu_server_args(args) if self.on_cpu() else args
 
     def _default_command(self, port):
         found = paths(self.config, self.backend)
@@ -352,14 +465,43 @@ class LocalCleaner:
     def start_in_background(self):
         """Start the server without making anyone wait for it (VoiceTool start-up, a switch turned on)."""
         self.failed_starts, self.gave_up = 0, False  # (a person turned it on, or VoiceTool just started: try afresh)
+        if self.on_cpu():  # a request that arrives meanwhile may queue behind the warm-up: it is given that time too
+            self._warm_until = time.monotonic() + request_timeout(1500, 1, True)
 
         def job():
             try:
-                self.start()
-            except Exception as e:
-                if self.log:
-                    self.log.warning("on-device model not started: %s", str(e)[:200])
+                try:
+                    self.start()
+                except Exception as e:
+                    if self.log:
+                        self.log.warning("on-device model not started: %s", str(e)[:200])
+                    return
+                self.warm_up()
+            finally:
+                self._warm_until = 0.0
         threading.Thread(target=job, daemon=True, name="local-model").start()
+
+    def warm_up_wait(self):
+        """Seconds the start-up warm-up may still keep the server busy (0 once it is over, or on a graphics card)."""
+        return max(0.0, self._warm_until - time.monotonic())
+
+    def warm_up(self):
+        """Processor only: read the command router's instructions once, right after the model loads, so the first spoken
+        command doesn't pay for reading them (the server keeps what it read for the next request that starts the same
+        way). It also pulls the model off the disk. Writes one token; a failure is only logged. True if it ran."""
+        if not self.on_cpu():
+            return False
+        try:
+            import commands
+            self.client().chat.completions.create(model="local", messages=commands.warm_up_messages(),
+                                                  max_completion_tokens=1)
+            if self.log:
+                self.log.info("on-device model warmed up")
+            return True
+        except Exception as e:
+            if self.log:
+                self.log.info("on-device model warm-up skipped: %s", str(e)[:120])
+            return False
 
     def stop(self):
         """Stop the server we started. (A server we only reused is left running.)"""
@@ -384,4 +526,4 @@ class LocalCleaner:
         from openai import OpenAI
         self.start()
         return LocalClient(OpenAI(base_url=f"http://127.0.0.1:{self.port}/v1", api_key="local", timeout=timeout,
-                                  max_retries=0))
+                                  max_retries=0), self, timeout)
