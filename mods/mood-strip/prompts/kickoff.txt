@@ -8,7 +8,7 @@ FREE, ON MY COMPUTER
 WHAT IT SHOWS
 - The strip is the only thing above the prompt: one bar, fully colored, edge to edge, the exact width of the prompt box. It changes color with what's happening, and every change fades in slowly (about [2.5 seconds]); never a hard jump, never flashing.
 - Three parts, using the whole length:
-  - Left: what's happening right now ("Reading app.js", "Running npm", "Thinking…"). For commands, never show the whole command: show the program's name only for well-known programs (npm, git, python and the like), otherwise "a command". Text written into files is never a command. If a file, helper, skill or step name looks private, say "a file", "a helper", "a skill" or "Step 2 of 5" instead.
+  - Left: what's happening right now ("Reading app.js", "Running npm", "Thinking…"). For commands, never show the whole command: show the program's name only for well-known programs (npm, git, python and the like), otherwise "a command". Text written into files is never a command, and a command with several parts (&&, ||, ;, a pipe) only says "Ran a command" unless every part is known to have run. Tests piped into another program end as "Tests finished", with no pass or fail. If a file, helper, skill, tool or step name holds a path or web address (look-alike slashes count), looks like a secret, names a health, money or identity subject, has a letter outside the Latin alphabet, or shares any word with anything I've typed in this session, including my answers to your questions, what I say when I turn a step down and what I type after a slash command (everyday words like "page" or "test" don't count, but names, nicknames, months, days and place codes like "UK" always do; accented letters, words in other alphabets, look-alike digits and a code name with its number left off count too), say "a file", "a helper", "a skill", "a tool" or "Step 2 of 5" instead. After a reload, keep names hidden until you can read back what I typed earlier or I send a new message.
   - Middle: a short trail of the last few things done ("Read app.js › Edited app.js › Tests ✓") and how it's going ("2 retries so far", "9 min, past your usual 3 min", helper names).
   - Right: the current plan step ("Step 2 of 5: Build the page") with one small dot per step, filled when done, from whichever kind of plan, task list or to-do list the AI keeps. If there's no plan, show how many steps and files so far.
 - Moods and colors (pick colors dark enough that the words pass 4.5 to 1 contrast, and tell me what you picked):
@@ -29,7 +29,7 @@ WHAT IT SHOWS
 PRIVACY AND SAFETY
 - Never show my own messages on the strip, not even a few words of them, and don't store them anywhere. Only what the AI is doing.
 - No buttons and nothing to click on the strip.
-- Keep only today's counts, saved on this computer. Nothing is sent anywhere.
+- Keep only today's counts (tasks, work time, the last task), saved on this computer, and clear them when the day changes: at midnight while a session is open, or else the first time Claude Code starts on the new day. Never keep my messages. The usual task length comes from today's tasks alone, or 3 minutes until there are 2. Nothing is sent anywhere.
 - Never fail silently: if something breaks, keep the session going, and show what went wrong as "Last problem" in /mood.
 - Tests use a fake clock and fake storage. They never touch my real settings, my real sessions or my screen.
 

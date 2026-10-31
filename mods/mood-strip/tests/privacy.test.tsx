@@ -255,9 +255,9 @@ test('tool names from a server with underscores in its name read well', async ($
   engine(on)
   await sessionStart($)
   await start($)
-  await $.tool.call({ tool: 'mcp__plugin_desktop-commander_desktop-commander__read_file' } as Call)
+  await $.tool.call({ tool: 'mcp__plugin_desktop-commander_desktop-commander__read_file' } as unknown as Call)
   expect(await alt($)).toContain('Using read file')
-  await $.tool.call({ tool: 'mcp__srv__do_thing' } as Call)
+  await $.tool.call({ tool: 'mcp__srv__do_thing' } as unknown as Call)
   expect(await alt($)).toContain('Using do thing')
 })
 

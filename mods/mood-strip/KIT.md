@@ -31,7 +31,7 @@ One colored bar sits right above the box where you type to the AI. It tells you,
   - **Middle, the story so far:** the last few steps ("Read app.js › Edited app.js › Tests ✓"), how it's going ("2 retries so far"), and helpers at work.
   - **Right, the plan:** one dot per step, filled when done, and the step it's on.
 - **Optional: its thinking, live.** Turn on a setting, and while the AI thinks, the middle starts with a short, recent sentence of its thinking, in quotes. It's off at first, because thinking often repeats details of your work (section 9).
-- **Careful with what's on screen:** whole commands never show (just a well-known program's name, or "a command"), and file or helper names that look private just say "a file" or "a helper". Long text is cut at a word, with "…".
+- **Careful with what's on screen:** whole commands never show (just a well-known program's name, or "a command"), and file, helper or tool names with a path, a web address, a secret, a health or money subject, a letter outside the Latin alphabet, or any unusual word you've typed in the session just say "a file", "a helper" or "a tool". Long text is cut at a word, with "…".
 - **Colors with meaning,** fading slowly from one to the next: purple working, pink waiting for you, green for a win, orange bumpy, red stuck, teal done.
 - **A friendly idle look:** "Good morning · 9:30 AM", today's tasks and minutes of work, and how your last task went.
 - **A demo:** type `/mood demo` to see every look with made-up examples.
@@ -55,7 +55,7 @@ Building it takes about an hour, mostly waiting. You'll send about half a dozen 
 | AI models | None inside the mod. The AI is only the builder | $0 |
 
 > [!TIP]
-> You never need a credit card, an API key or a cloud account for the mod. It reads what's happening in your own session and keeps only today's counts, on your computer.
+> You never need a credit card, an API key or a cloud account for the mod. It reads what's happening in your own session and keeps only today's counts, on your computer (see section 9).
 
 ## 3. 🛠️ Get set up (10 minutes)
 
@@ -108,7 +108,7 @@ FREE, ON MY COMPUTER
 WHAT IT SHOWS
 - The strip is the only thing above the prompt: one bar, fully colored, edge to edge, the exact width of the prompt box. It changes color with what's happening, and every change fades in slowly (about [2.5 seconds]); never a hard jump, never flashing.
 - Three parts, using the whole length:
-  - Left: what's happening right now ("Reading app.js", "Running npm", "Thinking…"). For commands, never show the whole command: show the program's name only for well-known programs (npm, git, python and the like), otherwise "a command". Text written into files is never a command. If a file, helper, skill or step name looks private, say "a file", "a helper", "a skill" or "Step 2 of 5" instead.
+  - Left: what's happening right now ("Reading app.js", "Running npm", "Thinking…"). For commands, never show the whole command: show the program's name only for well-known programs (npm, git, python and the like), otherwise "a command". Text written into files is never a command, and a command with several parts (&&, ||, ;, a pipe) only says "Ran a command" unless every part is known to have run. Tests piped into another program end as "Tests finished", with no pass or fail. If a file, helper, skill, tool or step name holds a path or web address (look-alike slashes count), looks like a secret, names a health, money or identity subject, has a letter outside the Latin alphabet, or shares any word with anything I've typed in this session, including my answers to your questions, what I say when I turn a step down and what I type after a slash command (everyday words like "page" or "test" don't count, but names, nicknames, months, days and place codes like "UK" always do; accented letters, words in other alphabets, look-alike digits and a code name with its number left off count too), say "a file", "a helper", "a skill", "a tool" or "Step 2 of 5" instead. After a reload, keep names hidden until you can read back what I typed earlier or I send a new message.
   - Middle: a short trail of the last few things done ("Read app.js › Edited app.js › Tests ✓") and how it's going ("2 retries so far", "9 min, past your usual 3 min", helper names).
   - Right: the current plan step ("Step 2 of 5: Build the page") with one small dot per step, filled when done, from whichever kind of plan, task list or to-do list the AI keeps. If there's no plan, show how many steps and files so far.
 - Moods and colors (pick colors dark enough that the words pass 4.5 to 1 contrast, and tell me what you picked):
@@ -129,7 +129,7 @@ WHAT IT SHOWS
 PRIVACY AND SAFETY
 - Never show my own messages on the strip, not even a few words of them, and don't store them anywhere. Only what the AI is doing.
 - No buttons and nothing to click on the strip.
-- Keep only today's counts, saved on this computer. Nothing is sent anywhere.
+- Keep only today's counts (tasks, work time, the last task), saved on this computer, and clear them when the day changes: at midnight while a session is open, or else the first time Claude Code starts on the new day. Never keep my messages. The usual task length comes from today's tasks alone, or 3 minutes until there are 2. Nothing is sent anywhere.
 - Never fail silently: if something breaks, keep the session going, and show what went wrong as "Last problem" in /mood.
 - Tests use a fake clock and fake storage. They never touch my real settings, my real sessions or my screen.
 
@@ -248,10 +248,11 @@ Always tell the AI what you did and what you saw. It fixes most things in one me
 
 ## 9. 🛡️ Stay safe
 
-- **Your words stay yours.** The strip never shows or stores your messages, only what the AI is doing.
+- **Your words stay yours.** The strip never shows or keeps your messages, only what the AI is doing.
 - **The thinking line is off for a reason.** The AI's thinking often restates what you gave it, so it can put names, health or money details from your work on screen. Filters drop your own words, secrets and long numbers, but they can't catch everything. Leave it off when you share or record your screen.
 - **Mind your screen when you share it.** Even with thinking off, the strip shows file names and what the AI is doing. Glance at it before you record.
-- **Nothing leaves your computer.** The mod keeps only today's counts, on your computer, and sends nothing anywhere.
+- **Nothing leaves your computer.** The mod sends nothing anywhere.
+- **What it keeps.** It keeps only today's counts (tasks, work time, the last task), on your computer, and clears them when the day changes: at midnight, or, if Claude Code wasn't running then, the first time it starts on the new day. It never keeps your messages. The task count and work time sit in one small file of its own on your computer (in the `plugins/store` folder inside your Claude Code settings folder, named like `mood-strip_apps-....json`). You can delete that file any time; counting then starts again from zero.
 - **Tests don't touch your real setup.** They use a fake clock and fake storage, never your real settings or sessions.
 - **Build big changes in a copy.** Swap them in only when the checks and tests pass, so the strip you use never breaks.
 - **Only install mods you trust.** A mod runs inside your AI app. Read what it does, or have the AI explain it, before you turn it on.

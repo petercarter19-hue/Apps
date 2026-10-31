@@ -20,11 +20,19 @@ export type Ending = {
 /** Test runs this turn: how many, and how the last one went. */
 export type Tests = { runs: number; lastPassed: boolean | null }
 
-/** The task list Claude keeps, as its steps and their states; `ids` match a task tool's task ids. */
+/**
+ * The task list Claude keeps, as its steps and their states; `ids` match a task tool's task ids.
+ * A step holds only a label that was safe to show, or "" when it was not: never the text Claude or you wrote.
+ */
 export type Plan = {
   steps: string[]
   states: ('pending' | 'in_progress' | 'completed')[]
   ids?: string[]
+  /**
+   * The number (`Run.seq`) of the task this plan belongs to, or null once that task is over. A change
+   * from any other task, such as a late result, is ignored. An older version lacks it.
+   */
+  owner?: number | null
 }
 
 /** A color at a moment, counted from when the mood began. */
@@ -56,7 +64,7 @@ export type DemoRun = { mood: DemoMood; until: number }
 /** The plan's progress, drawn as dots: how many steps, how many done. */
 export type Dots = { done: number; total: number }
 
-/** One day's work, kept across sessions under `day:YYYY-MM-DD`. */
+/** Today's work, kept across sessions under `day:YYYY-MM-DD` until the date changes: only today's day is ever kept. */
 export type Day = { tasks: number; workMs: number }
 
 /** Today's work as this session holds it, with the day it belongs to. */

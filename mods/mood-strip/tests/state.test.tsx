@@ -275,12 +275,19 @@ test('time spent waiting for your answers is not counted as work', async ($, on)
   expect(clock.store.sets['day:2026-10-29']).toEqual({ tasks: 1, workMs: 70000 })
 })
 
-test('saved days older than 90 are removed', async ($, on) => {
+test("every saved day but today's is removed when a session starts", async ($, on) => {
   const kit = engine(on, {
-    entries: { 'day:2026-01-01': { tasks: 1, workMs: 1 }, 'day:2026-10-01': { tasks: 1, workMs: 1 }, other: 1 },
+    entries: {
+      'day:2026-01-01': { tasks: 1, workMs: 1 },
+      'day:2026-10-01': { tasks: 1, workMs: 1 },
+      'day:2026-10-28': { tasks: 1, workMs: 1 },
+      'day:2026-10-29': { tasks: 4, workMs: 240000 },
+      other: 1,
+    },
   })
   await sessionStart($)
-  expect(kit.store.deletes).toEqual(['day:2026-01-01'])
+  expect(kit.store.deletes).toEqual(['day:2026-01-01', 'day:2026-10-01', 'day:2026-10-28'])
+  expect(await alt($)).toContain('4 tasks today')
 })
 
 /* ---------------------------------------------------------------- */

@@ -235,7 +235,7 @@ test('/mood explains the colors', async ($, on) => {
     presentation: { isFullscreen: false, columns: 80 },
   })
   expect(text).toContain('What the colors mean')
-  expect(text).toContain('mood-strip 0.8.0')
+  expect(text).toContain('mood-strip 0.8.1')
 })
 
 test('done fades in, then melts into the time of day over three minutes', async ($, on) => {
@@ -301,7 +301,7 @@ test('the middle keeps a trail of what was just done; the right shows the plan a
 test("while Claude thinks, the strip shows a complete, safe sentence of its thinking", { options: { showThinking: true } }, async ($, on) => {
   engine(on)
   on('turn.step', async function* (_: unknown, e: { turnId: string; index: number }) {
-    yield { kind: 'thinking', index: 0, text: 'Let me look at the strip. ' }
+    yield { kind: 'thinking', index: 0, text: 'Let me look at the layout. ' }
     return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null }
   } as never)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -309,5 +309,5 @@ test("while Claude thinks, the strip shows a complete, safe sentence of its thin
   await start($)
   const stream = $.turn.step({ turnId: 't', index: 0, model: 'claude-test', messageCount: 1 } as Parameters<Engine['turn']['step']>[0])
   for await (const chunk of stream) void chunk
-  expect(await strip($)).toContain('●  Thinking… · “Let me look at the strip.”')
+  expect(await strip($)).toContain('●  Thinking… · “Let me look at the layout.”')
 })
