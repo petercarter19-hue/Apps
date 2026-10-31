@@ -42,7 +42,7 @@ In the terminal the strip is a colored line with the same words, painted in each
 
 ## Settings
 
-- **Show Claude's thinking** (`showThinking`, **on** by default): the short thinking line in the middle. It's filtered the same way as everything else the strip shows: your own words, file paths, web addresses, secrets, long numbers, and health, money and identity words are hidden.
+- **Show Claude's thinking** (`showThinking`, **on** by default): the short thinking line in the middle. It's filtered the same way as everything else the strip shows: your own words, file paths, web addresses, secrets, long numbers, health, money, legal and identity words, and anything that looks like a person's or company's name are hidden.
 
   > [!WARNING]
   > It shows a short line of what Claude is thinking. It hides your own words, file paths and secrets, but if you stream or share your screen and want nothing extra shown, turn it off in the plugin's settings.

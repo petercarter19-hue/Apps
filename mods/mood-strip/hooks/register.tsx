@@ -892,8 +892,8 @@ function isPrivate(text: string): boolean {
 function isSensitive(text: string): boolean {
   const words = wordsOfName(text)
   return (
-    SENSITIVE_TOPICS.test(text) ||
-    SENSITIVE_TOPICS.test(words.join(' ')) ||
+    hasSensitiveTopic(text) ||
+    hasSensitiveTopic(words.join(' ')) ||
     SENSITIVE_INSIDE.test(words.join('').replace(/syntax/g, ' ')) ||
     words.some(holdsTopicAtEdge)
   )
@@ -936,13 +936,82 @@ const SENSITIVE_TOPICS =
   /\b(?:diagnos\w*|cancer|tumou?rs?|diabet\w*|medicat\w*|prescription|therap(?:y|ist)|symptoms?|surgery|pregnan\w*|hiv|depress\w*|anxiety|rehab\w*|medical|insurance|social security|ssn|passport|salary|salaries|payroll|loans?|debts?|owes?|owed|lawsuit|divorce|bankrupt\w*|mortgages?|credit card|credit score|payslips?|medicare|bank account|account number|routing number|tax(?:es)?|tax return|immigration)\b/i
 
 /**
+ * More private subjects, added in 0.8.2 when the thinking line went on by default: health, money and legal words,
+ * and the names of production machines. Whole words only; the ones that are safe inside a joined name are also in
+ * `SENSITIVE_INSIDE`. Everyday code words stay visible: "routing" (a web app's) and "key" (an object's) alone are
+ * fine, and "secret", "credential" and "api key" were already caught by `looksSecret`.
+ */
+const SENSITIVE_MORE = new RegExp(
+  [
+    String.raw`\b(?:blood|pressure readings?|patients?|doctors?|dr|clinics?|hospitals?|diagnosis|prescriptions?|medications?|symptoms?|therapy)\b`,
+    String.raw`\b(?:invoices?|payments?|paid|unpaid|bank statements?|account numbers?|iban|routing numbers?|lawyers?|attorneys?|legal memos?|complaints?|lawsuits?|settlements?|home addresses)\b`,
+    // A production machine: "orion-db-prod", "prod_db", "prod host", "production database".
+    String.raw`\b[\w.]+[-_](?:prod|production|db)\b`,
+    String.raw`\b(?:prod|production)[-_](?:db|host|server|database|box|cluster)\b`,
+    String.raw`\b(?:prod|production) (?:host|server|database|db|box|cluster)s?\b`,
+    String.raw`\bapi[ _-]?keys?\b|\bkeys? (?:for|to)\b|\bsecrets?\b|\bcredentials?\b`,
+  ].join('|'),
+  'i',
+)
+function hasSensitiveTopic(text: string): boolean {
+  return SENSITIVE_TOPICS.test(text) || SENSITIVE_MORE.test(text)
+}
+
+/**
  * Private subjects that are also found inside a name written as one word ("mortgagecalc", "salaryreport",
  * "medicalhistory"): only words long enough not to turn up by chance inside an ordinary one ("hiv" is in "archive",
  * "ssn" in "classname", "tax" in "syntax", so those count only as words of their own or at the start or end of a
  * joined one: see `holdsTopicAtEdge`).
  */
 const SENSITIVE_INSIDE =
-  /mortgage|salar(?:y|ies)|payroll|diagnos|therap(?:y|ist)|passport|insurance|medical|medicat|rehab|diabet|cancer|tumou?r|prescription|pregnan|bankrupt|lawsuit|divorce|immigration|symptom|surger|socialsecurity|creditcard|bankaccount|accountnumber|routingnumber|taxreturn|taxes|payslip|medicare|creditscore/
+  /invoice|payment|lawyer|attorney|settlement|complaint|patient|clinic|hospital|doctor|blood|mortgage|salar(?:y|ies)|payroll|diagnos|therap(?:y|ist)|passport|insurance|medical|medicat|rehab|diabet|cancer|tumou?r|prescription|pregnan|bankrupt|lawsuit|divorce|immigration|symptom|surger|socialsecurity|creditcard|bankaccount|accountnumber|routingnumber|taxreturn|taxes|payslip|medicare|creditscore/
+
+/**
+ * Capitalized words that may stand in the middle of a sentence: well-known tech and product words, file kinds and
+ * acronyms (compared in lower case, after the punctuation around them and a trailing "'s" come off). Every other
+ * capitalized word there is taken for a person's or a company's name. Kept modest on purpose: a word missing here
+ * only hides a sentence, it never shows one.
+ */
+const TECH_CAPS = new Set(
+  (
+    'i claude code vs react vue svelte angular next next.js node node.js nodejs deno bun vite webpack jest vitest ' +
+    'tailwind typescript javascript python rust java kotlin swift go ruby php bash powershell zsh git github gitlab ' +
+    'docker kubernetes azure aws gcp linux unix windows macos ios android chrome edge firefox safari markdown readme ' +
+    'todo changelog license makefile dockerfile api apis json yaml toml xml sql css html http https url urls uri ui ux ' +
+    'cli ci cd pr prs id ids ok md js ts jsx tsx svg png jpg pdf dom cors jwt oauth rest graphql regex utf ascii csv ' +
+    'cpu gpu ram os ide sdk npm pnpm yarn express redux postgres postgresql mysql sqlite mongodb redis prisma nginx ' +
+    'django flask rails laravel pytest eslint prettier babel rollup'
+  ).split(' '),
+)
+
+/** First words of a thought that are plain openers or "-ing" verbs of coding work, though not everyday words. */
+const OPENERS =
+  /^(?:hmm+|hm+|ugh|aha|wow|oops|verif\w*|implement\w*|validat\w*|investigat\w*|confirm\w*|examin\w*|inspect\w*|review\w*|refactor\w*|analy[sz]\w*|debug\w*|compil\w*|install\w*|configur\w*|initiali[sz]\w*|execut\w*|generat\w*|optimi[sz]\w*)$/i
+
+/**
+ * True when a sentence holds what looks like a person's or a company's name: a title before a capitalized word
+ * ("Dr Patel", "Mrs Lee"), any capitalized word past the first that is not a tech word ("Bob Jones", "Acme",
+ * "Johnson and Sons"), or a first word that is capitalized yet no ordinary word ("Jane checked the file"). When in
+ * doubt it says yes: the strip then just shows "Thinking…".
+ */
+function holdsLikelyName(sentence: string): boolean {
+  const text = sentence.replace(MARKUP_TAG, ' ')
+  if (/(?:^|[^\p{L}])(?:Dr|Mr|Mrs|Ms|Mx)\.?\s+\p{Lu}/u.test(text)) return true
+  const tokens = text
+    .split(/\s+/)
+    .map(t => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').replace(/['’]s$/i, ''))
+    .filter(t => t !== '')
+  return tokens.some((token, i) => {
+    if (!/^\p{Lu}/u.test(token)) return false
+    // "I" and its short forms ("I'll", "I'm") are the writer, not a name.
+    if (TECH_CAPS.has(token.toLowerCase()) || /^I['’][A-Za-z]{1,2}$/.test(token)) return false
+    if (i === 0) {
+      const first = wordsIn(token)[0] ?? ''
+      return !isCommon(first) && !OPENERS.test(first)
+    }
+    return true
+  })
+}
 
 /** What is said about thinking is never shown: the user, quoted text, paths, addresses, private subjects. */
 function leaksInThinking(sentence: string): boolean {
@@ -951,9 +1020,10 @@ function leaksInThinking(sentence: string): boolean {
     return true
   }
   return forms.shown.some(form => {
-    if (SENSITIVE_TOPICS.test(form)) return true
+    if (hasSensitiveTopic(form)) return true
     if (/\buser\b|\buser['’]s\b|\b(?:you|they) (?:asked|said|want|wanted|requested|told|mentioned)\b/i.test(form)) return true
     if (/["“”`]/.test(form) || /(?:^|[\s(])['‘][^'’]+['’]/.test(form)) return true
+    if (holdsLikelyName(form)) return true
     return looksLikePath(form)
   })
 }
