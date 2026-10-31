@@ -1,0 +1,272 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        The glossy look's styles. Glass.Refresh copies these into the app's resources (and takes them away again with high contrast on).
+        Every color comes from a brush Glass sets for light or dark, so nothing here changes between the two.
+        Shadows are soft blurred shapes drawn under each button and card (cached as pictures, so scrolling stays smooth).
+    -->
+
+    <!-- The ring the keyboard puts around a rounded button -->
+    <Style x:Key="PillFocus">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="-4" CornerRadius="22" BorderThickness="2" BorderBrush="{DynamicResource FocusRingBrush}"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A rounded, glossy button: a soft shadow underneath, the face (gradient, edge, fine grain), and the words -->
+    <ControlTemplate x:Key="PillButtonTemplate" TargetType="ButtonBase">
+        <Grid x:Name="Root" SnapsToDevicePixels="True">
+            <Border x:Name="Shadow" CornerRadius="18" Background="{DynamicResource ShadowBrush}" Margin="2,0,2,0" Opacity="0.30"
+                    IsHitTestVisible="False" CacheMode="BitmapCache">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="ShadowNudge" Y="3"/>
+                </Border.RenderTransform>
+                <Border.Effect>
+                    <BlurEffect Radius="9" RenderingBias="Performance"/>
+                </Border.Effect>
+            </Border>
+            <Border x:Name="Face" CornerRadius="18" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="FaceNudge"/>
+                </Border.RenderTransform>
+                <Grid>
+                    <Rectangle x:Name="Grain" RadiusX="17" RadiusY="17" Fill="{DynamicResource GrainBrush}" IsHitTestVisible="False"/>
+                    <ContentPresenter Margin="{TemplateBinding Padding}" RecognizesAccessKey="True"
+                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      TextElement.Foreground="{TemplateBinding Foreground}"/>
+                </Grid>
+            </Border>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Shadow" Property="Opacity" Value="0.38"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Shadow" Property="Opacity" Value="0.18"/>
+                <Setter TargetName="Shadow" Property="RenderTransform">
+                    <Setter.Value>
+                        <TranslateTransform Y="1"/>
+                    </Setter.Value>
+                </Setter>
+                <Setter TargetName="Face" Property="RenderTransform">
+                    <Setter.Value>
+                        <TranslateTransform Y="1"/>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Shadow" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Grain" Property="Visibility" Value="Collapsed"/>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- Every button: white glossy pill (graphite in dark mode) -->
+    <Style TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource ButtonFaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ButtonEdgeBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ButtonTextBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="16,7"/>
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource PillFocus}"/>
+        <Setter Property="Template" Value="{StaticResource PillButtonTemplate}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ButtonPressedBrush}"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource DisabledFaceBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource DisabledEdgeBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- The main action: a glossy blue pill -->
+    <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{DynamicResource AccentFaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentEdgeBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource DisabledFaceBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource DisabledEdgeBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- The main action on the black band: blue, and a dark pill (not a light one) while it can't be pressed -->
+    <Style x:Key="HeroAccentButton" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource HeroDisabledFaceBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource HeroButtonEdgeBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource HeroDisabledTextBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Buttons on the black band: dark glossy pills -->
+    <Style x:Key="HeroButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{DynamicResource HeroButtonFaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource HeroButtonEdgeBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource HeroTextBrush}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource HeroButtonHoverBrush}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource HeroButtonPressedBrush}"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource HeroDisabledFaceBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource HeroButtonEdgeBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource HeroDisabledTextBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- A link: a small rounded chip -->
+    <Style x:Key="LinkButton" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource ChipBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ChipTextBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="11,4"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource PillFocus}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chip" Background="{TemplateBinding Background}" CornerRadius="13" Padding="{TemplateBinding Padding}" HorizontalAlignment="Left">
+                        <TextBlock Text="{TemplateBinding Content}" TextWrapping="Wrap" Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chip" Property="Opacity" Value="0.85"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A link on the black band -->
+    <Style x:Key="HeroLink" TargetType="Button" BasedOn="{StaticResource LinkButton}">
+        <Setter Property="Background" Value="{DynamicResource HeroChipBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource HeroChipTextBrush}"/>
+    </Style>
+
+    <!-- A glass card: a soft shadow underneath, and the glossy see-through panel with a bright top edge -->
+    <Style x:Key="GlassCard" TargetType="ContentControl">
+        <Setter Property="Padding" Value="18"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource GlassEdgeBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <Border CornerRadius="18" BorderBrush="{DynamicResource ShadowBrush}" BorderThickness="5" Margin="-1,1,-1,-3" Opacity="0.10"
+                                IsHitTestVisible="False" CacheMode="BitmapCache">
+                            <Border.Effect>
+                                <BlurEffect Radius="10" RenderingBias="Performance"/>
+                            </Border.Effect>
+                        </Border>
+                        <Border CornerRadius="16" Background="{DynamicResource GlassCardBrush}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                            <Grid>
+                                <!-- the shine across the top of the glass -->
+                                <Border CornerRadius="15" Background="{DynamicResource GlassSheenBrush}" IsHitTestVisible="False"/>
+                                <ContentPresenter Margin="{TemplateBinding Padding}"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The tabs: a rounded track with the chosen tab as a raised white pill -->
+    <Style x:Key="PillTabControl" TargetType="TabControl">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border HorizontalAlignment="Left" CornerRadius="22" Padding="4" Background="{DynamicResource TabTrackBrush}"
+                                BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="1">
+                            <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1"/>
+                        </Border>
+                        <ContentPresenter Grid.Row="1" ContentSource="SelectedContent" Margin="0,16,0,0"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PillTab" TargetType="TabItem">
+        <Setter Property="Foreground" Value="{DynamicResource TabTextBrush}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource PillFocus}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Grid Margin="0,0,2,0">
+                        <Border x:Name="Shadow" CornerRadius="18" Background="{DynamicResource ShadowBrush}" Margin="2,3,2,-2" Opacity="0"
+                                IsHitTestVisible="False" CacheMode="BitmapCache">
+                            <Border.Effect>
+                                <BlurEffect Radius="7" RenderingBias="Performance"/>
+                            </Border.Effect>
+                        </Border>
+                        <Border x:Name="Pill" CornerRadius="18" Padding="18,7" Background="Transparent" BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Pill" Property="Background" Value="{DynamicResource TabHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Pill" Property="Background" Value="{DynamicResource TabSelectedBrush}"/>
+                            <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource GlassEdgeBrush}"/>
+                            <Setter TargetName="Shadow" Property="Opacity" Value="0.28"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TabSelectedTextBrush}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

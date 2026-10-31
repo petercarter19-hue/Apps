@@ -1,0 +1,319 @@
+<UserControl x:Class="PhotoTwins.MainView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:PhotoTwins"
+             Focusable="False"
+             Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <UserControl.Resources>
+        <Style x:Key="Secondary" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="OnBand" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource HeroSecondaryTextBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- The list of groups: scrolls smoothly, and only the groups on screen are built -->
+        <Style x:Key="GroupList" TargetType="ItemsControl">
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+            <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel"/>
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer Focusable="False" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0"
+                                      CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}">
+                            <ItemsPresenter Margin="2,0,4,0"/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- One photo: its picture (the keeper wears a gold star badge), and the details under it, on a raised white card -->
+        <DataTemplate x:Key="CardTemplate" DataType="{x:Type local:CardVm}">
+            <Grid Width="264" Margin="0,0,14,14">
+                <!-- the card's shadow: a thin soft edge peeking out below it (only an edge, so nothing gray shows through the clear glass) -->
+                <Border CornerRadius="15" BorderBrush="#14000000" BorderThickness="1,1,1,4" Margin="-1,0,-1,-4" IsHitTestVisible="False"/>
+                <Border Padding="10" CornerRadius="13" Background="{DynamicResource GlassPhotoCardBrush}"
+                        BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <Border Height="180" CornerRadius="9" Background="{DynamicResource PictureWellBrush}">
+                            <Grid>
+                                <Image Source="{Binding Picture}" Stretch="Uniform" Margin="3" Cursor="Hand"
+                                       ToolTip="Click to see it full size" RenderOptions.BitmapScalingMode="HighQuality"
+                                       MouseLeftButtonUp="OnPictureClicked"/>
+                                <TextBlock Text="{Binding PictureStatus}" Visibility="{Binding PictureStatusVisibility}" Margin="12"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
+                                           Style="{StaticResource Secondary}"/>
+                                <Grid Visibility="{Binding KeeperVisibility}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="9">
+                                    <Border CornerRadius="12" Background="#40000000" Margin="1,2,1,-2" IsHitTestVisible="False"/>
+                                    <Border CornerRadius="12" Padding="10,3" Background="{DynamicResource KeeperBrush}" BorderBrush="#66FFFFFF" BorderThickness="1">
+                                        <TextBlock Text="{Binding KeeperExplanation}" Foreground="{DynamicResource KeeperTextBrush}" FontWeight="SemiBold" FontSize="13"/>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                        <TextBlock Text="{Binding NameText}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="2,10,0,0"/>
+                        <TextBlock Text="{Binding SizeAndDims}" TextWrapping="Wrap" Margin="2,0,0,0"/>
+                        <TextBlock Text="{Binding TakenText}" Style="{StaticResource Secondary}" Margin="2,0,0,0"/>
+                        <TextBlock Text="{Binding FolderText}" Style="{StaticResource Secondary}" FontSize="12" Margin="2,2,0,0"/>
+                        <TextBlock Text="{Binding Badge}" Visibility="{Binding BadgeVisibility}" FontSize="12" FontWeight="SemiBold" Margin="2,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ChipTextBrush}"/>
+                        <Button Content="☆ Make this the keeper" Command="{Binding MakeKeeperCommand}" Visibility="{Binding MakeKeeperVisibility}"
+                                Style="{DynamicResource LinkButton}" Margin="0,8,0,0"/>
+                        <TextBlock Text="{Binding SharedMustStayText}" Visibility="{Binding SharedMustStayVisibility}" Style="{StaticResource Secondary}" FontSize="12" Margin="2,6,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <!-- One group: a glass card with its title, the line about missing date info, its photos side by side, and the button to remove the others -->
+        <DataTemplate x:Key="GroupTemplate" DataType="{x:Type local:GroupVm}">
+            <ContentControl Style="{DynamicResource GlassCard}" Margin="0,0,0,16" Padding="16">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Secondary}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="{Binding RemoveButtonText}" Command="{Binding RemoveCommand}" Padding="18,7" VerticalAlignment="Top"/>
+                    </Grid>
+                    <Border Visibility="{Binding LookAlikeNoteVisibility}" Margin="0,12,0,0" Padding="12,7" CornerRadius="11" BorderThickness="1"
+                            Background="{DynamicResource GlassPhotoCardBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}">
+                        <TextBlock Text="{Binding LookAlikeNote}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                    </Border>
+                    <Border Visibility="{Binding NoDateWarningVisibility}" Margin="0,12,0,0" Padding="12,7" CornerRadius="11" BorderThickness="1"
+                            Background="{DynamicResource GlassPhotoCardBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}">
+                        <TextBlock Text="{Binding NoDateWarning}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource CardTemplate}" Focusable="False" Margin="0,14,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </ContentControl>
+        </DataTemplate>
+
+        <!-- One row of the list: small groups side by side (the code behind packs them to the list's width) -->
+        <DataTemplate x:Key="RowTemplate" DataType="{x:Type local:GroupRow}">
+            <ItemsControl ItemsSource="{Binding Slots}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type local:GroupSlot}">
+                        <ContentControl Content="{Binding Group}" ContentTemplate="{StaticResource GroupTemplate}" Width="{Binding Width}" Margin="{Binding Margin}" Focusable="False"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+
+        <!-- A "remove all" button shows only on its own tab, and only when there is something to remove -->
+        <Style x:Key="ExactOnly" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding SelectedTab}" Value="0"/>
+                        <Condition Binding="{Binding RemoveAllExactVisibility}" Value="Visible"/>
+                        <Condition Binding="{Binding ResultsVisibility}" Value="Visible"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SameOnly" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding SelectedTab}" Value="1"/>
+                        <Condition Binding="{Binding RemoveAllSamePhotoVisibility}" Value="Visible"/>
+                        <Condition Binding="{Binding ResultsVisibility}" Value="Visible"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+
+        <!-- "PhotoTwins" stands in for the headline before the first scan -->
+        <Style x:Key="NameWhenNoHeadline" TargetType="TextBlock">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Setter Property="Foreground" Value="{DynamicResource HeroTextBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HeadlineVisibility}" Value="Collapsed">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid UseLayoutRounding="True" Background="{DynamicResource PageBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- The header: one slim dark-glass bar (logo, headline, folders, Settings and Scan; progress with Pause and Stop while something runs) -->
+        <Border x:Name="SlimHeader" Grid.Row="0" Background="{DynamicResource HeroBrush}">
+            <Grid>
+                <Rectangle Fill="{DynamicResource HeroSheenBrush}" IsHitTestVisible="False"/>
+                <StackPanel Margin="22,12,22,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="38" Height="38" CornerRadius="10" VerticalAlignment="Center" Background="#FFFFFF">
+                            <Image Source="photostwins-256.png" Margin="2" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+                        <Rectangle Grid.Column="1" Width="1" Fill="#33FFFFFF" Margin="16,4,16,4"/>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="PhotoTwins" FontSize="18" FontWeight="SemiBold" Style="{StaticResource NameWhenNoHeadline}"/>
+                            <TextBlock x:Name="HeadlineText" Text="{Binding Headline}" Visibility="{Binding HeadlineVisibility}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource HeroTextBrush}"/>
+                            <WrapPanel>
+                                <TextBlock x:Name="SublineText" Text="{Binding Subline}" Visibility="{Binding SublineVisibility}" Style="{StaticResource OnBand}" FontSize="13" Margin="0,0,8,0"/>
+                                <TextBlock Text="·" Visibility="{Binding SublineVisibility}" Style="{StaticResource OnBand}" FontSize="13" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="FolderSummaryText" Text="{Binding FolderSummary}" Style="{StaticResource OnBand}" FontSize="13" Margin="0,0,10,0"/>
+                                <Button x:Name="ProblemsLink" Content="{Binding ProblemsText}" Visibility="{Binding ProblemsVisibility}" Style="{DynamicResource HeroLink}" Padding="9,1" Margin="0,2,8,0" Click="OnShowProblems"/>
+                                <Button x:Name="LeftOutLink" Content="{Binding LeftOutText}" Visibility="{Binding LeftOutVisibility}" Style="{DynamicResource HeroLink}" Padding="9,1" Margin="0,2,8,0" Click="OnShowProblems"/>
+                            </WrapPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="FoldersButton" Content="Settings…" Margin="0,0,10,0" Padding="16,6" Style="{DynamicResource HeroButton}"
+                                    IsEnabled="{Binding CanChangeFolders}" Click="OnChangeFolders"/>
+                            <Button x:Name="ScanButton" Content="{Binding ScanButtonText}" Command="{Binding ScanCommand}" Padding="24,7" MinHeight="38"
+                                    MinWidth="120" FontSize="15" Style="{DynamicResource HeroAccentButton}"/>
+                        </StackPanel>
+                    </Grid>
+                    <!-- Progress (scanning or removing), with Pause and Stop beside it: only while something is running -->
+                    <Grid Margin="0,12,0,0" Visibility="{Binding ProgressVisibility}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <ProgressBar x:Name="ScanProgressBar" Height="6" Minimum="0" Maximum="{Binding ProgressMax}" Value="{Binding ProgressValue, Mode=OneWay}"
+                                         IsIndeterminate="{Binding ProgressIndeterminate}" Foreground="#4C8DFF" Background="#2EFFFFFF" BorderThickness="0"/>
+                            <TextBlock x:Name="StatusTextBlock" Text="{Binding StatusText}" Margin="0,6,0,0" Style="{StaticResource OnBand}" FontSize="13"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
+                            <Button x:Name="PauseButton" Content="{Binding PauseButtonText}" Command="{Binding PauseResumeCommand}" Margin="0,0,10,0" Padding="16,6"
+                                    MinWidth="92" Style="{DynamicResource HeroButton}"/>
+                            <Button x:Name="StopButton" Content="Stop" Command="{Binding StopCommand}" Padding="16,6" MinWidth="80" Style="{DynamicResource HeroButton}"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Below the header: notes and the groups, on glass cards -->
+        <Grid x:Name="Body" Grid.Row="1" Margin="24,18,18,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Notes: damaged settings, unfinished scan, errors, what the last removal did -->
+            <StackPanel Grid.Row="0" Margin="2,0,8,0">
+                <ContentControl Style="{DynamicResource GlassCard}" Visibility="{Binding BannerVisibility}" Margin="0,0,0,14" Padding="16,12">
+                    <TextBlock x:Name="BannerText" Text="{Binding Banner}" TextWrapping="Wrap"/>
+                </ContentControl>
+                <ContentControl Style="{DynamicResource GlassCard}" Visibility="{Binding ErrorVisibility}" Margin="0,0,0,14" Padding="16,12"
+                                BorderBrush="{DynamicResource SystemFillColorCriticalBrush}" BorderThickness="1.5">
+                    <TextBlock x:Name="ErrorTextBlock" Text="{Binding ErrorText}" TextWrapping="Wrap"/>
+                </ContentControl>
+                <ContentControl x:Name="ResultCard" Style="{DynamicResource GlassCard}" Visibility="{Binding ResultVisibility}" Margin="0,0,0,14" Padding="16,12">
+                    <StackPanel>
+                        <TextBlock x:Name="ResultTextBlock" Text="{Binding ResultText}" TextWrapping="Wrap"/>
+                        <Button x:Name="ResultDetailsLink" Content="See what couldn't be removed." Visibility="{Binding ResultDetailsVisibility}"
+                                Style="{DynamicResource LinkButton}" Margin="0,8,0,0" Click="OnShowRemovalDetails"/>
+                    </StackPanel>
+                </ContentControl>
+            </StackPanel>
+
+            <!-- Before the first scan: a welcome card with what to do (and, while that scan runs, what is happening) -->
+
+            <ContentControl Grid.Row="1" Style="{DynamicResource GlassCard}" Visibility="{Binding HintVisibility}" HorizontalAlignment="Center"
+                            VerticalAlignment="Top" Margin="0,64,0,0" Padding="48,32" MaxWidth="620">
+                <StackPanel>
+                    <Border Width="84" Height="84" CornerRadius="22" Background="#FFFFFF" HorizontalAlignment="Center" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="1">
+                        <Image Source="photostwins-256.png" Margin="6" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <TextBlock Text="{Binding HintTitle}" FontSize="22" FontWeight="SemiBold" TextAlignment="Center" Margin="0,18,0,6" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="HintText" Text="{Binding Hint}" Style="{StaticResource Secondary}" FontSize="16" TextAlignment="Center"/>
+                </StackPanel>
+            </ContentControl>
+
+            <!-- The kinds of match, as rounded tabs -->
+            <TabControl x:Name="Tabs" Grid.Row="1" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}" Visibility="{Binding ResultsVisibility}"
+                        Style="{DynamicResource PillTabControl}" Margin="2,0,0,0">
+                <TabItem x:Name="ExactTab" Header="{Binding ExactTabHeader}" Style="{DynamicResource PillTab}">
+                    <Grid>
+                        <ItemsControl x:Name="ExactList" Style="{StaticResource GroupList}" ItemTemplate="{StaticResource RowTemplate}"/>
+                        <ContentControl Style="{DynamicResource GlassCard}" Visibility="{Binding ExactEmptyVisibility}" VerticalAlignment="Top" Margin="0,0,10,0">
+                            <TextBlock x:Name="ExactEmptyText" Style="{StaticResource Secondary}" FontSize="15"
+                                       Text="No exact copies found. (Exact copies are the very same file saved more than once, whatever it is called.)"/>
+                        </ContentControl>
+                    </Grid>
+                </TabItem>
+                <TabItem x:Name="SameTab" Header="{Binding SameTabHeader}" Style="{DynamicResource PillTab}">
+                    <Grid>
+                        <ItemsControl x:Name="SameList" Style="{StaticResource GroupList}" ItemTemplate="{StaticResource RowTemplate}"/>
+                        <ContentControl Style="{DynamicResource GlassCard}" Visibility="{Binding SameEmptyVisibility}" VerticalAlignment="Top" Margin="0,0,10,0">
+                            <TextBlock x:Name="SameEmptyText" Style="{StaticResource Secondary}" FontSize="15"
+                                       Text="No same-photo matches found. (Same photo means one picture saved more than once: resized, re-saved, another type, or sent back from a chat app.)"/>
+                        </ContentControl>
+                    </Grid>
+                </TabItem>
+                <TabItem x:Name="LookAlikeTab" Header="{Binding LookAlikeTabHeader}" Visibility="{Binding LookAlikeTabVisibility}" Style="{DynamicResource PillTab}">
+                    <Grid>
+                        <ItemsControl x:Name="LookAlikeList" Style="{StaticResource GroupList}" ItemTemplate="{StaticResource RowTemplate}"/>
+                        <ContentControl Style="{DynamicResource GlassCard}" Visibility="{Binding LookAlikeEmptyVisibility}" VerticalAlignment="Top" Margin="0,0,10,0">
+                            <TextBlock x:Name="LookAlikeEmptyText" Style="{StaticResource Secondary}" FontSize="15"
+                                       Text="No look-alikes found. (Look-alikes are different photos that look very much alike, such as shots taken seconds apart. They are never counted as duplicates.)"/>
+                        </ContentControl>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+
+            <!-- Beside the tabs: Undo, and the open tab's "remove all" button -->
+            <StackPanel x:Name="BesideTabs" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,10,0">
+                <Button x:Name="UndoButton" Content="Undo…" Padding="18,7" Style="{DynamicResource HeroButton}" IsEnabled="{Binding CanUndo}" Click="OnUndo"
+                        ToolTip="See everything PhotoTwins has removed and put any of it back"/>
+                <Border Style="{StaticResource ExactOnly}" Margin="10,0,0,0">
+                    <Button x:Name="RemoveAllExactButton" Content="{Binding RemoveAllExactText}" Command="{Binding RemoveAllExactCommand}" Padding="20,7"
+                            Style="{DynamicResource AccentButtonStyle}" ToolTip="Clears out every group on this tab at once. Each group keeps its starred photo. You can undo it."/>
+                </Border>
+                <Border Style="{StaticResource SameOnly}" Margin="10,0,0,0">
+                    <Button x:Name="RemoveAllSamePhotoButton" Content="{Binding RemoveAllSamePhotoText}" Command="{Binding RemoveAllSamePhotoCommand}" Padding="20,7"
+                            Style="{DynamicResource AccentButtonStyle}" ToolTip="Clears out every group on this tab at once. Each group keeps its starred photo; groups with missing dates are skipped. You can undo it."/>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

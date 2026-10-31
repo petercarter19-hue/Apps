@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="Make your own duplicate photo finder: free, on your Windows PC, built with AI, no code to write">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="0.55" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#0e7490"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" rx="24" fill="url(#g)"/>
+  <g transform="translate(955 48) rotate(-6)">
+    <rect width="150" height="112" rx="10" fill="#ffffff" opacity="0.92"/>
+    <rect x="8" y="8" width="134" height="96" rx="6" fill="#7cc3f0"/>
+    <circle cx="112" cy="32" r="11" fill="#fff6d8"/>
+    <path d="M8 104 L8 74 Q40 54 70 70 T142 62 L142 104 Z" fill="#4e9a3c"/>
+  </g>
+  <g transform="translate(1022 122) rotate(7)">
+    <rect width="150" height="112" rx="10" fill="#ffffff"/>
+    <rect x="8" y="8" width="134" height="96" rx="6" fill="#7cc3f0"/>
+    <circle cx="112" cy="32" r="11" fill="#fff6d8"/>
+    <path d="M8 104 L8 74 Q40 54 70 70 T142 62 L142 104 Z" fill="#4e9a3c"/>
+    <rect x="10" y="10" width="62" height="20" rx="10" fill="#f2c45a"/>
+    <text x="41" y="25" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="700" fill="#3b2a05" text-anchor="middle">★ Keeper</text>
+  </g>
+  <g font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" fill="#ffffff">
+    <text x="60" y="88" font-size="20" font-weight="600" letter-spacing="3">BUILD-IT-YOURSELF KIT</text>
+    <text x="60" y="158" font-size="44" font-weight="700">Make your own duplicate photo finder</text>
+    <text x="60" y="214" font-size="25">Free · on your Windows PC · built with AI, no code to write</text>
+    <text x="60" y="258" font-size="20" opacity="0.92">⏱ about 2 hours   ·   💬 about 6 messages   ·   💵 $0 beyond your AI plan</text>
+  </g>
+</svg>

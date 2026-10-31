@@ -1,0 +1,60 @@
+I want to build a small Windows app called [PhotoTwins]. It finds duplicate photos on my computer, shows them side by side, and lets me clear out the extra copies safely. I'm not technical and I've never coded. Build it step by step, show me something working after each step, and test what you can yourself before asking me.
+
+FREE, ONE FILE, ON MY COMPUTER
+- Everything is free and runs on this computer. No paid services, no accounts, no API keys, never ask me for payment details. It doesn't need any AI model: it compares photos by their "fingerprints".
+- My photos never leave this computer. The app never uploads or sends anything.
+- First check my computer: the Windows version, my display scaling, where my photos are (Pictures, OneDrive, phone imports, other drives) and roughly how many there are, and which free building tools are already installed. Install anything missing from Microsoft or other well-known, trusted sources, and tell me in one line what you picked and how big it is.
+- The finished app is one file I double-click, with a Start menu entry. Keep it in one place and always run that copy.
+
+WHAT IT FINDS
+- Photo types: JPG, PNG, HEIC (iPhone photos), WEBP, BMP and TIFF. If a type needs something extra to read, use a free, well-known one and tell me.
+- Three kinds of match, shown on separate tabs:
+  1. Exact copies: the same file twice, even with different names.
+  2. Same photo: one picture saved more than once (resized, re-saved, a different type, or sent back to me in a chat app).
+  3. Look-alikes: shots taken seconds apart, like a burst. Off by default; I turn it on in Settings, with a strictness setting [Normal].
+- Only call two photos "the same photo" when their fingerprints match AND the hidden photo info (date and time taken, which camera or phone) doesn't disagree. If it disagrees, they're different photos, at most look-alikes. Compare the time taken down to the fraction of a second, so burst shots never count as copies. This is how a friend's shot of the same birthday cake never counts as a copy of mine.
+- If a photo in a "same photo" group has no date info, show one plain line on that group: "Some of these have no date info. Check they're really the same photo before removing."
+- It scans the folders I pick. It starts with my Pictures folder and remembers my list. It never looks in other people's Windows accounts. A folder that is really a shortcut to somewhere else is judged by where it leads.
+- It skips files that are only in the cloud (OneDrive or Google Drive "online-only" files). It never downloads them.
+
+WHAT I SEE
+- A progress bar while it scans: how many photos so far, and time left. I can pause or stop at any moment, including while it groups the photos or gets ready to remove: nothing moves after I press Stop, and it picks up where it left off. Closing the window while it works waits for the work to finish safely. It remembers fingerprints, so the next scan is quick.
+- A headline: "N duplicates found. You can free X GB."
+- Each group side by side, with big pictures and under each one: size, width x height, date taken, folder and file name. Click a picture to see it full size. Make a small picture of each photo during the scan and remember it, so the groups appear instantly, even with thousands of photos.
+- A suggested keeper in each group, marked with a star: the biggest picture first (the most pixels, width x height, not the biggest file), then the original over a copy ("(1)", "copy", "edited", or a converted file or one in a "Converted" or "Edited" folder), then the one with its date and place info, then the oldest. I can move the star with one click.
+
+CLEARING OUT
+- Nothing is removed without my click. "Remove the others" works on one group. "Remove all exact copies" and "Remove all same-photo copies" first show a summary (how many photos, how many GB) and ask me to confirm; "Remove all same-photo copies" skips groups with missing date info. Look-alikes are never removed in bulk, only one group at a time.
+- Every group always keeps at least one photo. The app refuses to remove the last copy.
+- Shared folders (ones shared with family or anyone else, on this PC or in OneDrive or Google Drive): the copy in the shared folder is always the keeper, and removing anything from a shared folder needs a second, clearly worded confirm.
+- Removed photos go to the Recycle Bin, never deleted for good. Before a removal, add up everything it will send to each drive's Recycle Bin: if it wouldn't all fit (Windows quietly empties the oldest items when the bin overflows), send the rest to the "Duplicates to delete" folder instead, or ask me to empty the bin first.
+- Where there's no Recycle Bin (USB sticks, memory cards, network drives), move them to a "Duplicates to delete" folder on that drive instead.
+- Just before each photo moves, check again that its keeper is still there and unchanged, and that the photo itself hasn't changed. Skip and list any that fail.
+- An Undo list puts photos back, one at a time or all at once. It only puts back the exact file that was removed, and each photo reappears in the app in the same group, tab and spot, with no rescan. Keep the Undo record safe even if the power cuts out mid-write, and note each put-back before it happens, so the record never says a photo is gone when it's back.
+- Before removing anything from a OneDrive or Google Drive folder, warn me in one line that it will also disappear from the cloud and my other devices, and ask once.
+- Never change, move or rename the photo I keep. Never touch anything outside the folders I picked. A folder can be a shortcut or link to somewhere else: right before every move and every Undo, check that where it really leads is still inside my folders, and never follow a link out of them.
+
+THE LOOK
+- Polished and calm: [a slim dark header bar with the headline, Settings and Scan, over a soft dark-to-light fade, with the groups on glass cards and rounded buttons with soft shadows]. Small groups sit side by side, so there's no wasted space. Undo and "Remove all" sit on the same line as the tabs.
+- It follows the Windows light or dark setting, and fits my display scaling with no cut-off text. Show me a picture at my scaling. If Windows high contrast is on, use Windows' own plain look instead.
+
+SAFETY
+- Never fail silently. If it can't read a photo, list it ("Couldn't read 3 photos") and write it to a log.
+- Handle very long folder paths and names in any language.
+- Tests only use test photos you make for the purpose (copies, resized, re-saved and burst-style pictures) in a test folder, never my real photos. Tests never take pictures of my real screen, move my mouse or press real keys: use the app's own pictures of itself instead.
+
+BUILD ORDER (all of it by the end)
+1. Pick folders and scan, with the progress bar; find exact copies and list them.
+2. Same-photo matches, shown side by side with the details under each picture, and the full-size view.
+3. The suggested keeper, Remove (Recycle Bin, or the "Duplicates to delete" folder), Undo, and the "You can free X GB" headline.
+4. Look-alikes with the strictness setting, remembered fingerprints and pictures, the look, light and dark, and the finished one-file app with its Start menu entry.
+
+HOW TO WORK WITH ME
+- Plain English, short answers. Pick sensible defaults and tell me what you picked; don't ask me technical questions.
+- Short plan first, then build. No long research reports.
+- If I mention a new idea, add it to the list instead of building it, unless I say "now".
+- Build each new version in a separate folder and swap it in only after your tests pass. Quit the old copy first, so there's only ever one copy running.
+- After each step, show me a picture, and tell me plainly what you tested and what you couldn't.
+- When the removal steps work, review everything that can remove or put back a photo as if a stranger's whole photo library depended on it, fix what you find, and tell me what you checked.
+
+Build all the steps without stopping. Test each one yourself, and only stop when everything works or you need a decision only I can make.

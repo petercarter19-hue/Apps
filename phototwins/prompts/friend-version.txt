@@ -1,0 +1,4 @@
+Make a friend version of my app that I can send as one zip. Build it in a separate copy and don't touch the app I use.
+- None of my data: no settings, logs, remembered fingerprints or pictures, Undo list, my name, or my folder paths anywhere. Search the whole copy to prove it's clean.
+- One file that runs without installing anything else, plus a one-page "How to start it" in plain words: how to open it, that it starts with the Pictures folder, how to add folders, that removed photos go to the Recycle Bin and come back with Undo, and what to do if Windows shows "Windows protected your PC" for a file from a friend.
+- Before you give it to me, run it from scratch in Windows Sandbox with a folder of test photos you make there, and check that scanning, the groups, Remove and Undo all work. Never use my real photos for this.

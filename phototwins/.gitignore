@@ -1,0 +1,16 @@
+# Build output: the app is made from the source (see README, Build the finished code instead)
+bin/
+obj/
+app/
+dist-next/
+# Made-up test photos and the app's pictures of itself, made by the tests
+test-work/
+TestResults/
+# Editor files
+.vs/
+*.user
+
+# Recordings and videos stay out of the repository
+*.mp4
+*.mov
+*.mkv

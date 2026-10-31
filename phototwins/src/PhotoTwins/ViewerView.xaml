@@ -1,0 +1,50 @@
+<UserControl x:Class="PhotoTwins.ViewerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False"
+             Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" CornerRadius="12" Background="{DynamicResource PictureWellBrush}" ClipToBounds="True">
+            <Grid>
+                <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Focusable="False"
+                              SizeChanged="OnViewportChanged">
+                    <Image x:Name="Picture" Source="{Binding Image}" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" Cursor="Hand"
+                           MouseLeftButtonDown="OnPictureMouseDown" MouseMove="OnPictureMouseMove" MouseLeftButtonUp="OnPictureMouseUp"/>
+                </ScrollViewer>
+                <TextBlock x:Name="StatusText" Text="{Binding Status}" Visibility="{Binding StatusVisibility}" Margin="24"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="16" TextAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                <TextBlock x:Name="HeadingText" Text="{Binding Heading}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock x:Name="DetailsText" Text="{Binding Details}" TextWrapping="Wrap"/>
+                <TextBlock x:Name="FolderText" Text="{Binding Folder}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                <TextBlock x:Name="BadgeText" Text="{Binding Badge}" Visibility="{Binding BadgeVisibility}" TextWrapping="Wrap" FontSize="12"
+                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                <TextBlock x:Name="HelpText" TextWrapping="Wrap" FontSize="12" Margin="0,6,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Text="Scroll wheel to zoom, drag to move around, double-click for actual size, arrow keys for the other photos, Esc to close."/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock x:Name="PositionTextBlock" Text="{Binding PositionText}" VerticalAlignment="Center" Margin="0,0,12,0" TextWrapping="NoWrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                <Button x:Name="PreviousButton" Content="‹ Previous" Command="{Binding PreviousCommand}" Margin="0,0,8,0" Padding="14,7"/>
+                <Button x:Name="NextButton" Content="Next ›" Command="{Binding NextCommand}" Margin="0,0,8,0" Padding="14,7"/>
+                <Button x:Name="FitButton" Content="Fit" Click="OnFit" Margin="0,0,8,0" Padding="14,7"/>
+                <Button x:Name="CloseButton" Content="Close" Click="OnClose" Padding="16,7" Style="{DynamicResource AccentButtonStyle}"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>
