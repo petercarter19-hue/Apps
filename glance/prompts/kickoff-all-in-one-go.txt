@@ -15,7 +15,7 @@ WHAT IT DOES
 
 SAFETY
 - Never end anything without my two clicks. Windows' own system parts show a lock instead of an End button. Windows Explorer (my taskbar and desktop) gets "Restart" instead of "End".
-- End must never close the wrong program. Windows reuses process numbers, so check each process is still the one I picked right before ending it. Only end programs that belong to my own account in my own sign-in, never another user's, and never sweep in Windows' own parts or Explorer. "As administrator" makes the same checks.
+- End must never close the wrong program. Windows reuses process numbers, so check each process is still the one I picked right before ending it. Only end programs that belong to my own account in my own sign-in, never another user's, and never sweep in Windows' own parts or Explorer. "As administrator" makes the same checks, for the person who clicked End, even if someone types in a different administrator's password.
 - If Windows refuses to end something, say so on the card and offer to try again as administrator, with the normal Windows permission prompt. Never fail silently: show problems on the card and write them to a log.
 - It never deletes my documents or photos and never sends anything anywhere. Choosing "Remove from this PC" in the menu deletes only the app's own settings, log and preview pictures and its Start menu shortcut.
 - Tests only ever end a test program you make for the purpose, never my real apps. Tests never take pictures of my real screen, move my mouse or press real keys: use the app's own pictures of itself instead.
