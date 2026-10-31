@@ -225,7 +225,8 @@ test('thinking that carries numbers, addresses or private subjects is never show
   }
   // A few digits are fine; the rest of what it says is still checked.
   expect(await shows('I read 3 files and 2 of them hold the bug.')).toBe('●  Thinking… · “I read 3 files and 2 of them hold the bug.”')
-  // Rewordings of the prompt that hold no number and no private subject are not caught: that is why the line is off by default.
+  // Rewordings of the prompt that hold no number and no private subject are not caught by the number checks; the
+  // line is on by default, so names, pronouns and more private subjects are checked as well (third-party-details tests).
 })
 
 test('names of files, steps and helpers get the same number filter', async ($, on) => {

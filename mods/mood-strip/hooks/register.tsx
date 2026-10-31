@@ -799,12 +799,21 @@ function sharesPromptWord(text: string): boolean {
 /** Numbers that could be an account, card, ID, phone number or street address. */
 const STREET_TYPE = '(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Way|Ct|Court|Pl|Place|Terrace|Highway|Hwy)'
 const ADDRESS_SHAPE = new RegExp(`\\b\\d{1,6}\\s+(?:[A-Z][A-Za-z.'-]*\\s+){1,3}${STREET_TYPE}\\b`)
+/**
+ * A number and a street in any case ("12 elm street", "40 maple avenue"), and "on baker street". In lower case only
+ * the street words that are rarely anything else count: "way", "drive", "court" and "place" alone would catch
+ * "2 steps on the way".
+ */
+const ADDRESS_SHAPE_LOWER =
+  /\b\d{1,6}\s+(?:[a-z][a-z.'-]*\s+){1,3}(?:street|avenue|ave|road|rd|boulevard|blvd|lane|ln|terrace|highway|hwy)\b/i
+const ON_STREET =
+  /\bon\s+(?!(?:the|a|an|this|that|these|those|my|your|our|its|his|her|their|same|other|each|every|one|any|which|what)\b)[a-z][a-z'-]*\s+(?:street|avenue|road|lane|drive)\b/i
 
 function looksLikeNumbers(text: string): boolean {
   // Five or more digits in all, groups such as 078-05 or 555 867, a phone shape, or a street address.
   if ((text.match(/\d/g) ?? []).length >= 5) return true
   if (/\d{3}[-\s.]\d/.test(text) || /\+\d|\(\d{3}\)/.test(text)) return true
-  return ADDRESS_SHAPE.test(text)
+  return ADDRESS_SHAPE.test(text) || ADDRESS_SHAPE_LOWER.test(text) || ON_STREET.test(text)
 }
 
 /** Anything that looks like a secret, a number that could identify you, an address, or a long machine-made token. */
@@ -945,6 +954,8 @@ const SENSITIVE_MORE = new RegExp(
   [
     String.raw`\b(?:blood|pressure readings?|patients?|doctors?|dr|clinics?|hospitals?|diagnosis|prescriptions?|medications?|symptoms?|therapy)\b`,
     String.raw`\b(?:invoices?|payments?|paid|unpaid|bank statements?|account numbers?|iban|routing numbers?|lawyers?|attorneys?|legal memos?|complaints?|lawsuits?|settlements?|home addresses)\b`,
+    // Third-party details (0.8.2 review): housing, legal trouble, pay, cards and transfers, and more health.
+    String.raw`\b(?:evict\w*|custody|arrest\w*|criminal|court|fired|rent|tenants?|refunds?|income|earns?|wages?|bonus\w*|overdra\w*|mental health|psychiatr\w*|addict\w*|allerg\w*|epilep\w*|cholesterol|insulin|covid|heart attack|sick leave|card ending|wire transfers?|bounced)\b`,
     // A production machine: "orion-db-prod", "prod_db", "prod host", "production database".
     String.raw`\b[\w.]+[-_](?:prod|production|db)\b`,
     String.raw`\b(?:prod|production)[-_](?:db|host|server|database|box|cluster)\b`,
@@ -980,13 +991,16 @@ const TECH_CAPS = new Set(
     'todo changelog license makefile dockerfile api apis json yaml toml xml sql css html http https url urls uri ui ux ' +
     'cli ci cd pr prs id ids ok md js ts jsx tsx svg png jpg pdf dom cors jwt oauth rest graphql regex utf ascii csv ' +
     'cpu gpu ram os ide sdk npm pnpm yarn express redux postgres postgresql mysql sqlite mongodb redis prisma nginx ' +
-    'django flask rails laravel pytest eslint prettier babel rollup'
+    'django flask rails laravel pytest eslint prettier babel rollup promise array object math date regexp'
   ).split(' '),
 )
 
 /** First words of a thought that are plain openers or "-ing" verbs of coding work, though not everyday words. */
 const OPENERS =
-  /^(?:hmm+|hm+|ugh|aha|wow|oops|verif\w*|implement\w*|validat\w*|investigat\w*|confirm\w*|examin\w*|inspect\w*|review\w*|refactor\w*|analy[sz]\w*|debug\w*|compil\w*|install\w*|configur\w*|initiali[sz]\w*|execut\w*|generat\w*|optimi[sz]\w*)$/i
+  /^(?:probably|possibly|presumably|apparently|obviously|clearly|hopefully|honestly|basically|essentially|actually|hmm+|hm+|ugh|aha|wow|oops|verif\w*|implement\w*|validat\w*|investigat\w*|confirm\w*|examin\w*|inspect\w*|review\w*|refactor\w*|analy[sz]\w*|debug\w*|compil\w*|install\w*|configur\w*|initiali[sz]\w*|execut\w*|generat\w*|optimi[sz]\w*)$/i
+
+const AMBIGUOUS_NAME =
+  /^(?:ruby|swift|edge|page|rust|go)\s+(?:wrote|fixed|reported|flagged|said|asked|reviewed|committed|changed|broke|owns|wants|sent|left|added|merged|approved|pushed|created|made|says|thinks|noticed|found)\b/i
 
 /**
  * True when a sentence holds what looks like a person's or a company's name: a title before a capitalized word
@@ -996,22 +1010,63 @@ const OPENERS =
  */
 function holdsLikelyName(sentence: string): boolean {
   const text = sentence.replace(MARKUP_TAG, ' ')
-  if (/(?:^|[^\p{L}])(?:Dr|Mr|Mrs|Ms|Mx)\.?\s+\p{Lu}/u.test(text)) return true
+  // A title before a word, in any case ("Dr Patel", "mrs lee"); "ms" after a number is milliseconds.
+  if (/(?:^|[^\p{L}\p{N}])(?:dr|mr|mrs|mx|(?<!\d\s*)ms)\.?\s+\p{L}/iu.test(text)) return true
   const tokens = text
     .split(/\s+/)
     .map(t => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').replace(/['’]s$/i, ''))
     .filter(t => t !== '')
+  // A word that is a tech or everyday word and a name ("Ruby", "Swift", "Edge", "Page") followed by what a person does.
+  if (AMBIGUOUS_NAME.test(text.trim())) return true
   return tokens.some((token, i) => {
+    // A dotted word of two unknown parts, even in lower case ("jane.smith"), is a person; "config.json" and "index.ts" are not.
+    const dotted = token.match(/^(\p{L}{3,})\.(\p{L}{3,})$/u)
+    if (dotted && ![dotted[1] ?? '', dotted[2] ?? ''].some(part => isCommon(part.toLowerCase()) || TECH_CAPS.has(part.toLowerCase()))) return true
     if (!/^\p{Lu}/u.test(token)) return false
+    if (isCodeWord(token)) return false
     // "I" and its short forms ("I'll", "I'm") are the writer, not a name.
     if (TECH_CAPS.has(token.toLowerCase()) || /^I['’][A-Za-z]{1,2}$/.test(token)) return false
-    if (i === 0) {
-      const first = wordsIn(token)[0] ?? ''
-      return !isCommon(first) && !OPENERS.test(first)
-    }
-    return true
+    const first = wordsIn(token)[0] ?? ''
+    if (i === 0) return !isCommon(first) && !OPENERS.test(first)
+    // Past the first word, a plain everyday word that is capitalized ("Button") is code or a title, not a name; any
+    // other, or one joined with a hyphen, an apostrophe or capitals ("Jean-Luc", "O'Brien", "JaneSmith"), is.
+    return !isCommon(first) || /[-'’]|\p{Ll}\p{Lu}/u.test(token) || wordsIn(token).length > 1
   })
 }
+
+/**
+ * A capitalized token that is code, not a name: one with an inner capital ("UserCard", "TypeError") or a dot
+ * ("Promise.all") whose every part, split at the capitals and dots, is an everyday or tech word. "JaneSmith" is not:
+ * "jane" and "smith" are names.
+ */
+function isCodeWord(token: string): boolean {
+  if (!/\p{Ll}\p{Lu}|\./u.test(token)) return false
+  const parts = wordsOfName(token.replace(/\./g, ' '))
+  return parts.length > 1 && parts.every(part => isCommon(part) || TECH_CAPS.has(part))
+}
+
+/**
+ * Third-party details that need no keyword: someone else ("he", "she", "her"), a host name with a domain, an address,
+ * phone number or email spelled out in words, and a named machine ("live server orion", "host called atlas").
+ * Country codes that are also file endings (md, py, rs, sh, pl, so, in, id, cc, ml, ar) are left out of the suffixes.
+ */
+const DOMAIN_SUFFIX =
+  'com|net|org|io|dev|app|co|internal|local|corp|lan|intra|cloud|biz|info|ai|uk|us|de|fr|nl|eu|ca|au|nz|jp|cn|br|ru|se|ch|be|dk|fi|ie|mx|za|sg|hk|kr|tw|il|ae'
+const DIGIT_WORD = 'zero|oh|one|two|three|four|five|six|seven|eight|nine'
+const MACHINE_QUALIFIER = 'live|prod|production|staging|stage|backup|primary|replica|remote'
+const NOT_A_NICKNAME =
+  'is|was|are|were|has|had|will|would|should|can|could|and|or|to|for|in|on|at|with|but|so|if|when|then|does|did|may|might|must|keeps|runs|returns|responds|needs|crashes|fails|not|only|also|still|now|again|that|which|it|the|a|an|side|code|log|logs|config|response|error|errors|port|process|startup|start|restart|file|files|app|setup'
+const THIRD_PARTY = new RegExp(
+  [
+    String.raw`\b(?:he|she|him|his|her|hers|himself|herself)\b`,
+    String.raw`\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*\.(?:${DOMAIN_SUFFIX})\b(?!\()`,
+    String.raw`\bdot\s+(?:${DOMAIN_SUFFIX})\b|\b(?:at|@)\s*(?:gmail|yahoo|outlook|hotmail|icloud|proton\w*)\b`,
+    String.raw`\b(?:(?:${DIGIT_WORD})[\s,-]+){3,}`,
+    String.raw`\b(?:server|host|box|machine|cluster|database)s? (?:named|called)\s+\S`,
+    String.raw`\b(?:${MACHINE_QUALIFIER})\s+(?:server|host|box|machine)s?\s+(?!(?:${NOT_A_NICKNAME})\b)[a-z][\w-]{2,}`,
+  ].join('|'),
+  'i',
+)
 
 /** What is said about thinking is never shown: the user, quoted text, paths, addresses, private subjects. */
 function leaksInThinking(sentence: string): boolean {
@@ -1023,6 +1078,7 @@ function leaksInThinking(sentence: string): boolean {
     if (hasSensitiveTopic(form)) return true
     if (/\buser\b|\buser['’]s\b|\b(?:you|they) (?:asked|said|want|wanted|requested|told|mentioned)\b/i.test(form)) return true
     if (/["“”`]/.test(form) || /(?:^|[\s(])['‘][^'’]+['’]/.test(form)) return true
+    if (THIRD_PARTY.test(form)) return true
     if (holdsLikelyName(form)) return true
     return looksLikePath(form)
   })
