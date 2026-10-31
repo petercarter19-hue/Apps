@@ -81,6 +81,11 @@ CPU_PREFILL_TOKENS_PER_SECOND = 20.0   # reading the prompt (the command router'
 CPU_WRITE_TOKENS_PER_SECOND = 3.0      # writing the reply
 CPU_DEADLINE_OVERHEAD_SECONDS = 30     # waking the model up, the request waiting behind another, slack
 CPU_DEADLINE_MAX_SECONDS = 600
+MEASURED_SAFETY_FACTOR = 2.0           # x the time this computer's own measured speeds say a request needs
+MEASURED_OVERHEAD_SECONDS = 15
+WARM_UP_WRITE_TOKENS = 24              # the few words written to measure how fast the model writes
+MIN_PREFILL_SAMPLE = 64                # a measurement counts only if it read at least this many new prompt tokens ...
+MIN_WRITE_SAMPLE = 8                   # ... or wrote at least this many tokens (shorter ones are mostly noise)
 SERVER_PREDICT_LIMIT = 2560            # the server never writes more than this for one request (meeting notes ask for 2,500)
 CPU_PROMPT_CACHE_MIB = 1024            # memory the server may keep for reusing the start of earlier prompts
 CPU_STARTUP_SECONDS = 240              # a processor-only PC may need this long to read the 2.5 GB model from a slow disk
@@ -100,16 +105,28 @@ def estimate_prompt_tokens(messages):
     return -(-chars // 3)
 
 
-def request_timeout(prompt_tokens, max_tokens, cpu, base=60):
-    """Seconds one request to the model on this computer may take before VoiceTool gives up.
-    On a graphics card (cpu False) that is `base` (offline_timeout_seconds, 60), as it always was. On a processor it is
-    the time to read the prompt plus the time to write a reply of up to `max_tokens` (None: as long as the server allows),
-    plus some slack, never less than `base` and never more than ten minutes."""
-    if not cpu:
-        return base
+def request_timeout(prompt_tokens, max_tokens, slow=True, base=60, measured=None):
+    """Seconds one request to the model on this computer may take before VoiceTool gives up. Never less than `base`
+    (offline_timeout_seconds, 60) and never more than ten minutes.
+
+    measured: (prompt tokens per second, reply tokens per second) as this computer's model has actually shown (either may
+    be None). The time is then MEASURED_OVERHEAD + MEASURED_SAFETY x (reading the prompt + writing a reply of up to
+    `max_tokens`; None = as long as the server allows). This is what decides whatever the backend: a fast graphics card
+    stays at `base`, a slow one (a virtual or weak integrated graphics card, an old processor) gets what it needs.
+
+    Nothing measured yet: slow=False (a graphics card the warm-up has not checked) is `base`, as it always was; slow=True
+    (a processor, or a graphics card not yet proven fast) uses speeds a modest 4-core laptop reaches: CPU_DEADLINE_OVERHEAD
+    + prompt / CPU_PREFILL_TOKENS_PER_SECOND + reply / CPU_WRITE_TOKENS_PER_SECOND."""
     write = SERVER_PREDICT_LIMIT if not max_tokens else min(int(max_tokens), SERVER_PREDICT_LIMIT)
-    seconds = (CPU_DEADLINE_OVERHEAD_SECONDS + max(0, int(prompt_tokens)) / CPU_PREFILL_TOKENS_PER_SECOND
-               + write / CPU_WRITE_TOKENS_PER_SECOND)
+    prompt = max(0, int(prompt_tokens))
+    prefill, generate = (measured or (None, None))
+    if prefill or generate:
+        seconds = MEASURED_OVERHEAD_SECONDS + MEASURED_SAFETY_FACTOR * (
+            prompt / (prefill or CPU_PREFILL_TOKENS_PER_SECOND) + write / (generate or CPU_WRITE_TOKENS_PER_SECOND))
+    elif slow:
+        seconds = CPU_DEADLINE_OVERHEAD_SECONDS + prompt / CPU_PREFILL_TOKENS_PER_SECOND + write / CPU_WRITE_TOKENS_PER_SECOND
+    else:
+        return base
     return max(base, min(CPU_DEADLINE_MAX_SECONDS, round(seconds)))
 
 
@@ -202,6 +219,7 @@ class _Completions:
             if wait is not None:
                 params["timeout"] = wait
         reply = self._owner._client.chat.completions.create(**params)
+        self._owner.observe(reply)
         try:
             reply._voicetool_free = True  # usage.py logs these as free
         except Exception:
@@ -235,13 +253,27 @@ class LocalClient:
         except Exception:
             return False
 
+    def observe(self, reply):
+        """Let the server's measured speeds learn from this answer (never raises)."""
+        try:
+            if self._server is not None:
+                self._server.observe(reply)
+        except Exception:
+            pass
+
     def deadline(self, messages, max_tokens):
-        """The wait to give one request, or None to leave it to the client's own timeout (the graphics card, or a wait the
-        caller chose): the decision is request_timeout's."""
-        if self._fixed_timeout or not self.on_cpu():
+        """The wait to give one request, or None to leave it to the client's own timeout (a client with no server to ask,
+        or a wait the caller chose): the decision is request_timeout's, from this server's measured speeds. Until a speed
+        is measured, a processor and a graphics card not yet shown to be fast are both given the generous processor wait."""
+        if self._fixed_timeout or self._server is None:
             return None
-        wait = request_timeout(estimate_prompt_tokens(messages), max_tokens, True, self._base_timeout)
-        try:  # a request that has to queue behind the start-up warm-up waits for that too
+        try:
+            measured = self._server.measured_rates()
+        except Exception:
+            measured = None
+        slow = self.on_cpu() or not measured
+        wait = request_timeout(estimate_prompt_tokens(messages), max_tokens, slow, self._base_timeout, measured)
+        try:  # a request that has to queue behind the start-up warm-up waits for that too, on any backend
             return wait + max(0, int(self._server.warm_up_wait()))
         except Exception:
             return wait
@@ -309,6 +341,8 @@ class LocalCleaner:
         self.failed_starts = 0  # failed server starts (a Vulkan start that fails and then a CPU start that works counts none)
         self.gave_up = False
         self._warm_until = 0.0  # (monotonic time) while the start-up warm-up may still be running
+        self.rates = {"prefill": None, "generate": None}  # tokens per second this server has shown (None: not measured yet)
+        self._samples = {"prefill": 0, "generate": 0}
         self._job = None
         self._lock = threading.RLock()
 
@@ -441,6 +475,7 @@ class LocalCleaner:
             port = wanted
         started = time.perf_counter()
         self.port = port
+        self.rates, self._samples = {"prefill": None, "generate": None}, {"prefill": 0, "generate": 0}  # a new program: unmeasured
         try:
             self.proc = subprocess.Popen(self._command_for(port), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                          creationflags=CREATE_NO_WINDOW)
@@ -465,8 +500,8 @@ class LocalCleaner:
     def start_in_background(self):
         """Start the server without making anyone wait for it (VoiceTool start-up, a switch turned on)."""
         self.failed_starts, self.gave_up = 0, False  # (a person turned it on, or VoiceTool just started: try afresh)
-        if self.on_cpu():  # a request that arrives meanwhile may queue behind the warm-up: it is given that time too
-            self._warm_until = time.monotonic() + request_timeout(1500, 1, True)
+        # a request that arrives meanwhile may queue behind the warm-up, on any backend: it is given that time too
+        self._warm_until = time.monotonic() + request_timeout(1500, 1, True) + request_timeout(100, WARM_UP_WRITE_TOKENS, True)
 
         def job():
             try:
@@ -481,22 +516,71 @@ class LocalCleaner:
                 self._warm_until = 0.0
         threading.Thread(target=job, daemon=True, name="local-model").start()
 
+    def measured_rates(self):
+        """(prompt tokens/s, reply tokens/s) this server has shown so far, or None if neither is measured yet."""
+        if self.rates["prefill"] is None and self.rates["generate"] is None:
+            return None
+        return self.rates["prefill"], self.rates["generate"]
+
+    def note_rate(self, kind, tokens_per_second):
+        """Remember a measured speed (the average of the last and the new one, so one odd request doesn't rule)."""
+        if not tokens_per_second or tokens_per_second <= 0:
+            return
+        old = self.rates[kind]
+        self.rates[kind] = tokens_per_second if old is None else (old + tokens_per_second) / 2
+        self._samples[kind] += 1
+
+    def observe(self, reply):
+        """Learn speeds from an answer's `timings` (llama-server reports how many prompt tokens it read, how many it wrote,
+        and how long each took). A request whose prompt was mostly reused from the cache says little about reading speed:
+        only the NEW prompt tokens are counted, and a sample that small is ignored."""
+        timings = getattr(reply, "timings", None)
+        if timings is None:
+            timings = (getattr(reply, "model_extra", None) or {}).get("timings")
+        if not isinstance(timings, dict):
+            return
+        read, read_ms = timings.get("prompt_n") or 0, timings.get("prompt_ms") or 0
+        if read >= MIN_PREFILL_SAMPLE and read_ms > 0:
+            self.note_rate("prefill", read / (read_ms / 1000.0))
+        wrote, wrote_ms = timings.get("predicted_n") or 0, timings.get("predicted_ms") or 0
+        if wrote >= MIN_WRITE_SAMPLE and wrote_ms > 0:
+            self.note_rate("generate", wrote / (wrote_ms / 1000.0))
+
     def warm_up_wait(self):
         """Seconds the start-up warm-up may still keep the server busy (0 once it is over, or on a graphics card)."""
         return max(0.0, self._warm_until - time.monotonic())
 
     def warm_up(self):
-        """Processor only: read the command router's instructions once, right after the model loads, so the first spoken
-        command doesn't pay for reading them (the server keeps what it read for the next request that starts the same
-        way). It also pulls the model off the disk. Writes one token; a failure is only logged. True if it ran."""
-        if not self.on_cpu():
-            return False
+        """Right after the model loads, on any backend: read the command router's instructions once (so the first spoken
+        command doesn't pay for reading them: the server keeps what it read for the next request that starts the same
+        way; it also pulls the model off the disk), then write a few words. Both are TIMED, and give the speeds that
+        request_timeout works from (llama-server's own `timings` when the answer has them, else the wall clock). On a real
+        graphics card this takes well under a second. A failure is only logged. True if it ran."""
         try:
             import commands
-            self.client().chat.completions.create(model="local", messages=commands.warm_up_messages(),
-                                                  max_completion_tokens=1)
+            client = self.client()
+            before = dict(self._samples)
+            started = time.perf_counter()
+            reply = client.chat.completions.create(model="local", messages=commands.warm_up_messages(),
+                                                   max_completion_tokens=1)
+            seconds = time.perf_counter() - started
+            if self._samples["prefill"] == before["prefill"] and not self.reused and seconds > 0:  # no `timings`: the wall clock
+                read = getattr(getattr(reply, "usage", None), "prompt_tokens", None) or int(
+                    estimate_prompt_tokens(commands.warm_up_messages()) * 0.7)
+                self.note_rate("prefill", read / seconds)
+            started = time.perf_counter()
+            reply = client.chat.completions.create(model="local", temperature=0, max_completion_tokens=WARM_UP_WRITE_TOKENS,
+                                                   messages=[{"role": "user", "content": "Count from one to twenty in words."}])
+            seconds = time.perf_counter() - started
+            if self._samples["generate"] == before["generate"] and seconds > 0:
+                wrote = getattr(getattr(reply, "usage", None), "completion_tokens", None) or len(
+                    (reply.choices[0].message.content or "")) // 3
+                if wrote >= 4:
+                    self.note_rate("generate", wrote / seconds)
             if self.log:
-                self.log.info("on-device model warmed up")
+                rates = self.measured_rates() or (None, None)
+                self.log.info("on-device model warmed up (reads %s tokens/s, writes %s tokens/s)",
+                              "?" if not rates[0] else round(rates[0], 1), "?" if not rates[1] else round(rates[1], 1))
             return True
         except Exception as e:
             if self.log:

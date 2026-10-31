@@ -5869,23 +5869,32 @@ def test_review_spoken_answer_clean_up_never_keeps_a_run_alive(tool, tmp_path):
 # server. Fakes only: no model runs here (a tiny local stand-in web server stands in for the model's timing and errors).
 
 class SlowPCServer:
-    """Stands in for LocalCleaner as far as LocalClient cares: does the model run on the processor?"""
+    """Stands in for LocalCleaner as far as LocalClient cares: is the model on the processor, and what speeds has it shown?"""
 
-    def __init__(self, cpu):
-        self.cpu = cpu
+    def __init__(self, cpu, rates=None):
+        self.cpu, self.rates, self.seen = cpu, rates, []
 
     def on_cpu(self):
         return self.cpu
 
+    def measured_rates(self):
+        return self.rates
 
-def slowpc_client(raw, cpu=True, base=60):
-    return local_cleanup_win.LocalClient(raw, SlowPCServer(cpu), base)
+    def observe(self, reply):
+        self.seen.append(reply)
+
+
+def slowpc_client(raw, cpu=True, base=60, rates=None):
+    """rates: the (prompt tokens/s, reply tokens/s) the server has measured, or None (nothing measured yet)."""
+    return local_cleanup_win.LocalClient(raw, SlowPCServer(cpu, rates), base)
 
 
 class SlowPCReply:
-    def __init__(self, content, finish="stop"):
+    def __init__(self, content, finish="stop", timings=None, usage=None):
         self.choices = [SimpleNamespace(message=SimpleNamespace(content=content), finish_reason=finish)]
-        self.usage = None
+        self.usage = usage
+        if timings is not None:  # what llama-server adds to its answers
+            self.timings = timings
 
 
 class SlowPCRaw:
@@ -5921,13 +5930,13 @@ def slowpc_errors():
 
 def test_slowpc_the_wait_for_a_request_is_decided_in_one_function_scaled_by_the_job():
     rt = local_cleanup_win.request_timeout
-    # on a graphics card (or anything that is not the processor) nothing changes: the flat wait it always had
-    assert rt(1500, 600, cpu=False) == 60 and rt(1500, 600, cpu=False, base=45) == 45 and rt(0, 1, cpu=False) == 60
-    # on the processor every job gets what it needs: reading the prompt plus writing the reply, plus slack
-    route = rt(1500, commands.route_budget("make this shorter"), cpu=True)
-    rewrite = rt(400, commands.rewrite_budget("I will be a little late."), cpu=True)
-    write = rt(400, commands.WRITE_TOKENS, cpu=True)
-    tidy = rt(250, 64, cpu=True)
+    # a graphics card nobody has measured yet is "slow=False" and keeps the flat wait it always had
+    assert rt(1500, 600, slow=False) == 60 and rt(1500, 600, slow=False, base=45) == 45 and rt(0, 1, slow=False) == 60
+    # nothing measured, assumed slow (a processor): every job gets what it needs: reading the prompt plus writing the reply
+    route = rt(1500, commands.route_budget("make this shorter"), slow=True)
+    rewrite = rt(400, commands.rewrite_budget("I will be a little late."), slow=True)
+    write = rt(400, commands.WRITE_TOKENS, slow=True)
+    tidy = rt(250, 64, slow=True)
     assert write > route > rewrite > tidy >= 60
     assert (tidy, rewrite, route, write) == (64, 82, 193, 250)  # (the numbers a 4-core laptop's speeds give)
     assert 120 < route < 300  # the old flat 60 s could never have covered the command router on a processor
@@ -5937,6 +5946,19 @@ def test_slowpc_the_wait_for_a_request_is_decided_in_one_function_scaled_by_the_
     assert local_cleanup_win.estimate_prompt_tokens([{"role": "system", "content": "s" * 3000}, {"role": "user", "content": "hello"}]) == 1002
     assert local_cleanup_win.estimate_prompt_tokens([{"content": [{"type": "text", "text": "abc"}, {"type": "image_url"}]}, "x", {}]) == 1
     assert local_cleanup_win.estimate_prompt_tokens(None) == 0
+    # MEASURED speeds decide, whatever the backend: 15 s + 2 x (reading the prompt + writing the reply)
+    fast_gpu, slow_vulkan = (3000.0, 120.0), (15.0, 2.0)  # (prompt tokens/s, reply tokens/s)
+    route_tokens = commands.route_budget("make this shorter")
+    assert rt(1500, route_tokens, slow=False, measured=fast_gpu) == 60  # a fast graphics card keeps its short wait
+    assert rt(1500, route_tokens, slow=True, measured=fast_gpu) == 60  # (measured speed beats the assumption)
+    assert rt(1500, route_tokens, slow=False, measured=slow_vulkan) == round(15 + 2 * (1500 / 15 + route_tokens / 2)) == 480
+    assert rt(250, 64, slow=False, measured=slow_vulkan) == round(15 + 2 * (250 / 15 + 64 / 2)) == 112  # the Sandbox's 29 s tidy-up fits
+    assert rt(1500, 600, slow=False, measured=(1.0, 0.5)) == 600  # still capped at ten minutes
+    assert rt(1500, 600, slow=False, measured=(15.0, 2.0), base=900) == 900  # and never under the configured base
+    # one speed measured, the other not yet: the unmeasured one uses the slow assumption
+    assert rt(1000, 100, False, measured=(None, 120.0)) == round(15 + 2 * (1000 / 20 + 100 / 120)) and rt(1000, 100, False, measured=(None, 120.0)) == 117
+    assert rt(1000, 100, False, measured=(1000.0, None)) == round(15 + 2 * (1 + 100 / 3)) == 84
+    assert rt(1500, 100, False, measured=None) == 60 and rt(1500, 100, False, measured=(None, None)) == 60  # nothing measured
 
 
 def test_slowpc_the_processor_client_gives_each_request_its_own_wait_and_nothing_else_changes():
@@ -5950,11 +5972,25 @@ def test_slowpc_the_processor_client_gives_each_request_its_own_wait_and_nothing
     assert raw.sent[-1]["timeout"] == 500  # the configured wait is a floor
     slowpc_client(raw).chat.completions.create(model="m", messages=messages, max_completion_tokens=100, timeout=7)
     assert raw.sent[-1]["timeout"] == 7  # a wait the caller chose is kept
-    # a graphics-card server, a client with no server, and a server that can't say: the client's own timeout, as before
-    for client in (slowpc_client(raw, cpu=False), local_cleanup_win.LocalClient(raw),
-                   local_cleanup_win.LocalClient(raw, SimpleNamespace(on_cpu=lambda: 1 / 0))):
-        client.chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
-        assert "timeout" not in raw.sent[-1]
+    # a client with no server to ask keeps its own timeout, as before
+    local_cleanup_win.LocalClient(raw).chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+    assert "timeout" not in raw.sent[-1]
+    # a graphics card nobody has measured yet is treated like the processor (generous) until the warm-up proves it fast
+    slowpc_client(raw, cpu=False).chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+    assert raw.sent[-1]["timeout"] == local_cleanup_win.request_timeout(1002, 100, True) > 60
+    # a server that can't say anything (its methods fail) is the same: generous, never an error
+    broken = SimpleNamespace(on_cpu=lambda: 1 / 0, measured_rates=lambda: 1 / 0, warm_up_wait=lambda: 1 / 0, observe=lambda r: 1 / 0)
+    local_cleanup_win.LocalClient(raw, broken).chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+    assert raw.sent[-1]["timeout"] == local_cleanup_win.request_timeout(1002, 100, True)
+    # measured: a fast graphics card keeps the short wait; a slow "graphics card" (a virtual one) gets what its speed needs
+    slowpc_client(raw, cpu=False, rates=(3000.0, 120.0)).chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+    assert raw.sent[-1]["timeout"] == 60
+    slowpc_client(raw, cpu=False, rates=(15.0, 2.0)).chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+    assert raw.sent[-1]["timeout"] == local_cleanup_win.request_timeout(1002, 100, False, measured=(15.0, 2.0)) == 249
+    # every answer is shown to the server so it can learn from it
+    client = slowpc_client(raw)
+    client.chat.completions.create(model="m", messages=messages, max_completion_tokens=100)
+    assert len(client._server.seen) == 1
     # a caller that fixed the wait itself (meeting notes: 15 minutes) is never overridden
     client = slowpc_client(raw).with_options(timeout=900)
     client.chat.completions.create(model="m", messages=messages, max_completion_tokens=2500)
@@ -6073,7 +6109,7 @@ class SlowPCStub:
 
     def client(self, timeout):
         from openai import OpenAI
-        return slowpc_client(OpenAI(base_url=f"http://127.0.0.1:{self.port}/v1", api_key="local", timeout=timeout, max_retries=0), cpu=False)
+        return local_cleanup_win.LocalClient(OpenAI(base_url=f"http://127.0.0.1:{self.port}/v1", api_key="local", timeout=timeout, max_retries=0))
 
     def close(self):
         self.server.shutdown()
@@ -6096,7 +6132,7 @@ def test_slowpc_real_client_errors_become_the_same_exception_a_slow_server_a_loa
         slow.close()
         loading.close()
     dead_port = free_port()  # nothing listens here: connection refused
-    refused = slowpc_client(OpenAI(base_url=f"http://127.0.0.1:{dead_port}/v1", api_key="local", timeout=3, max_retries=0), cpu=False)
+    refused = local_cleanup_win.LocalClient(OpenAI(base_url=f"http://127.0.0.1:{dead_port}/v1", api_key="local", timeout=3, max_retries=0))
     with pytest.raises(commands.ModelTimeout) as caught:
         commands.route(refused, "local", "open Notepad", {})
     assert caught.value.reason == "connection" and "couldn't reach" in str(caught.value)
@@ -6171,31 +6207,101 @@ def test_slowpc_the_processor_server_gets_its_cores_a_reply_limit_and_a_longer_s
     assert command[0] == str(tmp_path / "c.exe") and command[-6:] == ["-t", "4", "-n", "2560", "-cram", "1024"] and "127.0.0.1" in command
 
 
-def test_slowpc_the_processor_server_reads_the_routers_instructions_once_after_loading_and_a_failure_is_only_logged():
+def test_slowpc_the_server_reads_the_routers_instructions_once_after_loading_on_any_backend_and_a_failure_is_only_logged():
     lc = local_cleanup_win
-    raw = SlowPCRaw("")
     logged = []
     log = SimpleNamespace(info=lambda msg, *a: logged.append(msg % a if a else msg), warning=lambda *a: logged.append(a))
-    cpu = lc.LocalCleaner({"offline_backend": "cpu"}, log)
-    cpu.client = lambda timeout=60: slowpc_client(raw)
-    assert cpu.warm_up() is True and len(raw.sent) == 1
-    request = raw.sent[0]
-    assert request["messages"][0] == {"role": "system", "content": commands.ROUTER} and request["max_tokens"] == 1
-    assert request["timeout"] == lc.request_timeout(lc.estimate_prompt_tokens(request["messages"]), 1, True) > 60
-    assert any("warmed up" in m for m in logged)
+    for backend in ("cpu", "vulkan"):
+        raw = SlowPCRaw("")
+        server = lc.LocalCleaner({"offline_backend": backend}, log)
+        server.client = lambda timeout=60, raw=raw, server=server: lc.LocalClient(raw, server)
+        assert server.warm_up() is True and len(raw.sent) == 2  # (the router's instructions, then a few words)
+        request, words = raw.sent
+        assert request["messages"][0] == {"role": "system", "content": commands.ROUTER} and request["max_tokens"] == 1
+        assert request["timeout"] == lc.request_timeout(lc.estimate_prompt_tokens(request["messages"]), 1, True) > 60  # (unmeasured: generous)
+        assert words["max_tokens"] == lc.WARM_UP_WRITE_TOKENS and words["temperature"] == 0
+        assert any("warmed up" in m for m in logged)
     # the real routing request starts with the same instructions, so the server can reuse what it read
     routed = SlowPCRaw(json.dumps({"route": "system", "target": "mute"}))
     commands.route(slowpc_client(routed), "local", "mute", {"selection": ""}, style="My style.")
     assert routed.sent[0]["messages"][0]["content"].startswith(request["messages"][0]["content"])
-    # a failure never raises
-    cpu.client = lambda timeout=60: slowpc_client(SlowPCRaw(slowpc_errors()["timeout"]))
-    assert cpu.warm_up() is False and any("skipped" in m for m in logged if isinstance(m, str))
-    cpu.client = lambda timeout=60: (_ for _ in ()).throw(lc.ModelServerUnavailable("won't start"))
-    assert cpu.warm_up() is False
-    # the graphics-card server is never warmed up this way
-    gpu = lc.LocalCleaner({"offline_backend": "vulkan"}, log)
-    gpu.client = lambda timeout=60: pytest.fail("no request on a graphics card")
-    assert gpu.warm_up() is False
+    # a failure never raises (and measures nothing)
+    broken = lc.LocalCleaner({"offline_backend": "vulkan"}, log)
+    broken.client = lambda timeout=60: slowpc_client(SlowPCRaw(slowpc_errors()["timeout"]))
+    assert broken.warm_up() is False and any("skipped" in m for m in logged if isinstance(m, str)) and broken.measured_rates() is None
+    broken.client = lambda timeout=60: (_ for _ in ()).throw(lc.ModelServerUnavailable("won't start"))
+    assert broken.warm_up() is False
+
+
+def test_slowpc_the_warm_up_measures_the_speed_from_the_servers_timings_and_a_fast_graphics_card_keeps_short_waits():
+    lc = local_cleanup_win
+    server = lc.LocalCleaner({"offline_backend": "vulkan"})
+    # llama-server's own numbers: 1,368 prompt tokens read in 0.4 s, 24 tokens written in 0.3 s
+    raw = SlowPCRaw(SlowPCReply("", timings={"prompt_n": 1368, "prompt_ms": 400.0, "predicted_n": 1, "predicted_ms": 10.0}),
+                    SlowPCReply("one two", timings={"prompt_n": 12, "prompt_ms": 30.0, "predicted_n": 24, "predicted_ms": 300.0}))
+    server.client = lambda timeout=60: lc.LocalClient(raw, server)
+    assert server.measured_rates() is None
+    assert server.warm_up() is True
+    prefill, generate = server.measured_rates()
+    assert prefill == pytest.approx(3420.0) and generate == pytest.approx(80.0)  # (the 12-token prompt is too small to count)
+    messages = [{"role": "system", "content": "s" * 4500}, {"role": "user", "content": "hello"}]
+    lc.LocalClient(raw, server).chat.completions.create(model="m", messages=messages, max_completion_tokens=265)
+    assert raw.sent[-1]["timeout"] == 60 and server.warm_up_wait() == 0  # the graphics card is proven fast: the short wait
+    # a slow Vulkan device (the Sandbox's virtual one): the same code gives it the long waits its speed needs
+    slow = lc.LocalCleaner({"offline_backend": "vulkan"})
+    raw = SlowPCRaw(SlowPCReply("", timings={"prompt_n": 1368, "prompt_ms": 91200.0, "predicted_n": 1, "predicted_ms": 600.0}),
+                    SlowPCReply("one two", timings={"prompt_n": 12, "prompt_ms": 800.0, "predicted_n": 24, "predicted_ms": 12000.0}))
+    slow.client = lambda timeout=60: lc.LocalClient(raw, slow)
+    assert slow.warm_up() is True
+    assert slow.measured_rates() == (pytest.approx(15.0), pytest.approx(2.0))
+    lc.LocalClient(raw, slow).chat.completions.create(model="m", messages=messages, max_completion_tokens=265)
+    assert raw.sent[-1]["timeout"] == lc.request_timeout(1500, 265, False, measured=(15.0, 2.0)) == 480
+    # every real answer keeps the numbers fresh (an answer that read few new prompt tokens says nothing about reading speed)
+    slow.observe(SlowPCReply("x", timings={"prompt_n": 30, "prompt_ms": 1.0, "predicted_n": 40, "predicted_ms": 10000.0}))
+    assert slow.measured_rates()[0] == pytest.approx(15.0) and slow.measured_rates()[1] == pytest.approx(3.0)
+    slow.observe(SlowPCReply("x", timings={"prompt_n": 600, "prompt_ms": 20000.0}))
+    assert slow.measured_rates()[0] == pytest.approx(22.5)
+    # the SDK keeps unknown fields of an answer in model_extra
+    extra = lc.LocalCleaner({"offline_backend": "vulkan"})
+    extra.observe(SimpleNamespace(model_extra={"timings": {"prompt_n": 500, "prompt_ms": 1000.0, "predicted_n": 10, "predicted_ms": 1000.0}}))
+    assert extra.measured_rates() == (pytest.approx(500.0), pytest.approx(10.0))
+
+
+def test_slowpc_a_server_that_reports_no_timings_is_measured_by_the_wall_clock_and_garbage_is_ignored(monkeypatch):
+    lc = local_cleanup_win
+    server = lc.LocalCleaner({"offline_backend": "vulkan"})
+    usage_of = lambda prompt, wrote: SimpleNamespace(prompt_tokens=prompt, completion_tokens=wrote)  # noqa: E731
+    raw = SlowPCRaw(SlowPCReply("", usage=usage_of(1400, 1)), SlowPCReply("one two three", usage=usage_of(12, 20)))
+    server.client = lambda timeout=60: lc.LocalClient(raw, server)
+    clock = iter([0.0, 2.0, 10.0, 14.0])  # the first request took 2 s, the second 4 s
+    monkeypatch.setattr(lc, "time", SimpleNamespace(perf_counter=lambda: next(clock), monotonic=time.monotonic, sleep=time.sleep))
+    assert server.warm_up() is True
+    assert server.measured_rates() == (pytest.approx(700.0), pytest.approx(5.0))  # 1,400 tokens / 2 s, 20 tokens / 4 s
+    # no usage either: the guess from the text (3 characters a token; the prompt counted a little under)
+    guess = lc.LocalCleaner({"offline_backend": "vulkan"})
+    raw = SlowPCRaw(SlowPCReply(""), SlowPCReply("a" * 90))
+    guess.client = lambda timeout=60: lc.LocalClient(raw, guess)
+    clock = iter([0.0, 10.0, 20.0, 30.0])
+    monkeypatch.setattr(lc, "time", SimpleNamespace(perf_counter=lambda: next(clock), monotonic=time.monotonic, sleep=time.sleep))
+    assert guess.warm_up() is True
+    prefill, generate = guess.measured_rates()
+    assert prefill == pytest.approx(int(lc.estimate_prompt_tokens(commands.warm_up_messages()) * 0.7) / 10.0) and generate == pytest.approx(3.0)
+    # timings that are missing, empty, odd or not numbers change nothing and never raise
+    quiet = lc.LocalCleaner({"offline_backend": "vulkan"})
+    for reply in (SlowPCReply("x"), SlowPCReply("x", timings={}), SlowPCReply("x", timings="fast"), SlowPCReply("x", timings={"prompt_n": None}),
+                  SlowPCReply("x", timings={"prompt_n": 900, "prompt_ms": 0}), SlowPCReply("x", timings={"predicted_n": 3, "predicted_ms": 5.0}),
+                  SimpleNamespace(), None):
+        quiet.observe(reply)
+    assert quiet.measured_rates() is None
+    # a server that was already running (and had read the router's instructions before) is not timed by the wall clock:
+    # that would call a cached prompt fast
+    reused = lc.LocalCleaner({"offline_backend": "vulkan"})
+    reused.reused = True
+    raw = SlowPCRaw(SlowPCReply("", usage=usage_of(1400, 1)), SlowPCReply("one", usage=usage_of(12, 20)))
+    reused.client = lambda timeout=60: lc.LocalClient(raw, reused)
+    clock = iter([0.0, 0.1, 1.0, 5.0])
+    monkeypatch.setattr(lc, "time", SimpleNamespace(perf_counter=lambda: next(clock), monotonic=time.monotonic, sleep=time.sleep))
+    assert reused.warm_up() is True and reused.measured_rates()[0] is None and reused.measured_rates()[1] == pytest.approx(5.0)
 
 
 def test_slowpc_starting_in_the_background_warms_a_processor_server_up_only_after_it_is_ready(monkeypatch):
@@ -6246,40 +6352,47 @@ def test_slowpc_a_request_that_arrives_while_the_processor_server_is_still_loadi
 def test_slowpc_a_request_queued_behind_the_start_up_warm_up_is_given_the_warm_up_time_too(monkeypatch):
     lc = local_cleanup_win
     messages = [{"role": "system", "content": "s" * 600}, {"role": "user", "content": "um hello there"}]
+    allowance = lc.request_timeout(1500, 1, True) + lc.request_timeout(100, lc.WARM_UP_WRITE_TOKENS, True)  # (reading + a few words)
+
+    def join_background():
+        for thread in threading.enumerate():
+            if thread.name == "local-model":
+                thread.join(5)
+    for backend in ("cpu", "vulkan"):  # (the same on every backend: the first request never fails for queuing behind the warm-up)
+        raw = SlowPCRaw("ok")
+        server = lc.LocalCleaner({"offline_backend": backend})
+        client = lc.LocalClient(raw, server, 60)
+        alone = lc.request_timeout(lc.estimate_prompt_tokens(messages), 64, True)  # (nothing measured: the generous wait)
+        client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
+        assert raw.sent[-1]["timeout"] == alone and server.warm_up_wait() == 0
+        started, release = threading.Event(), threading.Event()
+        monkeypatch.setattr(server, "start", lambda started=started, release=release: (started.set(), release.wait(5)))
+        monkeypatch.setattr(server, "warm_up", lambda release=release: release.wait(5))
+        server.start_in_background()
+        assert started.wait(5) and 100 < server.warm_up_wait() <= allowance
+        client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
+        assert alone + 100 < raw.sent[-1]["timeout"] <= alone + allowance
+        release.set()
+        join_background()
+        assert server.warm_up_wait() == 0  # over: back to the plain wait
+        client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
+        assert raw.sent[-1]["timeout"] == alone
+        # a server that failed to start is not left "warming up"
+        failed = lc.LocalCleaner({"offline_backend": backend})
+        monkeypatch.setattr(failed, "start", lambda: (_ for _ in ()).throw(RuntimeError("stopped while starting")))
+        failed.start_in_background()
+        join_background()
+        assert failed.warm_up_wait() == 0
+    # a graphics card that the warm-up has measured as fast gets its short wait again once the warm-up is over
+    fast = lc.LocalCleaner({"offline_backend": "vulkan"})
+    fast.rates = {"prefill": 3000.0, "generate": 120.0}
     raw = SlowPCRaw("ok")
-    cpu = lc.LocalCleaner({"offline_backend": "cpu"})
-    client = lc.LocalClient(raw, cpu, 60)
-    alone = lc.request_timeout(lc.estimate_prompt_tokens(messages), 64, True)
-    client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
-    assert raw.sent[-1]["timeout"] == alone and cpu.warm_up_wait() == 0
-    started = threading.Event()
-    release = threading.Event()
-    monkeypatch.setattr(cpu, "start", lambda: (started.set(), release.wait(5)))
-    monkeypatch.setattr(cpu, "warm_up", lambda: release.wait(5))
-    cpu.start_in_background()
-    assert started.wait(5) and 60 < cpu.warm_up_wait() <= lc.request_timeout(1500, 1, True)  # (about 100 s while it may run)
-    client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
-    assert alone + 60 < raw.sent[-1]["timeout"] <= alone + lc.request_timeout(1500, 1, True)
-    release.set()
-    for thread in threading.enumerate():
-        if thread.name == "local-model":
-            thread.join(5)
-    assert cpu.warm_up_wait() == 0  # over: back to the plain wait
-    client.chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
-    assert raw.sent[-1]["timeout"] == alone
-    # a server that failed to start is not left "warming up"
-    failed = lc.LocalCleaner({"offline_backend": "cpu"})
-    monkeypatch.setattr(failed, "start", lambda: (_ for _ in ()).throw(RuntimeError("stopped while starting")))
-    failed.start_in_background()
-    for thread in threading.enumerate():
-        if thread.name == "local-model":
-            thread.join(5)
-    assert failed.warm_up_wait() == 0
-    # and a graphics-card server never has one
-    gpu = lc.LocalCleaner({"offline_backend": "vulkan"})
-    monkeypatch.setattr(gpu, "start", lambda: None)
-    gpu.start_in_background()
-    assert gpu.warm_up_wait() == 0
+    monkeypatch.setattr(fast, "start", lambda: None)
+    monkeypatch.setattr(fast, "warm_up", lambda: True)
+    fast.start_in_background()
+    join_background()
+    lc.LocalClient(raw, fast, 60).chat.completions.create(model="m", messages=messages, max_completion_tokens=64)
+    assert raw.sent[-1]["timeout"] == 60
 
 
 def test_review_a_model_that_is_too_slow_to_start_keeps_the_command_and_says_so(tool, monkeypatch):
