@@ -1,7 +1,7 @@
 {
   "name": "mood-strip",
-  "version": "0.8.1",
-  "description": "A colored strip above the prompt that shows what Claude is doing and how it is going: working, waiting for you, a win, bumpy, stuck, done or stopped, with the plan's steps, and the time of day's colors between tasks. An optional line of Claude's thinking is off by default",
+  "version": "0.8.2",
+  "description": "A colored strip above the prompt that shows what Claude is doing and how it is going: working, waiting for you, a win, bumpy, stuck, done or stopped, with the plan's steps, and the time of day's colors between tasks. A short, filtered line of Claude's thinking is on by default and can be turned off",
   "author": {
     "name": "Pete Carter"
   },
@@ -11,8 +11,8 @@
     "showThinking": {
       "type": "boolean",
       "title": "Show Claude's thinking",
-      "description": "While Claude thinks, show one short recent sentence of it in the middle of the strip. Warning: this can put private details from your work on screen (names, health, money), because thinking often restates what you gave Claude. Filters drop your own words, secrets and numbers, but they cannot catch everything. Leave it off when you share or record your screen.",
-      "default": false
+      "description": "While Claude thinks, show one short recent sentence of it in the middle of the strip. Warning: this can put private details from your work on screen (names, health, money), because thinking often restates what you gave Claude. Filters drop your own words, secrets and numbers, but they cannot catch everything. Turn it off in the plugin's settings if you stream, record or share your screen.",
+      "default": true
     }
   }
 }

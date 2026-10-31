@@ -11,7 +11,7 @@ A Claude Code mod that puts one full-width colored strip right above the prompt 
 
 **Three parts, edge to edge:**
 - **Left, right now:** "Reading app.js", "Running npm", "Thinking…", "Waiting for your answer". Whole commands never show: only a well-known program's name ("Running npm"), otherwise "a command"; builds show as "Building…", "✓ Build passed" or "✗ Build failed, fixing…"; tools read like "Using read file". File, helper, skill, tool or step names that hold a path, a web address, a secret, a health, money or identity subject, a letter outside the Latin alphabet, or any word you've typed in this session, answers, the reasons you give for turning a step down and what you type after a slash command included (everyday words like "page" or "test" aside, but never names, nicknames, months, days or place codes) show as "a file", "a helper", "a skill", "a tool" or "Step 2 of 5". A command with several parts (&&, ||, ;, a pipe) only says "Ran a command" unless every part is known to have run; tests piped into another program end as "Tests finished", with no pass or fail. Work started in the background shows as "Tests started" or "Helper started".
-- **Middle, the story so far:** the last few steps ("Read app.js › Edited app.js › Tests ✓"), how it's going ("2 retries so far", "9 min, past your usual 3 min"), helpers at work, and, if you turn it on, **a short sentence of the AI's thinking, live**, in quotes at the start of the middle part (complete sentences only, up to 60 characters). It's off at first; see Settings.
+- **Middle, the story so far:** the last few steps ("Read app.js › Edited app.js › Tests ✓"), how it's going ("2 retries so far", "9 min, past your usual 3 min"), helpers at work, and **a short sentence of the AI's thinking, live**, in quotes at the start of the middle part (complete sentences only, up to 60 characters). It's on by default and filtered like everything else, and you can turn it off (see Settings).
 - **Right, the plan:** one dot per step, filled when done, and the current step ("Step 2 of 5: Build the page"), from the AI's plan, task list or to-do list.
 
 Each part has its own room (about 48, 75 and 48 characters); anything longer is cut at a word, with "…", and fades softly at the part's right edge. After a reload, step, file, helper and tool names stay hidden until the mod has read back what you typed earlier in the session, or until your next message.
@@ -42,12 +42,12 @@ In the terminal the strip is a colored line with the same words, painted in each
 
 ## Settings
 
-- **Show Claude's thinking** (`showThinking`, **off** by default): the short thinking line in the middle.
+- **Show Claude's thinking** (`showThinking`, **on** by default): the short thinking line in the middle. It's filtered the same way as everything else the strip shows: your own words, file paths, web addresses, secrets, long numbers, and health, money and identity words are hidden.
 
   > [!WARNING]
-  > This can put private details from your work on screen (names, health, money), because thinking often restates what you gave Claude. Filters drop your own words, secrets and numbers, but they can't catch everything. Leave it off when you share or record your screen.
+  > It shows a short line of what Claude is thinking. It hides your own words, file paths and secrets, but if you stream or share your screen and want nothing extra shown, turn it off in the plugin's settings.
 
-  To turn it on: type `/config` and switch on the "Show Claude's thinking" row, or from a shell run `claude plugin configure mood-strip@apps`. Then type `/reload-plugins`.
+  The filters can't catch everything: thinking often restates what you gave Claude, and a name or detail Claude read in a file can still show. To turn it off, type `/config` and switch off the "Show Claude's thinking" row, or from a shell run `claude plugin configure mood-strip@apps`. Then type `/reload-plugins`. Switch the row back on the same way.
 
 ## Install
 

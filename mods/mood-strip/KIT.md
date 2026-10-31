@@ -30,7 +30,7 @@ One colored bar sits right above the box where you type to the AI. It tells you,
   - **Left, right now:** "Reading app.js", "Running npm", "Thinking…".
   - **Middle, the story so far:** the last few steps ("Read app.js › Edited app.js › Tests ✓"), how it's going ("2 retries so far"), and helpers at work.
   - **Right, the plan:** one dot per step, filled when done, and the step it's on.
-- **Optional: its thinking, live.** Turn on a setting, and while the AI thinks, the middle starts with a short, recent sentence of its thinking, in quotes. It's off at first, because thinking often repeats details of your work (section 9).
+- **Its thinking, live.** While the AI thinks, the middle starts with a short, recent sentence of its thinking, in quotes. It's on by default and filtered the same way as everything else, and a setting turns it off, for example when you stream or share your screen (section 9).
 - **Careful with what's on screen:** whole commands never show (just a well-known program's name, or "a command"), and file, helper or tool names with a path, a web address, a secret, a health or money subject, a letter outside the Latin alphabet, or any unusual word you've typed in the session just say "a file", "a helper" or "a tool". Long text is cut at a word, with "…".
 - **Colors with meaning,** fading slowly from one to the next: purple working, pink waiting for you, green for a win, orange bumpy, red stuck, teal done.
 - **A friendly idle look:** "Good morning · 9:30 AM", today's tasks and minutes of work, and how your last task went.
@@ -89,7 +89,7 @@ Decide these before you start. Changing them later works, but it means rebuildin
 | The idle colors | Warm yellow morning, sky blue afternoon, rose evening, dark gray late night | Pick your own, or one color all day. |
 | How often the thinking line updates | Every 2 seconds | Faster flickers; slower feels behind. |
 | How long a thinking line can be | About 60 characters | Only whole sentences that fit are shown. |
-| Show the thinking line | Off | It's the "Show Claude's thinking" setting. Turn it on only if you're happy for lines of the AI's thinking, which can include names, health or money details from your work, to be on screen. |
+| Show the thinking line | On | It's the "Show Claude's thinking" setting. Turn it off if you stream or share your screen and want nothing extra shown: the AI's thinking is filtered, but it can still include names, health or money details from your work. |
 
 <table><tr><td align="center" valign="top"><img src="docs/kit/morning.png" alt="A warm yellow strip: Good morning, 8:14 AM, Ready when you are, Last task 4m 10s" width="380"><br><sub>Morning, idle</sub></td><td align="center" valign="top"><img src="docs/kit/evening.png" alt="A rose strip: Good evening, 7:15 PM, 6 tasks today, 1h 24m of work" width="380"><br><sub>Evening, idle</sub></td></tr></table>
 
@@ -120,7 +120,7 @@ WHAT IT SHOWS
   - Work started in the background shows as "Tests started" or "Helper started".
   - Builds show as "Building…", "✓ Build passed" or "✗ Build failed, fixing…", and the recap says "build passing". A build never counts as a test.
   - Idle: a greeting by time of day with the clock ("Good morning · 9:30 AM"), today's tasks and minutes of work in the middle, and how the last task went on the right. Morning [warm yellow], afternoon [sky blue], evening [rose], late night [dark gray].
-- An optional thinking line, as a setting that is OFF at first: when I turn it on, while the AI is thinking the middle starts with the latest complete sentence of its thinking, in quotes, up to about [60] characters, updated about every [2 seconds]. The setting's description warns that thinking often restates what I gave the AI, so it can put private details on screen. Leave out any sentence that repeats my own words, says "the user", quotes something, has a file path, web address, email or anything that looks like a password or key, has 5 or more digits in a row, looks like a phone number or street address, or talks about health, money or identity. When it starts writing the answer, the left says "Writing the answer…".
+- A thinking line, as a setting that is ON by default and that I can turn off: while the AI is thinking the middle starts with the latest complete sentence of its thinking, in quotes, up to about [60] characters, updated about every [2 seconds]. The setting's description warns that thinking often restates what I gave the AI, so it can put private details on screen, and says to turn it off when I stream or share my screen. If the setting is missing or has an odd value, treat it as on; only a clear false (the option unticked) turns it off. Leave out any sentence that repeats my own words, says "the user", quotes something, has a file path, web address, email or anything that looks like a password or key, has 5 or more digits in a row, looks like a phone number or street address, or talks about health, money or identity. When it starts writing the answer, the left says "Writing the answer…".
 - Anything too long for its part is cut at a word, with "…", never in the middle of a letter: about 48 characters on the left, 75 in the middle and 48 on the right, with a soft fade at each part's right edge.
 - Helpers (sub-agents) show by name while they work. Only the main conversation changes the strip; helpers never take it over.
 - A /mood command that says what the strip shows, what each color means, the last problem it hit (or "none"), and the version. And /mood demo that plays every look with made-up examples, a few seconds each, then goes back to now. It only plays between tasks (during a task, say a task is running and to try between tasks), it can be run again any time, and a real reply ends it.
@@ -142,7 +142,7 @@ WHAT WE LEARNED BUILDING ONE (do these from the start)
 - The AI's thinking can repeat my request or mention private things. Filter it as above, and show whole sentences only.
 - The terminal can't do fades, so paint each mood's color at once there.
 - Steps I decline and searches that find nothing aren't failures; don't turn the strip orange for them.
-- Thinking often restates what I gave you, names and numbers included, so the thinking line is off unless I turn it on, and filtered when it's on.
+- Thinking often restates what I gave you, names and numbers included, so the thinking line is filtered exactly like everything else, and I can turn it off in the setting (for example when I stream or share my screen).
 - Text written into a file can look like a command. Show program names only for well-known programs, otherwise "a command".
 - A fade that starts right away makes "Done" hard to read. Hold the color, and fade only at the end.
 
@@ -151,7 +151,7 @@ BUILD ORDER (all of it by the end)
 2. Working and done: what's happening now, the trail, the recap, and the slow fades.
 3. How it's going: waiting on me, big moments, bumpy, stuck, longer than usual.
 4. The plan step with dots, and helper names.
-5. The optional thinking line (off at first), /mood and /mood demo.
+5. The thinking line (on by default, with a setting to turn it off), /mood and /mood demo.
 
 HOW TO WORK WITH ME
 - Plain English, short answers. Pick sensible defaults and tell me what you picked; don't ask me technical questions.
@@ -199,9 +199,9 @@ Ask for something with a few steps, for example "Make a 3-step plan to tidy this
 
 ### Step 5 · The thinking line and the demo
 
-The thinking line is off at first. To try it, type `/config`, find your mod's thinking setting and switch it on, then type `/reload-plugins`. Then ask a question that makes the AI think first, like "What's the best way to organize this folder? Think it through." The left says "Thinking…" and the middle starts with a short line of its thinking, updating every couple of seconds. Turn it off again the same way if you'd rather not see it. When the reply is done, type `/mood` to see what each color means and the last problem it hit (it should say "none"), and `/mood demo` for the full show.
+The thinking line is on from the start. To try it, ask a question that makes the AI think first, like "What's the best way to organize this folder? Think it through." The left says "Thinking…" and the middle starts with a short line of its thinking, updating every couple of seconds. To turn it off (for example when you stream or share your screen), type `/config`, find your mod's thinking setting, switch it off, then type `/reload-plugins`; switch it back on the same way. When the reply is done, type `/mood` to see what each color means and the last problem it hit (it should say "none"), and `/mood demo` for the full show.
 
-<p align="center"><img src="docs/kit/thinking.png" alt="A purple strip: Thinking, with a quoted line of the AI's thinking, and plan dots for Step 1 of 5" width="760"><br><sub>The optional thinking line, in the middle (off at first). All the words in these pictures are made up.</sub></p>
+<p align="center"><img src="docs/kit/thinking.png" alt="A purple strip: Thinking, with a quoted line of the AI's thinking, and plan dots for Step 1 of 5" width="760"><br><sub>The thinking line, in the middle (on by default, with a setting to turn it off). All the words in these pictures are made up.</sub></p>
 
 ## 7. ✨ Make it your own
 
@@ -211,7 +211,7 @@ Once it works, change anything by asking for it. Some starting points:
 |---|---|
 | Your own colors | "Make working blue and done gold. Keep the words readable on each." |
 | A calmer strip | "Make the fades take 5 seconds, and only show bumpy after 3 failures." |
-| To see the AI's thinking | It's off at first: type `/config`, find your mod's thinking setting and switch it on, then type `/reload-plugins`. |
+| To turn the AI's thinking off (or back on) | It's on by default: type `/config`, find your mod's thinking setting and switch it off (or on), then type `/reload-plugins`. |
 | No thinking line, ever | "Remove the thinking line completely; just say Thinking… on the left." |
 | A taller, bigger strip | "Make the strip a little taller, with bigger text on the left." |
 | Different greetings | "Instead of the time of day, show a short motivating line each morning." |
@@ -249,8 +249,8 @@ Always tell the AI what you did and what you saw. It fixes most things in one me
 ## 9. 🛡️ Stay safe
 
 - **Your words stay yours.** The strip never shows or keeps your messages, only what the AI is doing.
-- **The thinking line is off for a reason.** The AI's thinking often restates what you gave it, so it can put names, health or money details from your work on screen. Filters drop your own words, secrets and long numbers, but they can't catch everything. Leave it off when you share or record your screen.
-- **Mind your screen when you share it.** Even with thinking off, the strip shows file names and what the AI is doing. Glance at it before you record.
+- **The thinking line is on by default, and filtered like everything else.** It shows a short line of what the AI is thinking. It hides your own words, file paths and secrets, but thinking often restates what you gave the AI, so a name, health or money detail it read in a file can still show. If you stream or share your screen and want nothing extra shown, turn it off in the plugin's settings (type `/config`, switch off the thinking row, then `/reload-plugins`).
+- **Mind your screen when you share it.** Even with the thinking line off, the strip shows file names and what the AI is doing. Glance at it before you record.
 - **Nothing leaves your computer.** The mod sends nothing anywhere.
 - **What it keeps.** It keeps only today's counts (tasks, work time, the last task), on your computer, and clears them when the day changes: at midnight, or, if Claude Code wasn't running then, the first time it starts on the new day. It never keeps your messages. The task count and work time sit in one small file of its own on your computer (in the `plugins/store` folder inside your Claude Code settings folder, named like `mood-strip_apps-....json`). You can delete that file any time; counting then starts again from zero.
 - **Tests don't touch your real setup.** They use a fake clock and fake storage, never your real settings or sessions.

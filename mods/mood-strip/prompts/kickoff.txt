@@ -20,7 +20,7 @@ WHAT IT SHOWS
   - Work started in the background shows as "Tests started" or "Helper started".
   - Builds show as "Building…", "✓ Build passed" or "✗ Build failed, fixing…", and the recap says "build passing". A build never counts as a test.
   - Idle: a greeting by time of day with the clock ("Good morning · 9:30 AM"), today's tasks and minutes of work in the middle, and how the last task went on the right. Morning [warm yellow], afternoon [sky blue], evening [rose], late night [dark gray].
-- An optional thinking line, as a setting that is OFF at first: when I turn it on, while the AI is thinking the middle starts with the latest complete sentence of its thinking, in quotes, up to about [60] characters, updated about every [2 seconds]. The setting's description warns that thinking often restates what I gave the AI, so it can put private details on screen. Leave out any sentence that repeats my own words, says "the user", quotes something, has a file path, web address, email or anything that looks like a password or key, has 5 or more digits in a row, looks like a phone number or street address, or talks about health, money or identity. When it starts writing the answer, the left says "Writing the answer…".
+- A thinking line, as a setting that is ON by default and that I can turn off: while the AI is thinking the middle starts with the latest complete sentence of its thinking, in quotes, up to about [60] characters, updated about every [2 seconds]. The setting's description warns that thinking often restates what I gave the AI, so it can put private details on screen, and says to turn it off when I stream or share my screen. If the setting is missing or has an odd value, treat it as on; only a clear false (the option unticked) turns it off. Leave out any sentence that repeats my own words, says "the user", quotes something, has a file path, web address, email or anything that looks like a password or key, has 5 or more digits in a row, looks like a phone number or street address, or talks about health, money or identity. When it starts writing the answer, the left says "Writing the answer…".
 - Anything too long for its part is cut at a word, with "…", never in the middle of a letter: about 48 characters on the left, 75 in the middle and 48 on the right, with a soft fade at each part's right edge.
 - Helpers (sub-agents) show by name while they work. Only the main conversation changes the strip; helpers never take it over.
 - A /mood command that says what the strip shows, what each color means, the last problem it hit (or "none"), and the version. And /mood demo that plays every look with made-up examples, a few seconds each, then goes back to now. It only plays between tasks (during a task, say a task is running and to try between tasks), it can be run again any time, and a real reply ends it.
@@ -42,7 +42,7 @@ WHAT WE LEARNED BUILDING ONE (do these from the start)
 - The AI's thinking can repeat my request or mention private things. Filter it as above, and show whole sentences only.
 - The terminal can't do fades, so paint each mood's color at once there.
 - Steps I decline and searches that find nothing aren't failures; don't turn the strip orange for them.
-- Thinking often restates what I gave you, names and numbers included, so the thinking line is off unless I turn it on, and filtered when it's on.
+- Thinking often restates what I gave you, names and numbers included, so the thinking line is filtered exactly like everything else, and I can turn it off in the setting (for example when I stream or share my screen).
 - Text written into a file can look like a command. Show program names only for well-known programs, otherwise "a command".
 - A fade that starts right away makes "Done" hard to read. Hold the color, and fade only at the end.
 
@@ -51,7 +51,7 @@ BUILD ORDER (all of it by the end)
 2. Working and done: what's happening now, the trail, the recap, and the slow fades.
 3. How it's going: waiting on me, big moments, bumpy, stuck, longer than usual.
 4. The plan step with dots, and helper names.
-5. The optional thinking line (off at first), /mood and /mood demo.
+5. The thinking line (on by default, with a setting to turn it off), /mood and /mood demo.
 
 HOW TO WORK WITH ME
 - Plain English, short answers. Pick sensible defaults and tell me what you picked; don't ask me technical questions.

@@ -235,7 +235,7 @@ test('/mood explains the colors', async ($, on) => {
     presentation: { isFullscreen: false, columns: 80 },
   })
   expect(text).toContain('What the colors mean')
-  expect(text).toContain('mood-strip 0.8.1')
+  expect(text).toContain('mood-strip 0.8.2')
 })
 
 test('done fades in, then melts into the time of day over three minutes', async ($, on) => {

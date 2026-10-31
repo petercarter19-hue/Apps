@@ -44,7 +44,7 @@ function updateRun($: EngineInterface, change: (r: Run) => Run): Promise<unknown
 
 const today = atom({ plugin: 'mood-strip', key: 'today' } as const, { key: '', tasks: 0, workMs: 0 })
 
-const VERSION = '0.8.1'
+const VERSION = '0.8.2'
 
 /** Errors this recent make the session bumpy. */
 const BUMPY_WINDOW_MS = 10 * 60000
@@ -2065,8 +2065,8 @@ async function explain($: EngineInterface, isThinkingOn: boolean): Promise<strin
     '  Otherwise the time of day: morning gold, afternoon blue, evening pink, night gray.',
     '',
     isThinkingOn
-      ? "The thinking line is on: while Claude thinks, the middle shows a short, recent sentence of it. Filters drop your own words, secrets and numbers, but it can still show private details. Turn it off with the \"Show Claude's thinking\" option."
-      : "The thinking line is off (the default). The \"Show Claude's thinking\" option turns it on; it can show private details from your work on screen.",
+      ? "The thinking line is on: while Claude thinks, the middle shows a short, recent sentence of it. Filters drop your own words, secrets and numbers, but it can still show private details. If you stream or share your screen, turn it off with the \"Show Claude's thinking\" option."
+      : "The thinking line is off. The \"Show Claude's thinking\" option turns it back on (it is on by default); it can show private details from your work on screen.",
     "Commands show only the name of a well-known program (git, npm, curl and the like); any other is \"a command\". A command with several parts (&&, ||, ;, a pipe) is only \"Ran a command\" unless every part is known to have run; tests piped into another program end as \"Tests finished\", with no pass or fail.",
     'File, helper, skill, tool and step names show only when they hold no path, web address, secret, private subject (health, money, identity) or letter outside the Latin alphabet, and share no word with anything you typed in this session (everyday words aside); otherwise they read "a file", "a helper", "a skill", "a tool" or "Step N of M". After a reload they stay hidden until your earlier messages are read back or you send a new one.',
     '',
@@ -2078,9 +2078,18 @@ async function explain($: EngineInterface, isThinkingOn: boolean): Promise<strin
   ].join('\n')
 }
 
+/**
+ * The thinking line is on unless the setting is clearly off: `false` (the option unticked), the text "false", "off",
+ * "no" or "0" in any case, or the number 0. A missing setting, `true` and any odd value all leave it on.
+ */
+export function isThinkingSetOn(value: unknown): boolean {
+  if (value === false || value === 0) return false
+  if (typeof value === 'string' && /^(?:false|off|no|0)$/i.test(value.trim())) return false
+  return true
+}
+
 export const register: Register = (on, options) => {
-  // Only an explicit yes turns the thinking line on; anything else, or nothing, leaves it off.
-  const isThinkingOn = options.showThinking === true || (options.showThinking as unknown) === 'true'
+  const isThinkingOn = isThinkingSetOn(options.showThinking)
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)

@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
+import { isThinkingSetOn } from '../hooks/register'
 
 type On = Parameters<TestBody>[1]
 // Real timers, only to bound how long a test waits (the kit gives no types for them).
@@ -56,6 +57,13 @@ async function source($: Engine): Promise<string> {
   return found
 }
 
+async function terminal($: Engine): Promise<string> {
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const found = String((await ui.find({ type: 'Text' }))?.text ?? '')
+  await ui.unmount()
+  return found
+}
+
 function moodText($: Engine, args = '') {
   return $.command.run({
     command: 'mood',
@@ -96,7 +104,67 @@ function scripted(on: On, script: { chunks: Chunk[] }) {
 const thinking = (text: string): Chunk => ({ kind: 'thinking', index: 0, text })
 const PROMPT = 'Email my landlord that I cannot pay rent until the 15th'
 
-test('the thinking line is off unless you turn it on', async ($, on) => {
+test('the thinking line is on by default, with no setting at all', async ($, on) => {
+  const script = { chunks: [thinking('Reading the config to find the bug.')] }
+  engine(on)
+  scripted(on, script)
+  await sessionStart($)
+  await start($)
+  await step($)
+  expect(await alt($)).toBe('●  Thinking… · “Reading the config to find the bug.”')
+  const text = String((await moodText($)).text)
+  expect(text).toContain('thinking line is on')
+  expect(text).toContain('If you stream or share your screen, turn it off')
+})
+
+test('with the default, a word from your prompt or a secret in the thinking is still hidden', async ($, on) => {
+  const script = { chunks: [thinking('')] }
+  engine(on)
+  scripted(on, script)
+  await sessionStart($)
+  await start($, 'Please archive the zebra quartz meridian ledger tonight')
+
+  const seen: string[] = []
+  const hidden = async (text: string) => {
+    script.chunks = [thinking(text)]
+    await step($)
+    seen.push(await alt($), await source($), await terminal($), String((await moodText($)).text))
+    return (await alt($)).includes('·')
+  }
+  // Positive control: an ordinary sentence does reach the strip under the default.
+  expect(await hidden('Reading the config to find the bug.')).toBe(true)
+  // A word you typed is hidden, even in the middle of an otherwise ordinary sentence.
+  expect(await hidden('I should archive the zebra quartz meridian ledger right away.')).toBe(false)
+  expect(await hidden('The quartz needs a closer look before anything else.')).toBe(false)
+  // A secret is hidden, whatever its shape.
+  expect(await hidden('The deploy key is sk-live-9f8e7d6c5b4a3210abcdef.')).toBe(false)
+  expect(await hidden('Sending the request with Bearer abc123def456ghi789 as the header.')).toBe(false)
+  expect(await hidden('The password for the server must be rotated soon.')).toBe(false)
+  // A path, an address and a private subject too.
+  expect(await hidden('Opening C:\Users\sam\Documents\notes.txt to read it.')).toBe(false)
+  expect(await hidden('Her mortgage payment is the number that matters here.')).toBe(false)
+
+  for (const text of seen.slice(4)) {
+    for (const word of ['zebra', 'quartz', 'meridian', 'sk-live', 'abc123def456', 'mortgage', 'Documents']) {
+      expect(text.toLowerCase()).not.toContain(word.toLowerCase())
+    }
+  }
+})
+
+// The rule: on unless the setting is clearly off. Off is false (the option unticked), the text false, off, no or
+// 0 in any case, or the number 0; a missing setting, true and any odd value leave it on. Claude Code itself only
+// passes true, false or nothing (it checks the option against plugin.json), so the odd values are tried on the
+// rule directly, and the two real off and on values through the whole mod.
+test('the setting is off only when it is clearly off; a missing or odd value counts as on', () => {
+  for (const value of [false, 'false', 'FALSE', ' False ', 'off', 'No', '0', 0]) {
+    expect(isThinkingSetOn(value)).toBe(false)
+  }
+  for (const value of [true, 'true', 'yes', '1', 1, '', 'maybe', 'falsey', null, undefined, {}, [], [false], NaN]) {
+    expect(isThinkingSetOn(value)).toBe(true)
+  }
+})
+
+test('the thinking line turns off with the option unticked (false)', { options: { showThinking: false } }, async ($, on) => {
   const script = { chunks: [thinking('Reading the config to find the bug.')] }
   engine(on)
   scripted(on, script)
@@ -104,7 +172,29 @@ test('the thinking line is off unless you turn it on', async ($, on) => {
   await start($)
   await step($)
   expect(await alt($)).toBe('●  Thinking…')
-  expect((await moodText($)).text).toContain('thinking line is off (the default)')
+  expect(await source($)).not.toContain('Reading the config')
+  expect((await moodText($)).text).toContain('thinking line is off')
+})
+
+test('the thinking line stays on with the option ticked (true)', { options: { showThinking: true } }, async ($, on) => {
+  const script = { chunks: [thinking('Reading the config to find the bug.')] }
+  engine(on)
+  scripted(on, script)
+  await sessionStart($)
+  await start($)
+  await step($)
+  expect(await alt($)).toBe('●  Thinking… · “Reading the config to find the bug.”')
+  expect((await moodText($)).text).toContain('thinking line is on')
+})
+
+test('an empty setting counts as on', { options: { showThinking: '' as never } }, async ($, on) => {
+  const script = { chunks: [thinking('Reading the config to find the bug.')] }
+  engine(on)
+  scripted(on, script)
+  await sessionStart($)
+  await start($)
+  await step($)
+  expect(await alt($)).toBe('●  Thinking… · “Reading the config to find the bug.”')
 })
 
 test('thinking that carries numbers, addresses or private subjects is never shown', { options: { showThinking: true } }, async ($, on) => {
