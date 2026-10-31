@@ -27,7 +27,7 @@ try {
     Write-Output "memory tile $ram   cpu tile $cpu"
     Check 'the app reports where its tiles are' (-not $ram.IsEmpty)
 
-    Send-TrayEvent $tray 1 0x406 $ram                       # NIN_POPUPOPEN on the memory tile
+    Send-TrayEvent $t $tray 1 0x406 $ram                       # NIN_POPUPOPEN on the memory tile
     $seen = $false
     for ($i = 0; $i -lt 30 -and -not $seen; $i++) { Start-Sleep -Milliseconds 50; $seen = Test-PreviewVisible $t }
     Check 'hover event on the memory tile opens the card' $seen
@@ -36,10 +36,10 @@ try {
     Start-Sleep 2
     Check 'with no pointer over it, the hover card closes' (-not (Test-PreviewVisible $t))
 
-    Send-TrayEvent $tray 1 0x400 $ram                       # NIN_SELECT (click)
+    Send-TrayEvent $t $tray 1 0x400 $ram                       # NIN_SELECT (click)
     Start-Sleep 1
     Check 'a click opens the card pinned' ((Test-PreviewVisible $t) -and (Test-PreviewPinned $t))
-    Send-TrayEvent $tray 1 0x400 $ram
+    Send-TrayEvent $t $tray 1 0x400 $ram
     Start-Sleep 1
     Check 'a second click closes it' (-not (Test-PreviewVisible $t))
 

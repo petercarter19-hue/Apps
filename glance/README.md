@@ -74,7 +74,9 @@ C# / .NET 10 WinForms, no main window, Windows 10 or 11 (64-bit).
   - A process only counts as a child if it started after its parent, because Windows reuses process numbers.
   - Each process is checked by its start time right before it's ended.
   - Windows' protected processes and Explorer are never swept in.
-  - **As admin** runs a second copy of the app elevated with `--end`, which makes the same checks again, as the account that approved the prompt. (If you approve the prompt with a different administrator account, it refuses to end your programs, by design.)
+  - **As admin** runs a second copy of the app elevated with `--end --user <your account id>`, which makes the same checks again. The id is passed along because the helper may run as a different administrator than you (someone typing their credentials into the prompt): it ends only processes owned by the person who clicked, never the administrator's own. With no valid `--user` (missing, repeated, or not a person's account) it ends nothing and exits with an error.
+  - A program whose name Windows won't reveal can't be checked against the protected list, so it isn't ended either.
+  - If you click away, move off, or press Esc, any armed "End?" is cancelled: reopening the card never finds one still primed.
   - Every route (the card, a program's children, the admin copy, the Explorer restart) ends processes through the one `ProcessKiller.Kill` method, so there is one place to check.
 - **`HoverCard`** is a borderless, custom-painted window that follows the Windows light or dark setting and sits next to the tile on any taskbar edge.
 - **`Shortcut`** keeps the Start menu entry.
@@ -83,12 +85,13 @@ C# / .NET 10 WinForms, no main window, Windows 10 or 11 (64-bit).
 **Tests** (in `tools\`). They are safe to run on your own PC. They never move your mouse, press keys, take pictures of your screen, or stop any program except the ones the test itself started (checked by process number and start time). They also never touch the copy of Glance you actually use, or its settings, startup entry or Start menu shortcut:
 
 - `Tests\` is a small program that runs the real `src` files against a made-up Windows: foreign and unknown owners, other sign-in sessions, children, the admin copy and the Explorer restart. Nothing real is ended. Run it from this folder with `dotnet run --project tools\Tests -c Release`.
-- `release-test.ps1` runs 26 checks: first run, restart, quit, a moved file, End with a child process, the start-time check, a leak check, and a check that your real Glance is untouched.
+- `release-test.ps1` runs 34 checks: first run, restart, quit, a moved file, End with a child process, the start-time check, a leak check, bad test settings being refused, and a check that your real Glance, its startup entry and its shortcut are untouched.
+- `cancel-test.ps1` arms End, closes or moves off the card, reopens it, and checks the program was not ended by a single click (and that two clicks still end it).
 - `message-test.ps1` and `hover-test.ps1` send Windows' own hover and click events to the test copy's own window.
 - `smoke-test.ps1` runs End against a test program that holds 3 GB.
-- `safety-lint.ps1` checks that none of those scripts can capture the screen, move the pointer, press keys, stop a program by name, or touch your real Glance state. Run it whenever you change a script.
+- `safety-lint.ps1` checks that none of those scripts can capture the screen, move the pointer, press keys, stop a program by name or another way, post messages to a window that isn't the test copy's, or touch your real Glance state. Run it whenever you change a script; `safety-lint-selftest.ps1` proves the lint catches each of those.
 - **Before running them:** publish `tools\Hog` into `tools\Hog\dist` first (the scripts that use it take `-HogDir` or `-HogExe` if you put it elsewhere).
-- **How the test copy stays separate:** the scripts set two environment variables for the copy they start. `GLANCE_TEST_NS` (1 to 24 letters or digits) gives it its own single-copy lock, quit signal, Start with Windows entry, shortcut and window titles. `GLANCE_TEST_DIR` (a full path) gives it its own settings folder. They exist for tests only; a bad value makes Glance refuse to start rather than fall back to the real names.
+- **How the test copy stays separate:** the scripts set two environment variables for the copy they start. `GLANCE_TEST_NS` (1 to 24 letters or digits) gives it its own single-copy lock, quit signal, Start with Windows entry, shortcut and window titles. `GLANCE_TEST_DIR` (a full path) gives it its own settings folder. They exist for tests only; a bad value (including a folder that is, contains or sits inside your real `%LocalAppData%\Glance`) makes Glance refuse to start (exit code 2) rather than fall back to the real names. A test copy never writes the real Start with Windows key at all: it keeps that record in a file in its own settings folder, so a test that is killed half-way can't leave anything that starts at sign-in.
 - `disposable-vm-only\` holds the one experiment that does need a real pointer and a real screen. It refuses to run anywhere except Windows Sandbox, and nothing runs it for you.
 
 **Debug flags:**

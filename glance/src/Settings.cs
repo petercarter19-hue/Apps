@@ -41,8 +41,18 @@ internal sealed class Settings
     }
 
     // "Start with Windows" uses the per-user Run key, so it shows up in Task Manager's Startup tab like any other app.
+    //
+    // A test copy (GLANCE_TEST_NS) must never register itself at sign-in, so it keeps its "startup entry" in a file in its own
+    // settings folder instead of the real Run key. If a test run is ever killed half-way, nothing is left to start at sign-in.
+    private static string StartupFile => Path.Combine(Dir, "startup-entry.txt");
+
     public static bool StartsWithWindows()
     {
+        if (Instance.IsTest)
+        {
+            try { return File.Exists(StartupFile) && File.ReadAllText(StartupFile).Length > 0; }
+            catch { return false; }
+        }
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKey);
@@ -53,6 +63,17 @@ internal sealed class Settings
 
     public static void SetStartWithWindows(bool on)
     {
+        if (Instance.IsTest)
+        {
+            try
+            {
+                Directory.CreateDirectory(Dir);
+                if (on) File.WriteAllText(StartupFile, $"\"{Environment.ProcessPath}\"");
+                else File.Delete(StartupFile);
+            }
+            catch (Exception ex) { Log.Write(ex); }
+            return;
+        }
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(RunKey);
@@ -68,6 +89,16 @@ internal sealed class Settings
     /// <summary>If Start with Windows is on but points at an old copy (the file was moved), point it at this one.</summary>
     public static void RefreshStartupPath()
     {
+        if (Instance.IsTest)
+        {
+            try
+            {
+                string want = $"\"{Environment.ProcessPath}\"";
+                if (File.Exists(StartupFile) && File.ReadAllText(StartupFile) is { Length: > 0 } s && s != want) File.WriteAllText(StartupFile, want);
+            }
+            catch (Exception ex) { Log.Write(ex); }
+            return;
+        }
         try
         {
             string want = $"\"{Environment.ProcessPath}\"";
@@ -78,7 +109,7 @@ internal sealed class Settings
     }
 
     /// <summary>The only files Glance ever writes in its settings folder.</summary>
-    internal static readonly string[] OwnFiles = { "settings.json", "log.txt", "preview.txt", "card.png", "tiles.png" };
+    internal static readonly string[] OwnFiles = { "settings.json", "log.txt", "preview.txt", "card.png", "tiles.png", "startup-entry.txt" };
 
     /// <summary>
     /// "Remove Glance from this PC": no startup entry, no Start menu shortcut, and none of Glance's own files (settings, log, preview pictures).

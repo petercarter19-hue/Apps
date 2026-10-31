@@ -23,7 +23,7 @@ try {
     Write-Output "memory tile rect: $ram"
 
     # hover: NIN_POPUPOPEN = 0x406, icon id 1 = memory tile
-    Send-TrayEvent $tray 1 0x406 $ram
+    Send-TrayEvent $t $tray 1 0x406 $ram
     $seen = $false; $bounds = [System.Drawing.Rectangle]::Empty
     for ($i = 0; $i -lt 30 -and -not $seen; $i++) { Start-Sleep -Milliseconds 50; if (Test-PreviewVisible $t) { $seen = $true; $bounds = Get-PreviewRect $t 'bounds' } }
     Check 'shell hover message opens the card' $seen
@@ -37,21 +37,21 @@ try {
     Check 'hover card closed again (no pointer over it)' (-not (Test-PreviewVisible $t))
 
     # click: NIN_SELECT = 0x400 -> pinned
-    Send-TrayEvent $tray 1 0x400 $ram
+    Send-TrayEvent $t $tray 1 0x400 $ram
     Start-Sleep 1
     Check 'clicking the tile opens the card pinned' ((Test-PreviewVisible $t) -and (Test-PreviewPinned $t))
     Start-Sleep 2
     Check 'pinned card stays open' (Test-PreviewVisible $t)
-    Send-TrayEvent $tray 1 0x400 $ram
+    Send-TrayEvent $t $tray 1 0x400 $ram
     Start-Sleep 1
     Check 'clicking the tile again closes it' (-not (Test-PreviewVisible $t))
 
     # CPU tile click sorts by CPU
-    Send-TrayEvent $tray 2 0x400 (Get-PreviewRect $t 'cpu')
+    Send-TrayEvent $t $tray 2 0x400 (Get-PreviewRect $t 'cpu')
     Start-Sleep 2
     Save-GlancePictures $t (Join-Path $PSScriptRoot 'shots') 'C1-by-cpu'
     Check 'CPU tile opens the card' (Test-PreviewVisible $t)
-    Send-TrayEvent $tray 2 0x400 (Get-PreviewRect $t 'cpu')
+    Send-TrayEvent $t $tray 2 0x400 (Get-PreviewRect $t 'cpu')
     Start-Sleep 1
 
     Stop-GlanceTestApp $t $app

@@ -12,8 +12,11 @@ param(
     [string]$ExePath = (Join-Path $PSScriptRoot '..\..\dist\Glance.exe'),
     [switch]$ThisMovesTheMouseAndCapturesTheScreen
 )
-# Guard first, before anything else is loaded or run.
-if ($env:USERNAME -ne 'WDAGUtilityAccount') {
+# Guard first, before anything else is loaded or run. It asks Windows who is signed in (the account name itself), not an
+# environment variable, which anything could set.
+$whoAmI = ''
+try { $whoAmI = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name } catch { }
+if ($whoAmI -notmatch '(^|\\)WDAGUtilityAccount$') {
     Write-Output 'Refusing to run: this test moves the mouse and captures the screen, and it only runs inside Windows Sandbox.'
     Write-Output 'On your own PC use tools\release-test.ps1, message-test.ps1, hover-test.ps1 and smoke-test.ps1 instead: they never touch your pointer or screen.'
     exit 3

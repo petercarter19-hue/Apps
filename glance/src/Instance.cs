@@ -25,18 +25,35 @@ internal static class Instance
     public static bool IsValidNs(string? ns) => ns != null && NsPattern.IsMatch(ns);
 
     /// <summary>False when the test variables are set but unusable; the app then exits instead of guessing.</summary>
-    public static bool EnvironmentIsUsable(out string problem)
+    public static bool EnvironmentIsUsable(out string problem) =>
+        CheckEnvironment(Environment.GetEnvironmentVariable("GLANCE_TEST_NS"), Environment.GetEnvironmentVariable("GLANCE_TEST_DIR"), out problem);
+
+    internal static bool CheckEnvironment(string? ns, string? dir, out string problem)
     {
         problem = "";
-        string? ns = Environment.GetEnvironmentVariable("GLANCE_TEST_NS");
-        string? dir = Environment.GetEnvironmentVariable("GLANCE_TEST_DIR");
         if (!string.IsNullOrEmpty(ns) && !IsValidNs(ns)) { problem = "GLANCE_TEST_NS must be 1 to 24 letters or digits."; return false; }
         if (!string.IsNullOrEmpty(dir))
         {
             if (string.IsNullOrEmpty(ns)) { problem = "GLANCE_TEST_DIR needs GLANCE_TEST_NS."; return false; }
             if (!Path.IsPathFullyQualified(dir)) { problem = "GLANCE_TEST_DIR must be a full path."; return false; }
+            if (OverlapsRealFolder(dir)) { problem = "GLANCE_TEST_DIR must not be, contain, or be inside the real Glance settings folder."; return false; }
         }
         return true;
+    }
+
+    /// <summary>The real settings folder, %LocalAppData%\Glance.</summary>
+    internal static string RealStateDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Glance");
+
+    private static bool OverlapsRealFolder(string dir)
+    {
+        string a = Normalize(dir), b = Normalize(RealStateDir);
+        return a == b || a.StartsWith(b + "\\", StringComparison.OrdinalIgnoreCase) || b.StartsWith(a + "\\", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string path)
+    {
+        try { return Path.GetFullPath(path).TrimEnd('\\', '/').ToLowerInvariant(); }
+        catch { return path.TrimEnd('\\', '/').ToLowerInvariant(); }
     }
 
     private static string? Read(string name)
@@ -56,7 +73,7 @@ internal static class Instance
     public static string EntryName => TestNs == null ? "Glance" : "Glance-test-" + TestNs;
 
     public static string StateDir => TestNs == null
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Glance")
+        ? RealStateDir
         : TestDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Glance-test-" + TestNs);
 
     /// <summary>The Start menu's own folder for the normal copy; a test copy keeps its shortcut inside its own test folder.</summary>

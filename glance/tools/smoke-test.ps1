@@ -31,7 +31,7 @@ try {
     Check 'card starts closed' (-not (Test-PreviewVisible $t))
     $tray = Find-GlanceWindow $t 'tray'
     Check 'tray window found (and it belongs to the test copy)' ($tray -ne [IntPtr]::Zero)
-    Send-TrayEvent $tray 1 0x406 $ram
+    Send-TrayEvent $t $tray 1 0x406 $ram
     $opened = $false
     for ($i = 0; $i -lt 30 -and -not $opened; $i++) { Start-Sleep -Milliseconds 50; $opened = Test-PreviewVisible $t }
     Check 'the shell hover event for the memory tile opens the card' $opened
@@ -60,11 +60,11 @@ try {
         $btn = ConvertTo-Rect ($hogLine -replace '.*btn=', '')
         $sx = $btn.X + [int]($btn.Width / 2)
         $sy = $btn.Y + [int]($btn.Height / 2)
-        Send-CardClick $hwnd $sx $sy
+        Send-CardClick $t $hwnd $sx $sy
         Start-Sleep -Milliseconds 1700
         Save-GlancePictures $t $ShotDir 'B2-end-armed'
         Check 'one click does not end it' (-not $hog.HasExited)
-        Send-CardClick $hwnd $sx $sy
+        Send-CardClick $t $hwnd $sx $sy
         Start-Sleep 2
         Check 'two clicks on End ended the hog' $hog.HasExited
         Save-GlancePictures $t $ShotDir 'B3-after-end'

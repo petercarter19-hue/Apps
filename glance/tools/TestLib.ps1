@@ -74,15 +74,30 @@ function New-GlanceTest {
             try { [pscustomobject]@{ Id = $_.Id; Start = $_.StartTime } } catch { } })
     [pscustomobject]@{
         Exe = $Exe; Ns = $ns; StateDir = $stateDir; ScratchRoot = $ScratchRoot
-        RunName = "Glance-test-$ns"
+        StartupFile = Join-Path $stateDir 'startup-entry.txt'   # the test copy's own "Start with Windows" record (never the real Run key)
         LinkPath = Join-Path (Join-Path $stateDir 'StartMenu') "Glance-test-$ns.lnk"
         Owned = New-Object System.Collections.ArrayList
         RealLnk = $realLnk; RealSettings = $realSettings
-        RealRun = (Get-ItemProperty $script:RunKey -Name Glance -ErrorAction SilentlyContinue).Glance
+        RealRunValues = Get-GlanceRunValues
         RealLnkBytes = if (Test-Path $realLnk) { [IO.File]::ReadAllBytes($realLnk) } else { $null }
         RealSettingsBytes = if (Test-Path $realSettings) { [IO.File]::ReadAllBytes($realSettings) } else { $null }
         ExistingCopies = $existing
     }
+}
+
+# Every value in the real Start-with-Windows key whose name starts with "Glance" (the real one, and any "Glance-test-..." that a
+# test copy must never leave there).
+function Get-GlanceRunValues {
+    $h = @{}
+    $k = Get-Item $script:RunKey -ErrorAction SilentlyContinue
+    if ($k) { foreach ($n in $k.GetValueNames()) { if ($n -like 'Glance*') { $h[$n] = [string]$k.GetValue($n) } } }
+    return $h
+}
+
+function Compare-RunValues($a, $b) {
+    if ($a.Count -ne $b.Count) { return $false }
+    foreach ($n in $a.Keys) { if (-not $b.ContainsKey($n) -or $a[$n] -ne $b[$n]) { return $false } }
+    return $true
 }
 
 function Register-Owned($t, [int]$Id, [string]$Kind) {
@@ -126,6 +141,19 @@ function Invoke-GlanceTestApp($t, [string[]]$ArgumentList, [int]$TimeoutSec = 30
     $p = [Diagnostics.Process]::Start((New-GlanceStartInfo $t $t.Exe $ArgumentList))
     Register-Owned $t $p.Id 'helper'
     if (-not $p.WaitForExit($TimeoutSec * 1000)) { Stop-Owned $t $p.Id; return -1 }
+    return $p.ExitCode
+}
+
+# Starts the app with explicit (usually bad) test settings and returns its exit code, to check that it refuses to run.
+# Only for settings that are harmless if it did start (never point GLANCE_TEST_DIR at anything real).
+function Invoke-GlanceWithEnvironment($t, [string]$Ns, [string]$Dir) {
+    $psi = New-GlanceStartInfo $t $t.Exe @()
+    foreach ($k in 'GLANCE_TEST_NS', 'GLANCE_TEST_DIR') { [void]$psi.EnvironmentVariables.Remove($k) }
+    if ($Ns) { $psi.EnvironmentVariables['GLANCE_TEST_NS'] = $Ns }
+    if ($Dir) { $psi.EnvironmentVariables['GLANCE_TEST_DIR'] = $Dir }
+    $p = [Diagnostics.Process]::Start($psi)
+    Register-Owned $t $p.Id 'helper'
+    if (-not $p.WaitForExit(10000)) { Stop-Owned $t $p.Id; return -1 }
     return $p.ExitCode
 }
 
@@ -184,22 +212,27 @@ function Get-PreviewRect($t, [string]$name) {
     return [System.Drawing.Rectangle]::Empty
 }
 
+# Does this window belong to a test copy of Glance that this session started (and that is still the same process)?
+function Test-WindowOwned($t, [IntPtr]$hwnd) {
+    if ($hwnd -eq [IntPtr]::Zero) { return $false }
+    [uint32]$owner = 0
+    [void][GlanceTestWin]::GetWindowThreadProcessId($hwnd, [ref]$owner)
+    $mine = @($t.Owned | Where-Object { $_.Kind -eq 'app' -and $_.Id -eq $owner -and (Test-OwnedAlive $t $_) })
+    return ($mine.Count -gt 0)
+}
+
 # 'card' or 'tray'. Returns Zero unless the window really belongs to a test copy this session started.
 function Find-GlanceWindow($t, [string]$Which) {
     $title = if ($Which -eq 'tray') { "Glance tray [$($t.Ns)]" } else { "Glance [$($t.Ns)]" }
     $h = [GlanceTestWin]::FindWindow([IntPtr]::Zero, $title)
-    if ($h -eq [IntPtr]::Zero) { return [IntPtr]::Zero }
-    [uint32]$owner = 0
-    [void][GlanceTestWin]::GetWindowThreadProcessId($h, [ref]$owner)
-    $mine = @($t.Owned | Where-Object { $_.Kind -eq 'app' -and $_.Id -eq $owner -and (Test-OwnedAlive $t $_) })
-    if ($mine.Count -eq 0) { return [IntPtr]::Zero }
+    if (-not (Test-WindowOwned $t $h)) { return [IntPtr]::Zero }
     return $h
 }
 
 # A click on the card, delivered as window messages to the card's own window. Takes a screen point and lets Windows convert
 # it to the card's own coordinates.
-function Send-CardClick([IntPtr]$hwnd, [int]$sx, [int]$sy) {
-    if ($hwnd -eq [IntPtr]::Zero) { return }
+function Send-CardClick($t, [IntPtr]$hwnd, [int]$sx, [int]$sy) {
+    if (-not (Test-WindowOwned $t $hwnd)) { return }   # only ever the test copy's own window
     $p = New-Object GlanceTestWin+POINT; $p.X = $sx; $p.Y = $sy; [void][GlanceTestWin]::ScreenToClient($hwnd, [ref]$p)
     $lp = [IntPtr](($p.Y -shl 16) -bor ($p.X -band 0xFFFF))
     [void][GlanceTestWin]::PostMessage($hwnd, 0x200, [IntPtr]0, $lp); Start-Sleep -Milliseconds 80   # WM_MOUSEMOVE
@@ -208,8 +241,8 @@ function Send-CardClick([IntPtr]$hwnd, [int]$sx, [int]$sy) {
 }
 
 # The same message Windows' shell sends the tray window: 0x406 = hover (NIN_POPUPOPEN), 0x400 = click (NIN_SELECT).
-function Send-TrayEvent([IntPtr]$hwnd, [int]$iconId, [int]$evt, [System.Drawing.Rectangle]$at) {
-    if ($hwnd -eq [IntPtr]::Zero) { return }
+function Send-TrayEvent($t, [IntPtr]$hwnd, [int]$iconId, [int]$evt, [System.Drawing.Rectangle]$at) {
+    if (-not (Test-WindowOwned $t $hwnd)) { return }   # only ever the test copy's own window
     $x = $at.X + [int]($at.Width / 2); $y = $at.Y + [int]($at.Height / 2)
     $wp = [IntPtr](($y -shl 16) -bor ($x -band 0xFFFF))
     $lp = [IntPtr](($iconId -shl 16) -bor $evt)
@@ -231,8 +264,7 @@ function Save-GlancePictures($t, [string]$Dir, [string]$Name) {
 # 'Start menu shortcut', 'settings file'. Empty = nothing changed.
 function Get-RealStateChanges($t) {
     $diff = New-Object System.Collections.ArrayList
-    $now = (Get-ItemProperty $script:RunKey -Name Glance -ErrorAction SilentlyContinue).Glance
-    if ($now -ne $t.RealRun) { [void]$diff.Add('startup entry') }
+    if (-not (Compare-RunValues (Get-GlanceRunValues) $t.RealRunValues)) { [void]$diff.Add('startup entry') }
     $lnkNow = if (Test-Path $t.RealLnk) { [IO.File]::ReadAllBytes($t.RealLnk) } else { $null }
     if (-not (Compare-Bytes $lnkNow $t.RealLnkBytes)) { [void]$diff.Add('Start menu shortcut') }
     $setNow = if (Test-Path $t.RealSettings) { [IO.File]::ReadAllBytes($t.RealSettings) } else { $null }
@@ -244,8 +276,10 @@ function Get-RealStateChanges($t) {
 function Restore-RealGlanceState($t) {
     $changed = @(Get-RealStateChanges $t)
     if ($changed -contains 'startup entry') {
-        if ($null -eq $t.RealRun) { Remove-ItemProperty $script:RunKey -Name Glance -ErrorAction SilentlyContinue }
-        else { Set-ItemProperty $script:RunKey -Name Glance -Value $t.RealRun }
+        # Only Glance's own names are touched: take away any Glance value that wasn't there, put back any that was changed or removed.
+        $now = Get-GlanceRunValues
+        foreach ($n in @($now.Keys)) { if (-not $t.RealRunValues.ContainsKey($n)) { Remove-ItemProperty $script:RunKey -Name $n -ErrorAction SilentlyContinue } }
+        foreach ($n in @($t.RealRunValues.Keys)) { if (-not $now.ContainsKey($n) -or $now[$n] -ne $t.RealRunValues[$n]) { Set-ItemProperty $script:RunKey -Name $n -Value $t.RealRunValues[$n] } }
     }
     if ($changed -contains 'Start menu shortcut') {
         if ($null -eq $t.RealLnkBytes) { Remove-Item $t.RealLnk -Force -ErrorAction SilentlyContinue }
@@ -275,13 +309,12 @@ function Test-ExistingCopiesUntouched($t) {
 }
 
 # Always call this in a finally block: stops what the tests started (exact identity), puts back real state if anything
-# changed, removes the test copy's own startup entry, shortcut and settings folder.
+# changed, removes the test copy's own settings folder (its startup record and shortcut live inside it).
 function Remove-GlanceTest($t) {
     foreach ($e in @($t.Owned)) { Stop-Owned $t $e.Id }
     Start-Sleep -Milliseconds 300
     $fixed = Restore-RealGlanceState $t
     if ($fixed.Count -gt 0) { Write-Output "WARNING: the test run changed your real $($fixed -join ', '); it has been put back." }
-    Remove-ItemProperty $script:RunKey -Name $t.RunName -ErrorAction SilentlyContinue
     $leaf = Split-Path $t.StateDir -Leaf
     if ($leaf -eq "state-$($t.Ns)" -and (Test-Path $t.StateDir) -and ((Resolve-Path $t.StateDir).Path.StartsWith($t.ScratchRoot))) {
         Remove-Item $t.StateDir -Recurse -Force -ErrorAction SilentlyContinue

@@ -65,10 +65,12 @@ internal static class ProcessKiller
     /// reused meanwhile): same start time, not a Windows part, this session, and owned by the account Glance runs as.
     /// If any of that can't be established, it is not ended.
     /// </summary>
-    public static Result Kill(IEnumerable<Target> targets, bool allowExplorer = false)
+    public static Result Kill(IEnumerable<Target> targets, bool allowExplorer = false, string? allowedSid = null)
     {
         var api = Api;
-        string? me = api.CurrentSid;
+        // Whose processes may be ended: normally the account Glance runs as. The elevated helper may run as a different
+        // administrator, so it is told which person asked, and ends only that person's processes.
+        string? me = allowedSid ?? api.CurrentSid;
         int killed = 0, denied = 0, gone = 0, refused = 0;
         foreach (var t in targets)
         {
@@ -84,7 +86,9 @@ internal static class ProcessKiller
                 // Same number, different start time: the program we meant has exited and Windows gave its number to another.
                 if (!api.GetCreated(h, out long created) || created != t.Created) { gone++; continue; }
 
+                // A name Windows won't give can't be checked against the protected list, so it isn't ended.
                 string exe = api.ExeName(h);
+                if (string.IsNullOrWhiteSpace(exe)) { denied++; continue; }
                 if (ProcessRules.IsProtectedName(exe) || (!allowExplorer && ProcessRules.IsExplorer(exe))) continue;
 
                 // Our own sign-in session only.
@@ -105,16 +109,19 @@ internal static class ProcessKiller
     }
 
     /// <summary>
-    /// One UAC prompt, then a second copy of Glance runs elevated with <c>--end</c> and ends only these exact processes
-    /// (checked again by start time, session and owner). Returns how many Windows or Glance still refused, or null if the prompt was cancelled.
+    /// One UAC prompt, then a second copy of Glance runs elevated with <c>--end --user SID</c> and ends only these exact processes
+    /// (checked again by start time, session and owner), and only if they belong to the person who clicked (SID), even when a
+    /// different administrator approves the prompt. Returns how many Windows or Glance still refused, or null if the prompt was cancelled.
     /// </summary>
     public static int? KillElevated(IReadOnlyCollection<Target> targets)
     {
         string? exe = Environment.ProcessPath;
         if (targets.Count == 0 || exe == null) return 0;
+        string? args = BuildEndArguments(Api.CurrentSid, targets);
+        if (args == null) return 1; // can't say who is asking, so nothing is ended
         try
         {
-            using var p = Process.Start(new ProcessStartInfo(exe, "--end " + string.Join(" ", targets.Select(t => $"{t.Pid}:{t.Created}")))
+            using var p = Process.Start(new ProcessStartInfo(exe, args)
             {
                 UseShellExecute = true,
                 Verb = "runas",
@@ -130,21 +137,37 @@ internal static class ProcessKiller
         }
     }
 
+    /// <summary>The command line for the elevated helper, or null if the asking person's account can't be identified.</summary>
+    internal static string? BuildEndArguments(string? sid, IEnumerable<Target> targets) =>
+        ProcessRules.IsAccountSid(sid) ? "--end --user " + sid + " " + string.Join(" ", targets.Select(t => $"{t.Pid}:{t.Created}")) : null;
+
     /// <summary>
-    /// The elevated side of <see cref="KillElevated"/>: arguments are pid:starttime pairs. Same rules as a normal End, checked
-    /// again here: only the account this helper runs as (the one that approved the prompt), never another user's processes.
+    /// The elevated side of <see cref="KillElevated"/>: <c>--user SID</c> says who asked, then pid:starttime pairs. Same rules as a
+    /// normal End, checked again here, except that "owned by the same account" means the account that asked (the helper itself may
+    /// run as another administrator). No valid <c>--user</c> (missing, repeated, or not a person's account id) means nothing is ended.
     /// Returns the number still refused.
     /// </summary>
     public static int EndFromArgs(IEnumerable<string> args)
     {
         var targets = new List<Target>();
-        foreach (var a in args)
+        string? sid = null;
+        bool badUser = false;
+        var list = args.ToList();
+        for (int i = 0; i < list.Count; i++)
         {
+            string a = list[i];
+            if (a.Equals("--user", StringComparison.OrdinalIgnoreCase))
+            {
+                if (sid != null || i + 1 >= list.Count) badUser = true; // repeated, or no value
+                else sid = list[++i];
+                continue;
+            }
             var parts = a.Split(':');
             if (parts.Length == 2 && int.TryParse(parts[0], out int pid) && long.TryParse(parts[1], out long created) && created > 0)
                 targets.Add(new Target(pid, created));
         }
-        var r = Kill(targets);
+        if (badUser || !ProcessRules.IsAccountSid(sid)) return Math.Max(1, targets.Count); // fail closed, and say so in the exit code
+        var r = Kill(targets, allowExplorer: false, allowedSid: sid);
         return r.Denied + r.Refused;
     }
 

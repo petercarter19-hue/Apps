@@ -93,6 +93,16 @@ internal sealed class HoverCard : Form
         Native.DwmSetWindowAttribute(Handle, Native.DWMWA_BORDER_COLOR, ref colorRef, sizeof(int));
     }
 
+    /// <summary>
+    /// Whenever the card hides (mouse left it, click-away, Esc, quit), any armed "End?" / "As admin" / "wouldn't end it" row is
+    /// dropped, so reopening the card never finds an End still primed from before.
+    /// </summary>
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (!Visible) { _confirmKey = null; Invalidate(); }
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); return; }
@@ -413,7 +423,8 @@ internal sealed class HoverCard : Form
         for (int i = 0; i < _rows.Count; i++)
         {
             var p = _rows[i];
-            string flags = (p.Protected ? "protected " : "") + (p.IsExplorer ? "explorer " : "") + (p.IsSelf ? "self " : "");
+            string flags = (p.Protected ? "protected " : "") + (p.IsExplorer ? "explorer " : "") + (p.IsSelf ? "self " : "")
+                + (_confirmKey == p.Key && _confirmState != RowState.Failed ? "armed " : "");
             sb.AppendLine($"{i}|{p.Name}|{p.Key}|{string.Join(',', p.Pids)}|{p.Memory}|{flags.Trim()}|btn={RectangleToScreen(R(_btns[i]))}");
         }
         return sb.ToString();

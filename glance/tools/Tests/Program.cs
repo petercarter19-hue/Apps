@@ -32,6 +32,7 @@ void Expect(bool condition, string what) { if (!condition) throw new Exception("
 
 const string Me = "S-1-5-21-1111111111-2222222222-3333333333-1001";
 const string Other = "S-1-5-21-1111111111-2222222222-3333333333-1002";
+const string Admin = "S-1-5-21-1111111111-2222222222-3333333333-500";
 
 FakeApi Fresh()
 {
@@ -199,29 +200,149 @@ try
     Test("G1 EndFromArgs: foreign owner is refused and reported", () =>
     {
         var f = Fresh(); f.Add(30101, 4000, 1, Other, "notepad");
-        int refused = ProcessKiller.EndFromArgs(new[] { "30101:4000" });
+        int refused = ProcessKiller.EndFromArgs(new[] { "--user", Me, "30101:4000" });
         Expect(f.Terminated.Count == 0 && refused == 1, "not ended, exit code says refused");
     });
 
     Test("G1 EndFromArgs: unknown owner fails closed", () =>
     {
         var f = Fresh(); f.Add(30102, 4000, 1, null, "notepad");
-        int refused = ProcessKiller.EndFromArgs(new[] { "30102:4000" });
+        int refused = ProcessKiller.EndFromArgs(new[] { "--user", Me, "30102:4000" });
         Expect(f.Terminated.Count == 0 && refused == 1, "not ended, exit code says refused");
     });
 
     Test("G1 EndFromArgs: another sign-in session is refused", () =>
     {
         var f = Fresh(); f.Add(30103, 4000, 5, Me, "notepad");
-        int refused = ProcessKiller.EndFromArgs(new[] { "30103:4000" });
+        int refused = ProcessKiller.EndFromArgs(new[] { "--user", Me, "30103:4000" });
         Expect(f.Terminated.Count == 0 && refused == 1, "not ended");
     });
 
     Test("EndFromArgs: own process is ended; wrong start time and junk arguments are not", () =>
     {
         var f = Fresh(); Mine(f, 30104, 4000);
-        Expect(ProcessKiller.EndFromArgs(new[] { "30104:4001", "junk", "30104", "x:y", "30104:0", "30104:-5" }) == 0 && f.Terminated.Count == 0, "wrong time and junk: nothing ended");
-        Expect(ProcessKiller.EndFromArgs(new[] { "30104:4000" }) == 0 && f.Terminated.SequenceEqual(new[] { 30104 }), "right time: ended");
+        Expect(ProcessKiller.EndFromArgs(new[] { "--user", Me, "30104:4001", "junk", "30104", "x:y", "30104:0", "30104:-5" }) == 0 && f.Terminated.Count == 0, "wrong time and junk: nothing ended");
+        Expect(ProcessKiller.EndFromArgs(new[] { "--user", Me, "30104:4000" }) == 0 && f.Terminated.SequenceEqual(new[] { 30104 }), "right time: ended");
+    });
+
+    // ---------------------------------------------------------------- round 2: the elevated helper acts for the person who asked
+    Test("R2-1 EndFromArgs: a different administrator approved the prompt: the asking user's process is ended, the admin's own is not", () =>
+    {
+        var f = Fresh(); f.CurrentSid = Admin;                       // the helper runs as the administrator who typed credentials
+        f.Add(31001, 100, 1, Me, "notepad");                         // the person who clicked End
+        f.Add(31002, 200, 1, Admin, "mspaint");                      // the administrator's own program in the same session
+        int refused = ProcessKiller.EndFromArgs(new[] { "--user", Me, "31001:100", "31002:200" });
+        Expect(f.Terminated.SequenceEqual(new[] { 31001 }), "only the asking user's process is ended");
+        Expect(refused == 1, "the administrator's process is reported as refused");
+    });
+
+    Test("R2-1 EndFromArgs: with no --user nothing is ended and the exit code says so", () =>
+    {
+        var f = Fresh(); Mine(f, 31003, 100);
+        int code = ProcessKiller.EndFromArgs(new[] { "31003:100" });
+        Expect(f.Terminated.Count == 0 && code >= 1, "fails closed");
+    });
+
+    Test("R2-1 EndFromArgs: a missing, repeated, system or malformed --user fails closed", () =>
+    {
+        var f = Fresh(); Mine(f, 31004, 100);
+        string[][] bad =
+        {
+            new[] { "--user", "31004:100" },                                   // no value: the pair is eaten as the value
+            new[] { "--user" },
+            new[] { "--user", "", "31004:100" },
+            new[] { "--user", "junk", "31004:100" },
+            new[] { "--user", "S-1-5-18", "31004:100" },                       // SYSTEM
+            new[] { "--user", "S-1-5-32-544", "31004:100" },                   // built-in Administrators group
+            new[] { "--user", "S-1-1-0", "31004:100" },                        // Everyone
+            new[] { "--user", Me + "-9", "31004:100" },                        // one number too many
+            new[] { "--user", Me + " ", "31004:100" },
+            new[] { "--user", Me, "--user", Me, "31004:100" },                 // repeated
+        };
+        foreach (var args in bad)
+        {
+            int code = ProcessKiller.EndFromArgs(args);
+            Expect(f.Terminated.Count == 0 && code >= 1, "fails closed for: " + string.Join(" ", args));
+        }
+        Expect(ProcessKiller.EndFromArgs(new[] { "--USER", Me, "31004:100" }) == 0 && f.Terminated.SequenceEqual(new[] { 31004 }), "a good --user (any letter case) works");
+    });
+
+    // NEWAPI-BEGIN
+    Test("R2-1 Account ids: only people's accounts are accepted", () =>
+    {
+        Expect(ProcessRules.IsAccountSid(Me) && ProcessRules.IsAccountSid(Admin) && ProcessRules.IsAccountSid("S-1-12-1-1-2-3-4"), "good ones");
+        Expect(!ProcessRules.IsAccountSid(null) && !ProcessRules.IsAccountSid("") && !ProcessRules.IsAccountSid("S-1-5-18") && !ProcessRules.IsAccountSid("S-1-5-21-1-2-3"), "bad ones");
+    });
+
+    // NEWAPI-END
+
+    // NEWAPI-BEGIN
+    Test("R2-1 KillElevated's command line carries the asking user's id, and the helper reads it back", () =>
+    {
+        var f = Fresh(); Mine(f, 31005, 555);
+        string? args = ProcessKiller.BuildEndArguments(Me, new[] { new ProcessKiller.Target(31005, 555) });
+        Expect(args == "--end --user " + Me + " 31005:555", "command line: " + args);
+        Expect(ProcessKiller.BuildEndArguments(null, new[] { new ProcessKiller.Target(1, 2) }) == null, "no id, no command line");
+        Expect(ProcessKiller.BuildEndArguments("S-1-5-18", new[] { new ProcessKiller.Target(1, 2) }) == null, "SYSTEM is never the asking user");
+        Expect(ProcessKiller.EndFromArgs(args!.Split(' ').Skip(1)) == 0 && f.Terminated.SequenceEqual(new[] { 31005 }), "helper ends the process");
+    });
+    // NEWAPI-END
+
+    Test("R2-2 Kill: a program whose name Windows won't give is not ended", () =>
+    {
+        var f = Fresh(); Mine(f, 31101, 1, ""); Mine(f, 31102, 2, "  ");
+        var r = ProcessKiller.Kill(new[] { new ProcessKiller.Target(31101, 1), new ProcessKiller.Target(31102, 2) });
+        Expect(f.Terminated.Count == 0 && r.Denied == 2 && r.Killed == 0, "denied, nothing ended");
+        Expect(ProcessKiller.EndFromArgs(new[] { "--user", Me, "31101:1" }) >= 1 && f.Terminated.Count == 0, "and not by the admin helper either");
+    });
+
+    // ---------------------------------------------------------------- round 2: test copies stay out of the real startup key and the real folder
+    Test("R2-4 Settings: a test copy keeps its startup entry in its own folder and never writes the real Run key", () =>
+    {
+        const string runPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        string Snapshot()
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(runPath);
+            return string.Join("\n", (key?.GetValueNames() ?? Array.Empty<string>()).OrderBy(n => n).Select(n => n + "=" + key!.GetValue(n)));
+        }
+        string before = Snapshot();
+        try
+        {
+            Directory.CreateDirectory(unitDir);
+            Settings.SetStartWithWindows(true);
+            Expect(Settings.StartsWithWindows(), "the test copy sees its own entry");
+            Expect(File.Exists(Path.Combine(unitDir, "startup-entry.txt")), "kept in the test folder");
+            File.WriteAllText(Path.Combine(unitDir, "startup-entry.txt"), "\"C:\\Old\\Place\\Glance.exe\"");
+            Settings.RefreshStartupPath();
+            Expect(File.ReadAllText(Path.Combine(unitDir, "startup-entry.txt")) == $"\"{Environment.ProcessPath}\"", "a moved copy repoints its own entry");
+            Expect(Snapshot() == before, "the real Run key is untouched");
+            Settings.SetStartWithWindows(false);
+            Expect(!Settings.StartsWithWindows() && Snapshot() == before, "turning it off works and the real Run key is still untouched");
+        }
+        finally
+        {
+            // Safety net only: if this ever ran against code that writes the real key, take our own made-up value back out.
+            try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(runPath, true); k?.DeleteValue(Instance.EntryName, false); } catch { }
+        }
+    });
+
+    Test("R2-5 Instance: GLANCE_TEST_DIR can't be the real Glance folder, inside it, or contain it", () =>
+    {
+        string real = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Glance");
+        string? saved = Environment.GetEnvironmentVariable("GLANCE_TEST_DIR");
+        try
+        {
+            foreach (var bad in new[] { real, real + "\\", real.ToUpperInvariant(), Path.Combine(real, "sub"), Path.Combine(real, "..", "Glance"), Path.Combine(real, "..", "Glance", "x", ".."), Path.GetDirectoryName(real)! })
+            {
+                Environment.SetEnvironmentVariable("GLANCE_TEST_DIR", bad);
+                Expect(!Instance.EnvironmentIsUsable(out string why) && why.Length > 0, "refused: " + bad);
+            }
+            Environment.SetEnvironmentVariable("GLANCE_TEST_DIR", Path.Combine(Path.GetTempPath(), "glance-ok-folder"));
+            Expect(Instance.EnvironmentIsUsable(out _), "an unrelated folder is fine");
+            Environment.SetEnvironmentVariable("GLANCE_TEST_DIR", real + "-test-other");
+            Expect(Instance.EnvironmentIsUsable(out _), "a sibling with a similar name is fine");
+        }
+        finally { Environment.SetEnvironmentVariable("GLANCE_TEST_DIR", saved); }
     });
 
     // ---------------------------------------------------------------- G1: Explorer restart
