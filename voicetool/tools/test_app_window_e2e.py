@@ -936,6 +936,8 @@ vt.beep = lambda *a: None
 vt.win32api.keybd_event = lambda *a: None          # nothing is pressed on this PC
 pasted = []
 vt.paste = lambda text: pasted.append(text)         # nothing is pasted
+import mic_light
+mic_light.geometry = lambda work, dpi: (mic_light.scaled(96, dpi), -32000, -32000)  # the light is drawn far off-screen
 vt.VoiceTool._start_tray = lambda self: print("tray started", flush=True)
 
 class Listener:                                      # the Windows keyboard hook, replaced

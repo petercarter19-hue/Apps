@@ -3715,6 +3715,7 @@ def test_speaker_reads_aloud_replaces_old_answers_and_esc_stops_it():
     assert len(voice.said[-1][0]) == speaker_windows.MAX_CHARS
 
 
+@pytest.mark.skipif(not LIVE_AUDIO, reason="uses the REAL speaker (at volume zero): only with VOICETOOL_LIVE_AUDIO=1")
 def test_the_windows_voice_really_speaks_silently():
     """The real SAPI voice, with the volume at zero (so nothing is heard): one short phrase starts, finishes, and the voice
     named in the setting is accepted."""
@@ -4568,6 +4569,7 @@ def test_set_volume_exactly_with_pycaw_and_by_keys_without_it(monkeypatch):
                     + [(system_windows.VK_VOLUME_UP, EXT), (system_windows.VK_VOLUME_UP, EXT | UP)] * 15)
 
 
+@pytest.mark.skipif(not LIVE_AUDIO, reason="reads the REAL volume: only with VOICETOOL_LIVE_AUDIO=1")
 def test_pycaw_is_installed_and_reads_the_real_volume_without_changing_it():
     import importlib
     real = importlib.reload(system_windows)
