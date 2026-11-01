@@ -219,9 +219,15 @@ def tool(monkeypatch):
     t.captured, t.taught, t.cards, t.card_buttons = [], [], [], []
     monkeypatch.setattr(t, "_capture", lambda trig, box=None: t.captured.append(trig.name))  # never press Ctrl+C in tests
     monkeypatch.setattr(t, "_teach", lambda trig: t.taught.append(trig.name))
-    # (the window in front stays Notepad, window 2, the same window the tests' command contexts come from; a test that
-    # switches windows replaces this)
-    monkeypatch.setattr(t, "_front_window", lambda: {"app": "notepad.exe", "title": "Untitled", "bundle": "", "hwnd": 2})
+    # (the window in front stays Notepad, window 2, the same window (and box, and title) the tests' command contexts come
+    # from; a test that switches windows, tabs or boxes replaces this)
+    def same_window():
+        context = t.triggers[COMMAND].context or {}
+        title = context.get("title", "Untitled") if context.get("hwnd") == 2 else "Untitled"
+        return {"app": "notepad.exe", "title": title, "bundle": "", "hwnd": 2, "focus": 20}
+    monkeypatch.setattr(t, "_front_window", same_window)
+    # (copying the selection again, just before it is replaced, finds the selection it was given: nothing changed)
+    monkeypatch.setattr(commands, "selected_text", lambda *a: (t.triggers[COMMAND].context or {}).get("selection", ""))
     monkeypatch.setattr(t, "_card", lambda title, body, seconds=60, speak=False, buttons=None:
                         (t.cards.append((title, body, speak)), t.card_buttons.append(dict(buttons or []))))
     monkeypatch.setattr(vt.win32api, "GetAsyncKeyState", lambda vk: 0)
@@ -894,7 +900,7 @@ def test_every_key_label_says_left_ctrl_and_none_says_the_windows_key(tool):
 
 def run_dictation(tool, text="um this is a test of the tool", app=None):
     t = tool.triggers[DICTATE]
-    t.app = app if app is not None else {"app": "notepad.exe", "title": "x"}
+    t.app = {"hwnd": 2, **(app if app is not None else {"app": "notepad.exe", "title": "x"})}  # (window 2 is the one in front)
     t.key_down = False
     tool.transcribe = lambda audio: text
     tool._dictate(t, np.full(vt.RATE, 0.3, np.float32))
@@ -1296,8 +1302,8 @@ def run_worker_job(tool, kind, audio=None):
     """Put one job on the real worker loop (as the key release does) and wait until it has been dealt with."""
     t = tool.triggers[DICTATE if kind == "dictate" else COMMAND]
     t.key_down = False
-    t.app = {"app": "notepad.exe", "title": "x"}
-    t.context = {"app": "notepad.exe", "title": "x", "selection": "", "pid": 1, "hwnd": 2}
+    t.app = {"app": "notepad.exe", "title": "x", "hwnd": 2}
+    t.context = {"app": "notepad.exe", "title": "x", "selection": "", "pid": 1, "hwnd": 2, "focus": 20}
     if not getattr(tool, "_worker_started", False):
         threading.Thread(target=tool._worker, daemon=True).start()
         tool._worker_started = True
@@ -1696,7 +1702,7 @@ def run_command(tool, said, reply, context=None, then=()):
     answers to any later question in the same job (a screen question, a journal tidy-up)."""
     t = tool.triggers[COMMAND]
     t.key_down = False
-    t.context = context if context is not None else {"app": "notepad.exe", "title": "Untitled", "selection": "", "pid": 1, "hwnd": 2}
+    t.context = context if context is not None else {"app": "notepad.exe", "title": "Untitled", "selection": "", "pid": 1, "hwnd": 2, "focus": 20}
     tool.transcribe = lambda audio: said
     tool.azure = FakeCleaner(client=FakeClient(json.dumps(reply), *then))
     tool._command(t, np.full(vt.RATE, 0.3, np.float32))
@@ -1725,7 +1731,7 @@ def test_rewrite_and_fix_without_a_selection_become_write_and_long_fixes_become_
 
 
 def test_the_five_original_routes_work_as_before(tool):
-    selection = {"app": "notepad.exe", "title": "x", "selection": "zef fir.", "pid": 1, "hwnd": 2}
+    selection = {"app": "notepad.exe", "title": "x", "selection": "zef fir.", "pid": 1, "hwnd": 2, "focus": 20}
     run_command(tool, "make it friendlier", {"route": "rewrite", "text": ""}, selection, then=("Hi there!",))  # rewriting is its own step
     run_command(tool, "write a note", {"route": "write", "text": "Dear Sarah"}, {**selection, "selection": ""})
     run_command(tool, "that should be Zephyr", {"route": "fix", "text": "zephyr"}, selection)
@@ -1779,7 +1785,7 @@ def test_command_waits_for_the_screen_context_then_logs_the_route(tool, isolated
 
 
 def test_route_prompt_carries_the_app_style_and_named_styles(tool):
-    ctx = {"app": "OUTLOOK.EXE", "title": "RE: budget - Message", "selection": "", "pid": 1, "hwnd": 2}
+    ctx = {"app": "OUTLOOK.EXE", "title": "RE: budget - Message", "selection": "", "pid": 1, "hwnd": 2, "focus": 20}
     client = run_command(tool, "write a reply", {"route": "write", "text": "ok"}, ctx)
     system = client.sent[0]["messages"][0]["content"]
     assert "In my own words" in system  # the style guide
@@ -1960,7 +1966,7 @@ def test_every_command_route_works_through_the_real_router_with_typed_instructio
               {"route": "system", "target": "set_volume", "value": "30"}, {"route": "transcribe", "target": ""}]
     for reply in answers:
         run_command(tool, f"typed instruction for {reply['route']}", reply,
-                    {"app": "notepad.exe", "title": "x", "selection": "zef fir", "pid": 1, "hwnd": 2})
+                    {"app": "notepad.exe", "title": "x", "selection": "zef fir", "pid": 1, "hwnd": 2, "focus": 20})
     time.sleep(0.2)
     assert [c[0] for c in tool.cards if c[0] == "Couldn't do that"] == []
 
@@ -3608,7 +3614,7 @@ def test_showing_again_while_open_sends_a_show_command_not_a_second_window(tmp_p
     out = tmp_path / "seen.txt"
     script = write_script(tmp_path, f'''
 import sys, json
-print(json.dumps({{"event": "ready", "pid": 1, "hwnd": 2}}), flush=True)
+print(json.dumps({{"event": "ready", "pid": 1, "hwnd": 2, "focus": 20}}), flush=True)
 for line in sys.stdin:
     open(r"{out}", "a").write(line)
 ''')
@@ -4058,7 +4064,7 @@ def test_the_selection_keeps_the_trailing_space_a_browser_adds_but_blank_is_noth
 
 
 def test_a_fix_on_a_selection_with_a_trailing_space_pastes_it_back_and_learns_the_bare_words(tool):
-    selection = {"app": "msedge.exe", "title": "x", "selection": "zef fir ", "pid": 1, "hwnd": 2}
+    selection = {"app": "msedge.exe", "title": "x", "selection": "zef fir ", "pid": 1, "hwnd": 2, "focus": 20}
     run_command(tool, "that should be Zephyr", {"route": "fix", "text": "zephyr"}, selection)
     assert PASTED == ["Zephyr "]  # the space stays, so the next word doesn't stick to it
     assert [(h.lower(), m) for h, m in corrections.load()] == [("zef fir", "Zephyr")]
@@ -4068,7 +4074,7 @@ def test_a_fix_on_a_selection_with_a_trailing_space_pastes_it_back_and_learns_th
 
 
 def test_a_rewrite_is_pasted_inside_the_selections_own_spaces_and_line_breaks(tool):
-    selection = {"app": "winword.exe", "title": "x", "selection": "  messy words\r\n", "pid": 1, "hwnd": 2}
+    selection = {"app": "winword.exe", "title": "x", "selection": "  messy words\r\n", "pid": 1, "hwnd": 2, "focus": 20}
     run_command(tool, "make it friendlier", {"route": "rewrite", "text": ""}, selection, then=("Hi there!",))
     run_command(tool, "make it friendlier", {"route": "rewrite", "text": ""}, {**selection, "selection": "messy words"}, then=("Hi there!",))
     run_command(tool, "write a note", {"route": "write", "text": "Dear Sarah"}, {**selection, "selection": ""})
@@ -4291,7 +4297,7 @@ def test_the_natural_voice_is_only_used_when_a_text_to_speech_model_is_named(too
 
 def test_the_read_route_reads_the_selection_and_says_when_there_is_none(tool):
     run_command(tool, "read this to me", {"route": "read", "text": ""},
-                {"app": "chrome.exe", "title": "x", "selection": "Some selected words.", "pid": 1, "hwnd": 2})
+                {"app": "chrome.exe", "title": "x", "selection": "Some selected words.", "pid": 1, "hwnd": 2, "focus": 20})
     assert [t for t, _ in SPOKEN] == ["Some selected words."] and tool.cards[-1][0] == "Reading it to you"
     SPOKEN.clear()
     STOPS.clear()
@@ -4449,7 +4455,7 @@ def test_the_folder_picker_asks_the_open_window_to_show_its_own_dialog(tool, tmp
     log = SimpleNamespace(info=lambda *a: None, error=lambda *a: None, warning=lambda *a: None, exception=lambda *a: None)
     script = write_script(tmp_path, f"""
 import sys, json
-print(json.dumps({{"event": "ready", "pid": 1, "hwnd": 2}}), flush=True)
+print(json.dumps({{"event": "ready", "pid": 1, "hwnd": 2, "focus": 20}}), flush=True)
 for line in sys.stdin:
     msg = json.loads(line)
     if msg.get("cmd") == "folder":
@@ -5166,12 +5172,14 @@ def test_commands_that_need_the_model_show_a_plain_card_before_it_exists(tool, m
     monkeypatch.setattr(local_cleanup_win, "available", lambda config=None: False)
     t = tool.triggers[COMMAND]
     t.key_down = False
-    t.context = {"app": "notepad.exe", "title": "x", "selection": "some text", "pid": 1, "hwnd": 2}
+    t.context = {"app": "notepad.exe", "title": "x", "selection": "some text", "pid": 1, "hwnd": 2, "focus": 20}
     tool.transcribe = lambda audio: "make this shorter"
     tool.azure = vt.Cleaner()
     tool._command(t, np.full(vt.RATE, 0.3, np.float32))
     assert tool.cards[-1][0] == "Finish setup first" and "click Finish setup" in tool.cards[-1][1] and PASTED == []
-    assert tool.light.history[-1] is None  # the light just goes off
+    assert tool.light.history[-1] == "error"  # (what was said is kept in History: see the R3 tests)
+    row = json.loads((isolated / "history.jsonl").read_text().splitlines()[-1])
+    assert row["command"] == "make this shorter" and row["route"] == "failed" and "Finish setup" in row["result"]
     tool._journal("today was fine")
     assert tool.cards[-1][0] == "Finish setup first" and "The journal" in tool.cards[-1][1] and not (isolated / "journal").exists()
 
@@ -5472,7 +5480,7 @@ def test_a_model_that_wont_start_pastes_the_words_as_heard_and_shows_one_card(to
     tool.azure._client = lambda: (_ for _ in ()).throw(local_cleanup_win.ModelServerUnavailable("gave up"))
     t = tool.triggers[COMMAND]
     t.key_down = False
-    t.context = {"app": "notepad.exe", "title": "x", "selection": "some text", "pid": 1, "hwnd": 2}
+    t.context = {"app": "notepad.exe", "title": "x", "selection": "some text", "pid": 1, "hwnd": 2, "focus": 20}
     tool.transcribe = lambda audio: "make this shorter"
     tool._command(t, np.full(vt.RATE, 0.3, np.float32))
     assert tool.cards[-1][0] == "Tidy-up won't start" and "commands can't run right now" in tool.cards[-1][1]
@@ -5963,25 +5971,30 @@ def test_review_a_job_is_typed_where_the_recording_stopped(tool, monkeypatch):
 
 def test_review_rewrite_and_fix_are_not_typed_into_a_different_window(tool, monkeypatch):
     monkeypatch.setattr(tool, "_front_window", lambda: {"app": "notepad.exe", "hwnd": 202})
-    selection = {"app": "outlook.exe", "title": "x", "selection": "Private message to rewrite", "pid": 1, "hwnd": 101}
+    selection = {"app": "outlook.exe", "title": "x", "selection": "Private message to rewrite", "pid": 1, "hwnd": 101,
+                 "focus": 31}
     run_command(tool, "make this shorter", {"route": "rewrite", "text": ""}, selection, then=("Rewritten private message.",))
     assert not PASTED and tool.cards[-1][0] == "Not typed: you switched windows"
     run_command(tool, "that should be Zephyr", {"route": "fix", "text": "Zephyr"}, {**selection, "selection": "zef fir"})
     assert not PASTED and ("zef fir", "Zephyr") in corrections.load()  # still learned; just not typed elsewhere
     run_command(tool, "write a thank-you", {"route": "write", "text": "Thank you!"}, {**selection, "selection": ""})
     assert not PASTED
-    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "outlook.exe", "hwnd": 101})  # back in the right window
+    # back in the right window, tab and box, with the same text still selected
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "outlook.exe", "hwnd": 101, "title": "x", "focus": 31})
+    monkeypatch.setattr(commands, "selected_text", lambda *a: "Private message to rewrite")
     run_command(tool, "make this shorter", {"route": "rewrite", "text": ""}, selection, then=("Shorter.",))
     assert PASTED == ["Shorter."]
 
 
-def test_review_a_window_that_cannot_be_read_still_gets_its_text(tool, monkeypatch):
+def test_review_a_window_that_cannot_be_read_never_gets_the_text(tool, monkeypatch):
     t = tool.triggers[DICTATE]
-    t.app = {}  # (the window couldn't be read when the key went down)
+    t.app = {}  # (the window couldn't be read when the key went down, and still can't)
     monkeypatch.setattr(tool, "_front_window", lambda: {})
     tool.transcribe = lambda audio: "hello"
     tool._dictate(t, np.full(vt.RATE, 0.3, np.float32))
-    assert PASTED == ["hello "]
+    assert not PASTED and tool.cards[-1][0] == "Not typed: unknown window"
+    assert "hello" in (vt.HERE / "history.jsonl").read_text(encoding="utf-8")  # kept, and the card offers Copy
+    assert "Copy" in tool.card_buttons[-1] and tool.light.state == "error"
 
 
 def test_review_close_window_only_closes_the_window_it_was_said_in(tool, monkeypatch):
@@ -5994,6 +6007,9 @@ def test_review_close_window_only_closes_the_window_it_was_said_in(tool, monkeyp
     monkeypatch.setattr(tool, "_front_window", lambda: {"app": "notepad.exe", "hwnd": 101})
     run_command(tool, "close this window", {"route": "system", "target": "close_window"}, context)
     assert sent == ["close"]
+    sent.clear()  # a window that was never known is no window to close either
+    run_command(tool, "close this window", {"route": "system", "target": "close_window"}, {**context, "hwnd": 0})
+    assert sent == [] and tool.cards[-1][0] == "Didn't close it"
 
 
 def test_review_a_command_that_fails_is_kept_in_history_with_a_reason(tool, monkeypatch):
@@ -6302,23 +6318,72 @@ def test_slowpc_real_client_errors_become_the_same_exception_a_slow_server_a_loa
     assert caught.value.reason == "connection" and "couldn't reach" in str(caught.value)
 
 
-def test_slowpc_a_reply_cut_off_at_its_limit_is_never_pasted_half_written():
+def slowpc_command(tool, said, selection, *replies):
+    """Say `said` on the command key (the real dispatch, `_command`) with an on-device model that answers `replies` in turn.
+    `selection` is what was selected (in window 2, the one in front)."""
+    t = tool.triggers[COMMAND]
+    t.key_down = False
+    t.context = {"app": "notepad.exe", "title": "Draft", "selection": selection, "pid": 1, "hwnd": 2, "focus": 20}
+    tool.transcribe = lambda audio: said
+    tool.azure = FakeCleaner(client=slowpc_client(SlowPCRaw(*replies)))
+    tool._command(t, np.full(vt.RATE, 0.3, np.float32))
+
+
+def last_history_row():
+    return json.loads((vt.HERE / "history.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+
+
+def assert_command_not_done(tool, said, *words):
+    """Nothing was typed, the command is in History as failed with a plain "Not done:" reason, and the card says so."""
+    assert not PASTED, PASTED
+    row = last_history_row()
+    assert row["command"] == said and row["route"] == "failed" and row["result"].startswith("Not done: "), row
+    assert all(w in row["result"] for w in words), row
+    assert tool.cards[-1][0] == "Command not done" and tool.cards[-1][1] == row["result"][len("Not done: "):]
+    assert tool.light.state == "error"
+
+
+def test_slowpc_a_reply_cut_off_at_its_limit_is_never_pasted_half_written(tool):
     cut = lambda text: SlowPCReply(text, "length")  # noqa: E731
-    # a rewrite that ran to its limit keeps only whole sentences
+    original = "The meeting is Monday at noon."
+    # a rewrite that ran to its limit is not done, whether or not it finished a sentence: nothing is typed over the selection
+    for reply in ("The meeting is on", "One is done. Two is done. Thr"):
+        PASTED.clear()
+        slowpc_command(tool, "make this more formal", original, json.dumps({"route": "rewrite", "text": ""}), cut(reply))
+        assert_command_not_done(tool, "make this more formal", "too long to finish", "shorter request")
+        assert "left as it was" in tool.cards[-1][1]
+    with pytest.raises(commands.CommandFailed) as caught:
+        commands.rewrite(slowpc_client(SlowPCRaw(cut("No full sentence at all"))), "local", "x", "text")
+    assert caught.value.reason == "too long" and "shorter request" in str(caught.value)
+    # a "write" (nothing selected) cut off, in the focused writing step: not done either
+    slowpc_command(tool, "write a thank-you note to Sam", "", json.dumps({"route": "write", "text": ""}), cut("Hi Sam, thank you so much for"))
+    assert_command_not_done(tool, "write a thank-you note to Sam", "too long to finish")
+    # a routing reply cut off, and then the focused step cut off too: not done
+    slowpc_command(tool, "write a thank-you note to Sam", "", cut('{"route": "write", "text": "Hi Sam,'), cut("Hi Sam, thank you so"))
+    assert_command_not_done(tool, "write a thank-you note to Sam", "too long to finish")
+    slowpc_command(tool, "shorter", original, cut('{"route": "rewrite", "te'), cut("The meeting"))
+    assert_command_not_done(tool, "shorter", "too long to finish")
+    # a fix or an answer cut off in the routing reply is not guessed at, and half an answer is never shown or spoken
+    slowpc_command(tool, "that should be Zephyr", "zef fir", cut('{"route": "fix", "text": "Zeph'))
+    assert_command_not_done(tool, "that should be Zephyr", "shorter request")
+    assert ("zef fir", "Zephyr") not in corrections.load()
+    slowpc_command(tool, "what does this error mean", "", cut('{"route": "answer", "text": "It means the file is missing. Check the'))
+    assert_command_not_done(tool, "what does this error mean", "shorter request")
+    assert not any(card[0] == "Answer" for card in tool.cards) and not SPOKEN
+    # the same cut-off at the routing level (no dispatch): a rewrite fails, never returning the unfinished text
     raw = SlowPCRaw(json.dumps({"route": "rewrite", "text": ""}), cut("One is done. Two is done. Thr"))
-    assert commands.route(slowpc_client(raw), "local", "shorter", {"selection": "some text here"})[1] == "One is done. Two is done."
-    assert commands.rewrite(slowpc_client(SlowPCRaw(cut("No full sentence at all"))), "local", "x", "text") == "No full sentence at all"
-    # a routing reply cut off while writing: the draft is thrown away and the focused writing step writes it again
+    with pytest.raises(commands.CommandFailed):
+        commands.route(slowpc_client(raw), "local", "shorter", {"selection": "some text here"})
+    # a routing reply cut off while writing: the draft is thrown away and the focused writing step writes it again (and types it)
     raw = SlowPCRaw(cut('{"route": "write", "text": "Hi Sam,\\n\\nThank you so much for'), "Hi Sam, thanks a lot.")
     assert commands.route(slowpc_client(raw), "local", "write a thank-you note to Sam", {"selection": ""})[:2] == ("write", "Hi Sam, thanks a lot.")
     assert len(raw.sent) == 2 and raw.sent[1]["max_tokens"] == commands.WRITE_TOKENS
     raw = SlowPCRaw(cut('{"route": "rewrite", "te'), "Shorter.")
     assert commands.route(slowpc_client(raw), "local", "shorter", {"selection": "words words"})[:2] == ("rewrite", "Shorter.")
-    # an answer cut off keeps its whole sentences
-    answer = ('{"route": "answer", "text": "The error means the file is missing and Windows cannot open it. '
-              'Check the path and try again, then if that keeps failing restart the')
-    kind, text, _ = commands.route(slowpc_client(SlowPCRaw(cut(answer))), "local", "what does this error mean", {"selection": ""})
-    assert (kind, text) == ("answer", "The error means the file is missing and Windows cannot open it.")
+    PASTED.clear()
+    slowpc_command(tool, "write a thank-you note to Sam", "", cut('{"route": "write", "text": "Hi Sam,'), "Hi Sam, thanks a lot.")
+    assert PASTED == ["Hi Sam, thanks a lot."] and last_history_row()["route"] == "write"  # (a finished reply is used as before)
+    # an answer cut off is not shown half-finished: one clear message, like the others
     # a note, a journal entry or an open that was cut off is not guessed at: one clear message, not a timeout
     for partial in ('{"route": "note", "text": "Buy mi', '{"route": "journal", "text": "today I', '{"route": "open", "target": "Note', '{"rou'):
         with pytest.raises((commands.CommandFailed, ValueError)) as caught:
@@ -6565,9 +6630,342 @@ def test_review_a_model_that_is_too_slow_to_start_keeps_the_command_and_says_so(
     tool.azure = FakeCleaner()
     monkeypatch.setattr(tool.azure, "_client", slow_start)
     t = tool.triggers[COMMAND]
-    t.context = {"app": "notepad.exe", "title": "x", "selection": "", "pid": 1, "hwnd": 2}
+    t.context = {"app": "notepad.exe", "title": "x", "selection": "", "pid": 1, "hwnd": 2, "focus": 20}
     tool.transcribe = lambda audio: "write a thank-you note to Sam"
     tool._command(t, np.full(vt.RATE, 0.3, np.float32))
     rows = [json.loads(line) for line in (vt.HERE / "history.jsonl").read_text(encoding="utf-8").splitlines()]
     assert rows[-1]["command"] == "write a thank-you note to Sam" and rows[-1]["route"] == "failed"
     assert tool.cards[-1][0] == "Command not done" and "saved in History" in tool.cards[-1][1] and not PASTED
+
+
+# ====================================================================================================== RE-REVIEW R1-R4
+# R1: a result that replaces a selection is typed only if the window, its title (a browser tab), the box with the focus and
+# the selected text itself are all still what they were. R3: a command that can't run is kept in History whatever stopped
+# it. R4: a result is typed only into a window that is known, readable now, and the same. (R2: see the slowpc test above.)
+# Fakes only: no key is pressed and nothing is copied or pasted for real.
+
+EDITING = {"app": "browser.exe", "title": "Private draft", "selection": "Private message", "pid": 1, "hwnd": 101, "focus": 31}
+
+
+def editing_now(tool, monkeypatch, copy="Private message", **window):
+    """What is in front when the result is ready: window 101, the same tab and box, and `copy` selected (what Ctrl+C gives
+    now: text, or an Exception to raise), unless `window` (title, focus, app, hwnd...) says otherwise. Returns the re-copies."""
+    now = {"app": "browser.exe", "title": "Private draft", "hwnd": 101, "focus": 31, **window}
+    copies = []
+
+    def recopy(*a):
+        copies.append(1)
+        if isinstance(copy, Exception):
+            raise copy
+        return copy
+    monkeypatch.setattr(tool, "_front_window", lambda: dict(now))
+    monkeypatch.setattr(commands, "selected_text", recopy)
+    return copies
+
+
+def rewrite_in_browser(tool, context=None):
+    return run_command(tool, "make this shorter", {"route": "rewrite", "text": ""}, dict(context or EDITING),
+                       then=("Private rewritten text.",))
+
+
+def assert_kept_not_typed(tool, monkeypatch, title, result="Private rewritten text."):
+    """Nothing was typed; the result is in History; the card says why and its Copy button has the result."""
+    assert not PASTED, PASTED
+    shown = [i for i, card in enumerate(tool.cards) if card[0] == title]  # (a fix is followed by its "Learned" card)
+    assert shown and "saved in History" in tool.cards[shown[-1]][1], tool.cards
+    assert last_history_row()["result"] == result
+    copied = []
+    monkeypatch.setattr(vt, "set_clipboard_text", copied.append)
+    tool.card_buttons[shown[-1]]["Copy"]()
+    assert copied == [result] and tool.light.state == "error"
+
+
+def test_r1_a_rewrite_is_typed_when_the_window_tab_box_and_selection_are_unchanged(tool, monkeypatch):
+    copies = editing_now(tool, monkeypatch, copy="Private message \r\n")  # (blanks around the selection don't count)
+    rewrite_in_browser(tool)
+    assert PASTED == ["Private rewritten text."] and copies == [1]
+    PASTED.clear()
+    run_command(tool, "that should be Zephyr", {"route": "fix", "text": "Zephyr"}, {**EDITING, "selection": "Private message"})
+    assert PASTED == ["Zephyr"]
+
+
+def test_r1_a_rewrite_is_not_typed_into_another_browser_tab_of_the_same_window(tool, monkeypatch):
+    copies = editing_now(tool, monkeypatch, title="Other tab")  # (same window handle, another tab's title)
+    rewrite_in_browser(tool)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed")
+    assert copies == []  # (nothing is copied from a tab it wasn't about)
+
+
+def test_r1_a_rewrite_is_not_typed_over_a_different_selection_in_the_same_window_and_title(tool, monkeypatch):
+    copies = editing_now(tool, monkeypatch, copy="Unrelated text in the same tab")
+    rewrite_in_browser(tool)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed")
+    assert copies == [1]
+
+
+def test_r1_a_rewrite_is_not_typed_into_a_different_box_of_the_same_window(tool, monkeypatch):
+    copies = editing_now(tool, monkeypatch, focus=32)  # (the focus moved to another text box)
+    rewrite_in_browser(tool)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed")
+    assert copies == []
+
+
+@pytest.mark.parametrize("why, copy, window, context", [
+    ("the copy gave nothing", "", {}, {}),
+    ("the copy failed", RuntimeError("clipboard busy"), {}, {}),
+    ("no box was known when it was copied", "Private message", {}, {"focus": 0}),
+    ("no box info was captured at all", "Private message", {}, {"focus": None}),
+    ("no box can be read now", "Private message", {"focus": 0}, {}),
+    ("a terminal or code editor, where Ctrl+C is never sent", "Private message", {"app": "Code.exe"}, {"app": "Code.exe"}),
+])
+def test_r1_a_selection_that_cannot_be_checked_again_is_never_replaced(tool, monkeypatch, why, copy, window, context):
+    editing_now(tool, monkeypatch, copy=copy, **window)
+    rewrite_in_browser(tool, {**EDITING, **context})
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: couldn't check the selection")
+
+
+def test_r1_a_fix_and_a_write_over_a_selection_are_checked_too_but_a_write_with_no_selection_only_needs_its_window(tool, monkeypatch):
+    editing_now(tool, monkeypatch, copy="Something else now")
+    run_command(tool, "that should be Zephyr", {"route": "fix", "text": "Zephyr"}, {**EDITING, "selection": "zef fir"})
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed", "Zephyr")
+    assert ("zef fir", "Zephyr") in corrections.load()  # still learned
+    tool.cards.clear()
+    tool.card_buttons.clear()
+    run_command(tool, "write a thank-you", {"route": "write", "text": "Thank you!"}, dict(EDITING))  # (it would replace what is selected)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed", "Thank you!")
+    # nothing was selected, and the tab's title has moved on while the text was being written: the window is what counts
+    editing_now(tool, monkeypatch, title="A different tab title")
+    run_command(tool, "write a thank-you", {"route": "write", "text": "Thank you!"}, {**EDITING, "selection": ""})
+    assert PASTED == ["Thank you!"]
+
+
+def test_r1_dictation_is_checked_against_its_window_only_a_title_changes_while_typing(tool, monkeypatch):
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "browser.exe", "title": "(3) Inbox", "hwnd": 101, "focus": 31})
+    run_dictation(tool, "hello there", {"app": "browser.exe", "title": "Inbox", "hwnd": 101})
+    assert PASTED == ["hello there "]
+
+
+def test_r1_a_long_selection_is_compared_as_far_as_a_command_works_on_it_and_without_the_blanks_around_it(tool, monkeypatch):
+    assert commands.selection_key("  abc \r\n") == "abc" and commands.selection_key("a" * 13000) == "a" * 12000
+    assert commands.selection_key(None) == ""
+    long = "a" * 12000
+    editing_now(tool, monkeypatch, copy=long + " and a little more the copy has")  # (the same first 12000 characters)
+    rewrite_in_browser(tool, {**EDITING, "selection": long})
+    assert PASTED == ["Private rewritten text."]
+
+
+def test_r1_the_selection_check_says_unchecked_when_a_window_has_no_title_or_box_to_compare(tool):
+    window = {"app": "browser.exe", "title": "T", "hwnd": 1, "focus": 3}
+    captured = {"app": "browser.exe", "title": "T", "selection": "x", "focus": 3}
+    assert tool._selection_problem({k: v for k, v in captured.items() if k != "title"}, window) == "unchecked"
+    assert tool._selection_problem(captured, {k: v for k, v in window.items() if k != "title"}) == "unchecked"
+    assert tool._selection_problem(captured, {**window, "title": "U"}) == "changed"
+    assert tool._selection_problem(captured, {**window, "focus": 4}) == "changed"
+
+
+def test_r1_the_window_info_names_the_box_with_the_focus_and_the_capture_keeps_it(monkeypatch):
+    monkeypatch.setattr(commands.win32gui, "GetForegroundWindow", lambda: 101)
+    monkeypatch.setattr(commands.win32gui, "GetWindowText", lambda hwnd: "A tab")
+    monkeypatch.setattr(commands.win32process, "GetWindowThreadProcessId", lambda hwnd: (7, 8))
+    monkeypatch.setattr(commands.win32api, "OpenProcess", lambda *a: 1)
+    monkeypatch.setattr(commands.win32process, "GetModuleFileNameEx", lambda handle, module: "C:\\Programs\\browser.exe")
+    monkeypatch.setattr(commands, "focus_control", lambda hwnd: 31 if hwnd == 101 else 0)
+    info = commands.window_info()
+    assert (info["app"], info["title"], info["hwnd"], info["focus"]) == ("browser.exe", "A tab", 101, 31)
+    monkeypatch.setattr(commands, "selected_text", lambda *a: "chosen words")
+    context = commands.capture_context(None, None, None)
+    assert context["selection"] == "chosen words" and context["focus"] == 31 and context["hwnd"] == 101
+
+
+def test_r1_a_box_that_windows_cannot_name_is_zero_never_an_error(monkeypatch):
+    def broken(hwnd):
+        raise OSError("no such window")
+    monkeypatch.setattr(commands.win32process, "GetWindowThreadProcessId", broken)
+    assert commands.focus_control(101) == 0 and commands.focus_control(0) == 0  # (no window: nothing is asked of Windows)
+
+
+def test_r3_a_model_that_will_not_start_keeps_the_spoken_command_in_history(tool):
+    def unavailable():
+        raise local_cleanup_win.ModelServerUnavailable("Model could not start")
+    tool.azure = SimpleNamespace(_client=unavailable)
+    t = tool.triggers[COMMAND]
+    t.context = {"app": "notepad.exe", "title": "x", "selection": "", "pid": 1, "hwnd": 2, "focus": 20}
+    tool.transcribe = lambda audio: "write a thank-you note to Sam"
+    tool._command(t, np.full(vt.RATE, 0.3, np.float32))
+    row = last_history_row()
+    assert row["command"] == "write a thank-you note to Sam" and row["route"] == "failed"
+    assert row["result"].startswith("Not done: ") and "won't start" in row["result"] and "commands can't run" in row["result"]
+    assert tool.cards[-1][0] == "Tidy-up won't start" and tool.cards[-1][1] == row["result"][len("Not done: "):]
+    assert tool.light.state == "error" and not PASTED
+
+
+def test_r3_a_model_that_already_gave_up_this_run_keeps_the_spoken_command_in_history(tool, monkeypatch):
+    monkeypatch.setitem(vt.CONFIG, "offline_only", True)
+    monkeypatch.setattr(local_cleanup_win, "available", lambda config=None: True)
+    import azure.identity
+    monkeypatch.setattr(azure.identity, "AzureCliCredential", lambda **kw: pytest.fail("no Azure"))
+    tool.azure = vt.Cleaner()
+    tool.azure.local = local_cleanup_win.LocalCleaner({"offline_backend": "cpu"}, None)
+    tool.azure.local.failed_starts, tool.azure.local.gave_up = local_cleanup_win.MAX_FAILED_STARTS, True  # (it failed twice earlier)
+    t = tool.triggers[COMMAND]
+    t.context = {"app": "notepad.exe", "title": "x", "selection": "some text", "pid": 1, "hwnd": 2, "focus": 20}
+    tool.transcribe = lambda audio: "make this shorter"
+    tool._command(t, np.full(vt.RATE, 0.3, np.float32))  # (the real Cleaner and LocalCleaner: no stand-in for the exception)
+    row = last_history_row()
+    assert row["command"] == "make this shorter" and row["route"] == "failed" and "won't start" in row["result"]
+    assert tool.cards[-1][0] == "Tidy-up won't start" and tool.light.state == "error" and not PASTED
+    assert tool.azure.local.proc is None  # (it did not try to start anything again)
+
+
+def test_r4_a_destination_unknown_at_recording_never_lets_the_text_into_another_window(tool, monkeypatch):
+    trigger = tool.triggers[DICTATE]
+    trigger.app = {}
+    job = vt.Job(trigger, target=None)  # (no window could be read when recording stopped, or when it started)
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "other.exe", "hwnd": 202})
+    tool.transcribe = lambda audio: "Private dictated text"
+    tool._dictate(job, np.full(vt.RATE, 0.3, np.float32))
+    assert not PASTED and tool.cards[-1][0] == "Not typed: unknown window" and "meant for" in tool.cards[-1][1]
+    assert last_history_row()["text"] == "Private dictated text"  # kept, with Copy on the card
+    assert "Copy" in tool.card_buttons[-1] and tool.light.state == "error"
+    assert tool._target(job) is None
+
+
+def test_r4_a_destination_that_cannot_be_read_when_the_text_is_ready_gets_nothing(tool, monkeypatch):
+    job = vt.Job(tool.triggers[DICTATE], target=101)
+    monkeypatch.setattr(tool, "_front_window", lambda: {})  # (still unreadable now)
+    tool.transcribe = lambda audio: "Private dictated text"
+    tool._dictate(job, np.full(vt.RATE, 0.3, np.float32))
+    assert not PASTED and tool.cards[-1][0] == "Not typed: unknown window" and "you're in now" in tool.cards[-1][1]
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "browser.exe", "title": "x"})  # (a window with no handle)
+    tool._dictate(job, np.full(vt.RATE, 0.3, np.float32))
+    assert not PASTED
+
+
+def test_r4_a_known_and_unchanged_destination_still_gets_the_text(tool, monkeypatch):
+    job = vt.Job(tool.triggers[DICTATE], target=101)
+    monkeypatch.setattr(tool, "_front_window", lambda: {"app": "browser.exe", "title": "x", "hwnd": 101})
+    tool.transcribe = lambda audio: "Private dictated text"
+    tool._dictate(job, np.full(vt.RATE, 0.3, np.float32))
+    assert PASTED == ["Private dictated text "]
+
+
+def test_r4_a_command_with_no_known_window_types_nothing_and_keeps_its_result(tool):
+    context = {"app": "notepad.exe", "title": "x", "selection": "", "pid": 1}  # (no window handle)
+    run_command(tool, "write a thank-you", {"route": "write", "text": "Thank you!"}, context)
+    assert not PASTED and tool.cards[-1][0] == "Not typed: unknown window"
+    assert last_history_row()["result"] == "Thank you!" and tool.light.state == "error"
+    run_command(tool, "make this shorter", {"route": "rewrite", "text": ""}, {**context, "selection": "Some words."},
+                then=("Shorter.",))  # (a selection but no window to put it back in)
+    assert not PASTED and tool.cards[-1][0] == "Not typed: unknown window"
+
+
+def test_r1_a_program_that_never_names_its_box_is_checked_by_its_title_and_the_fresh_copy(tool, monkeypatch):
+    """Some programs report no focused box at all (0, captured and now): that can't block every rewrite. The tab's title and
+    the selected text, copied again just before, still decide."""
+    unnamed = {**EDITING, "focus": 0}
+    copies = editing_now(tool, monkeypatch, focus=0)  # same title, same selection
+    rewrite_in_browser(tool, unnamed)
+    assert PASTED == ["Private rewritten text."] and copies == [1]
+    PASTED.clear()
+    editing_now(tool, monkeypatch, copy="A different selection", focus=0)  # same title, other selection
+    rewrite_in_browser(tool, unnamed)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed")
+    editing_now(tool, monkeypatch, title="Other tab", focus=0)  # another tab
+    rewrite_in_browser(tool, unnamed)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed")
+    editing_now(tool, monkeypatch, copy="", focus=0)  # nothing came from the copy: still can't be checked
+    rewrite_in_browser(tool, unnamed)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: couldn't check the selection")
+    # exactly one side naming its box can't be compared; both naming different boxes is a change
+    context = {"app": "browser.exe", "title": "T", "selection": "x"}
+    window = {"app": "browser.exe", "title": "T", "hwnd": 1}
+    monkeypatch.setattr(tool, "_recopy_selection", lambda: "x")
+    assert tool._selection_problem({**context, "focus": 0}, {**window, "focus": 5}) == "unchecked"
+    assert tool._selection_problem({**context, "focus": 5}, {**window, "focus": 0}) == "unchecked"
+    assert tool._selection_problem({**context, "focus": 5}, {**window, "focus": 6}) == "changed"
+    assert tool._selection_problem({**context, "focus": 0}, {**window, "focus": 0}) is None
+    assert tool._selection_problem({**context, "focus": 0}, {**window, "focus": None}) is None
+    assert tool._selection_problem(context, {**window, "title": None}) == "changed"
+    assert tool._selection_problem({k: v for k, v in context.items() if k != "title"}, window) == "unchecked"
+
+
+def test_r1_a_box_that_only_the_thread_in_front_can_name_is_found_there(monkeypatch):
+    asked = []
+    named = {7: 0, 0: 31}  # (the window's own thread says 0; the thread in front says 31)
+
+    def thread_focus(thread_id):
+        asked.append(thread_id)
+        return named.get(thread_id, 0)
+    monkeypatch.setattr(commands.win32process, "GetWindowThreadProcessId", lambda hwnd: (7, 8))
+    monkeypatch.setattr(commands, "_thread_focus", thread_focus)
+    monkeypatch.setattr(commands.win32gui, "GetForegroundWindow", lambda: 101)
+    assert commands.focus_control(101) == 31 and asked == [7, 0]
+    asked.clear()
+    assert commands.focus_control(202) == 0 and asked == [7]  # (a window that isn't in front never asks the front thread)
+    asked.clear()
+    named[7] = 55
+    assert commands.focus_control(101) == 55 and asked == [7]  # (its own thread named a box: that one is used)
+    named.update({7: 0, 0: 0})
+    assert commands.focus_control(101) == 0  # (nobody names one)
+
+
+def typed_fix(tool, monkeypatch, heard, context):
+    """The typed-fix box saved: bring the window back, then put the fix over the selection captured when the box opened."""
+    monkeypatch.setattr(vt, "bring_to_front", lambda hwnd, tries=10: True)
+    monkeypatch.setattr(vt.time, "sleep", lambda s: None)
+    tool._learn_typed(heard, "Zephyr", 101, heard + " ", context)
+
+
+def test_r1_the_typed_fix_replaces_the_selection_only_if_the_same_one_is_still_there(tool, monkeypatch):
+    context = {**EDITING, "selection": "zef fir "}
+    copies = editing_now(tool, monkeypatch, copy="zef fir ")
+    typed_fix(tool, monkeypatch, "zef fir", context)
+    assert PASTED == ["Zephyr "] and copies == [1] and ("zef fir", "Zephyr") in corrections.load()
+    # a program that never names its box is checked by title and the fresh copy
+    PASTED.clear()
+    editing_now(tool, monkeypatch, copy="zef fir ", focus=0)
+    typed_fix(tool, monkeypatch, "zef fir", {**context, "focus": 0})
+    assert PASTED == ["Zephyr "]
+
+
+@pytest.mark.parametrize("why, copy, window, title", [
+    ("another tab", "zef fir ", {"title": "Other tab"}, "Not replaced: the selection changed"),
+    ("another selection", "Something else", {}, "Not replaced: the selection changed"),
+    ("another box", "zef fir ", {"focus": 32}, "Not replaced: the selection changed"),
+    ("the copy gave nothing", "", {}, "Not replaced: couldn't check the selection"),
+    ("another window", "zef fir ", {"hwnd": 202}, "Not typed: you switched windows"),
+])
+def test_r1_the_typed_fix_is_not_typed_over_a_different_selection_but_is_still_learned(tool, monkeypatch, why, copy, window, title):
+    editing_now(tool, monkeypatch, copy=copy, **window)
+    typed_fix(tool, monkeypatch, "zef fir", {**EDITING, "selection": "zef fir "})
+    assert not PASTED and ("zef fir", "Zephyr") in corrections.load(), why
+    shown = [i for i, card in enumerate(tool.cards) if card[0] == title]
+    assert shown and "still learned" in tool.cards[shown[-1]][1], tool.cards
+    copied = []
+    monkeypatch.setattr(vt, "set_clipboard_text", copied.append)
+    tool.card_buttons[shown[-1]]["Copy"]()
+    assert copied == ["Zephyr "]
+    assert tool.cards[-1][0] == "Learned"
+
+
+def test_r1_the_typed_fix_with_no_captured_selection_needs_only_its_window_and_the_teach_box_hands_over_its_capture(tool, monkeypatch):
+    editing_now(tool, monkeypatch)
+    typed_fix(tool, monkeypatch, "zef fir", {})  # (nothing was captured: the person typed the words themselves)
+    assert PASTED == ["Zephyr "]
+    # the real _teach keeps the context it captured and the box's save hands it to _learn_typed
+    PASTED.clear()
+    tool.cards.clear()
+    tool.card_buttons.clear()
+    context = {**EDITING, "selection": "zef fir "}
+    handed = {}
+    monkeypatch.setattr(vt, "TeachWindow", lambda root, heard, target, on_save: handed.update(heard=heard, target=target, save=on_save))
+    monkeypatch.setattr(tool, "_capture", lambda trig, box=None: setattr(trig, "context", dict(context)))
+    monkeypatch.setattr("win32gui.GetForegroundWindow", lambda: 101)
+    vt.VoiceTool._teach(tool, tool.triggers[COMMAND])
+    tool.ui.get_nowait()()
+    assert handed["heard"] == "zef fir " and handed["target"] == 101
+    editing_now(tool, monkeypatch, title="Other tab")  # (the tab changed while the box was open)
+    monkeypatch.setattr(vt, "bring_to_front", lambda hwnd, tries=10: True)
+    monkeypatch.setattr(vt.time, "sleep", lambda s: None)
+    handed["save"]("zef fir", "Zephyr", 101, "zef fir ")
+    assert not PASTED and tool.cards[0][0] == "Not replaced: the selection changed"

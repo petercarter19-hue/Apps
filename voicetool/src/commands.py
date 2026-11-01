@@ -7,6 +7,8 @@ connectors, and only if you turned that on in Settings. Claude may search and re
 forwarding, deleting and calendar changes are not on its allowed list, and anything not on the list is refused
 automatically.
 """
+import ctypes
+import ctypes.wintypes as wintypes
 import json
 import queue
 import subprocess
@@ -55,8 +57,40 @@ BLOCKED_TOOLS = [
 
 # ---------- what's on screen ----------
 
+class _GuiThreadInfo(ctypes.Structure):
+    """Windows' GUITHREADINFO: what one program thread has active, focused and so on."""
+    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD), ("hwndActive", wintypes.HWND),
+                ("hwndFocus", wintypes.HWND), ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+                ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND), ("rcCaret", wintypes.RECT)]
+
+
+def _thread_focus(thread_id):
+    """The window with the keyboard focus in program thread `thread_id` (0 means the thread in front); 0 if none."""
+    info = _GuiThreadInfo()
+    info.cbSize = ctypes.sizeof(info)
+    if ctypes.windll.user32.GetGUIThreadInfo(thread_id, ctypes.byref(info)):
+        return int(info.hwndFocus or 0)
+    return 0
+
+
+def focus_control(hwnd):
+    """The control (text box, page, editor) that has the keyboard focus inside window `hwnd`; 0 if Windows can't say.
+    Two tabs or two boxes of one program share a window handle, but not always this."""
+    if not hwnd:
+        return 0
+    try:
+        thread_id, _ = win32process.GetWindowThreadProcessId(hwnd)
+        focus = _thread_focus(thread_id)
+        if not focus and hwnd == win32gui.GetForegroundWindow():
+            focus = _thread_focus(0)  # (some programs name their focus only as the thread that is in front)
+        return focus
+    except Exception:
+        return 0
+
+
 def window_info():
-    """The window in front: its program name (OUTLOOK.EXE), title, process id and window handle (for screenshots)."""
+    """The window in front: its program name (OUTLOOK.EXE), title, process id and window handle (for screenshots), and the
+    control that has the keyboard focus in it ("focus", 0 if unknown)."""
     hwnd = win32gui.GetForegroundWindow()
     title = win32gui.GetWindowText(hwnd)
     app, pid = "", 0
@@ -66,7 +100,7 @@ def window_info():
         app = Path(win32process.GetModuleFileNameEx(handle, 0)).name
     except Exception:
         pass
-    return {"app": app, "bundle": "", "title": title, "pid": pid, "hwnd": hwnd}
+    return {"app": app, "bundle": "", "title": title, "pid": pid, "hwnd": hwnd, "focus": focus_control(hwnd)}
 
 
 def selected_text(open_clipboard, save_clipboard, restore_clipboard):
@@ -94,12 +128,20 @@ def selected_text(open_clipboard, save_clipboard, restore_clipboard):
     return text if text.strip() else ""
 
 
+SELECTION_LIMIT = 12000  # the most of a selection a command works on
+
+
+def selection_key(text):
+    """A selection as it is compared: cut at the limit, and without the blanks around it (apps differ in those)."""
+    return (text or "")[:SELECTION_LIMIT].strip()
+
+
 def capture_context(open_clipboard, save_clipboard, restore_clipboard):
     info = window_info()
     info["selection"] = ""
     if info["app"].lower() not in NO_COPY_APPS:
         try:
-            chosen = selected_text(open_clipboard, save_clipboard, restore_clipboard)[:12000]
+            chosen = selected_text(open_clipboard, save_clipboard, restore_clipboard)[:SELECTION_LIMIT]
             info["selection"] = chosen if chosen.strip() else ""  # (cutting a long one could leave only blanks)
         except Exception:
             pass
@@ -155,6 +197,8 @@ LOADING_TEXT = ("The on-device model is still loading. That command is saved in 
                 "say it again in a minute.")
 TOO_LONG_TEXT = ("The model ran out of room before it finished that command. It's saved in History. "
                  "Try a shorter request.")
+CUT_OFF_TEXT = ("The reply was too long to finish, so nothing was typed and your text was left as it was. "
+                "The command is saved in History. Try a shorter request, or ask for it in smaller pieces.")
 
 
 def as_command_failure(error, client=None, local=None):
@@ -188,15 +232,6 @@ def _chat(client, max_tokens, **request):
         if failure is None:
             raise
         raise failure from e
-
-
-def _cut_to_sentence(text):
-    """A reply that hit its limit, trimmed back to its last whole sentence or line (as it is if it has none)."""
-    text = (text or "").rstrip()
-    for i in range(len(text) - 1, len(text) // 3, -1):
-        if text[i] in ".!?\n" and (i + 1 == len(text) or text[i + 1].isspace() or text[i + 1] in "\"')"):
-            return text[:i + 1].rstrip()
-    return text
 
 
 def _salvage_route(raw):
@@ -319,15 +354,13 @@ def route(client, model, instruction, context, style=""):
     try:
         data = json.loads(reply.choices[0].message.content)
     except ValueError:
-        # Cut off at its limit: only a reply that is clearly a write or an answer is used, and a cut-off draft is never
-        # pasted (the focused writing step below does it again). Anything else asks for a shorter request.
+        # Cut off at its limit: a write or a rewrite is done again by the focused writing step below (the cut-off draft is
+        # thrown away, never used). Nothing else is guessed at, and half an answer is not shown: it asks for a shorter request.
         data = _salvage_route(reply.choices[0].message.content) if getattr(reply.choices[0], "finish_reason", None) == "length" else None
         if data is None:
             raise
         if data.get("route") in ("write", "rewrite"):
             data["text"] = ""
-        elif data.get("route") == "answer":
-            data["text"] = _cut_to_sentence(data.get("text"))
         else:
             raise CommandFailed(TOO_LONG_TEXT, "too long")
     kind = _route_name(data)
@@ -364,9 +397,11 @@ def rewrite(client, model, instruction, selection, style=""):
                   model=model, reasoning_effort="none",
                   messages=[{"role": "system", "content": system}, {"role": "user", "content": user}])
     usage.azure(reply, model, "rewrite")
-    out = (reply.choices[0].message.content or "").strip()
     if getattr(reply.choices[0], "finish_reason", None) == "length":
-        out = _cut_to_sentence(out)  # it ran to its limit: keep the whole sentences it finished
+        # It ran to its limit: the end of it (and maybe facts from the selection) is missing, so it is never used as the
+        # finished text. The command is not done: the selection stays as it is.
+        raise CommandFailed(CUT_OFF_TEXT, "too long")
+    out = (reply.choices[0].message.content or "").strip()
     return americanize(out.strip('"').strip())
 
 

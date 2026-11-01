@@ -1859,15 +1859,21 @@ class VoiceTool:
                 break
             time.sleep(0.02)
         self._capture(t)
-        selection = (t.context or {}).get("selection", "")
-        self.ui.put(lambda: TeachWindow(self.light.root, selection, target, self._learn_typed))
+        context = dict(t.context or {})
+        selection = context.get("selection", "")
+        self.ui.put(lambda: TeachWindow(self.light.root, selection, target,
+                                        lambda heard, meant, target, selection: self._learn_typed(heard, meant, target, selection, context)))
 
-    def _learn_typed(self, heard, meant, target, selection):
-        """Called by the teach window: put the fix over the selection and remember it."""
+    def _learn_typed(self, heard, meant, target, selection, context=None):
+        """Called by the teach window: put the fix over the selection and remember it. `context` is what was captured when
+        the box opened: the fix replaces that selection only if the same window, tab, box and selection are still there
+        (else nothing is typed, a card offers Copy, and the fix is still learned)."""
         if heard and target:
             if bring_to_front(target):
                 time.sleep(0.1)
-                paste(keep_punctuation(selection, meant))
+                context = context or {}
+                self._deliver_now(keep_punctuation(selection, meant), target, "fix", context if context.get("selection") else None,
+                                  kept="The fix is still learned; copy the corrected text here.")
             else:
                 log.warning("couldn't switch back to the app; fix learned but not pasted")
         self._remember(heard, meant, "typed fix")
@@ -1957,17 +1963,72 @@ class VoiceTool:
                 return
             time.sleep(0.02)
 
-    def _deliver(self, t, text, target, what):
-        """Type `text` (a dictation or a command's result) where it was meant to go, once no trigger key is held. If the
-        window in front is no longer `target` (the person switched windows while it was being written), nothing is typed
-        into the other window: the text is kept (it's already in History) and a card offers to copy it. Returns True if
-        it was typed. A `target` of None (the window couldn't be read when it was recorded) types as before."""
+    @staticmethod
+    def _recopy_selection():
+        """What is selected right now (copied and put back like the first copy; "" if nothing came)."""
+        return commands.selected_text(_open_clipboard, save_clipboard, restore_clipboard)
+
+    def _selection_problem(self, context, now):
+        """For text that would replace the selection captured in `context`: None if the same selection is still there, else
+        "changed" (another tab, box or selection) or "unchecked" (it can't be told, so it is treated as changed). Looks at
+        the program, its window title (a browser's tab), the control with the focus and the selected text itself."""
+        try:
+            if (context.get("app") or "").lower() in commands.NO_COPY_APPS or (now.get("app") or "").lower() in commands.NO_COPY_APPS:
+                return "unchecked"  # (a program where Ctrl+C might stop something is never copied from)
+            if "title" in context and "title" in now and context["title"] != now["title"]:
+                return "changed"
+            before, after = context.get("focus") or 0, now.get("focus") or 0
+            if before and after and before != after:
+                return "changed"
+            if "title" not in context or "title" not in now or bool(before) != bool(after):
+                return "unchecked"  # (one side can't say which box: that can't be compared)
+            # (Both 0: this program never names its focused box. The title and the fresh copy below still decide.)
+            again = commands.selection_key(self._recopy_selection())
+            if not again:
+                return "unchecked"  # the copy gave nothing
+            return None if again == commands.selection_key(context.get("selection")) else "changed"
+        except Exception:
+            log.exception("could not check that the selection is unchanged")
+            return "unchecked"
+
+    def _deliver(self, t, text, target, what, replacing=None):
+        """Type `text` (a dictation or a command's result) where it was meant to go, once no trigger key is held. Nothing is
+        typed unless the window in front is the `target` it was recorded for: if that was never known, can't be read now,
+        or is another window (the person switched while it was being written), the text is kept (it's already in History)
+        and a card offers to copy it. `replacing` is the captured context when the text would replace a selection: then
+        the selection itself is checked again just before (same tab, same box, same selected text), and if that changed or
+        can't be checked, nothing is typed over it. Returns True if it was typed."""
         self._wait_for_release(t)
-        now = (self._front_window() or {}).get("hwnd")
-        if target and now != target:
+        return self._deliver_now(text, target, what, replacing)
+
+    def _deliver_now(self, text, target, what, replacing=None, kept="It's saved in History, or copy it here."):
+        """The checks and the typing of _deliver, for when no trigger key can be held (the typed fix's own box). `kept` is
+        what the card says about where the text still is."""
+        now = self._front_window() or {}
+        here = now.get("hwnd")
+        title = body = None
+        if not target or not here:
+            log.warning("%s not typed: couldn't tell which window it belongs in", what)
+            title = "Not typed: unknown window"
+            body = (f"VoiceTool couldn't tell which window your {what} was meant for, so it wasn't typed. " if not target else
+                    f"VoiceTool couldn't tell which window you're in now, so your {what} wasn't typed. ")
+        elif here != target:
             log.warning("%s not typed: the window in front changed while it was being written", what)
-            self._card("Not typed: you switched windows",
-                       f"Your {what} wasn't typed into the window you're in now. It's saved in History, or copy it here.",
+            title = "Not typed: you switched windows"
+            body = f"Your {what} wasn't typed into the window you're in now. "
+        elif replacing:
+            problem = self._selection_problem(replacing, now)
+            if problem:
+                log.warning("%s not typed over the selection: it %s", what,
+                            "changed while it was being written" if problem == "changed" else "couldn't be checked")
+                if problem == "changed":
+                    title = "Not replaced: the selection changed"
+                    body = f"The text you had selected has changed, so your {what} wasn't put over what's selected now. "
+                else:
+                    title = "Not replaced: couldn't check the selection"
+                    body = f"VoiceTool couldn't check that your selected text is still the same, so your {what} wasn't put over it. "
+        if title:
+            self._card(title, body + kept,
                        seconds=60, buttons=[("Copy", lambda: set_clipboard_text(text)), ("Close", lambda: None)])
             return False
         paste(text)
@@ -1976,7 +2037,8 @@ class VoiceTool:
     @staticmethod
     def _target(t, context=None):
         """The window a job's text belongs in: for a command with a selection, the window it was copied from; otherwise
-        the window in front when the recording stopped (a Trigger handed straight in has no stop yet: its key-down window)."""
+        the window in front when the recording stopped (a Trigger handed straight in has no stop yet: its key-down window).
+        None if none of those could be read: _deliver then types nothing."""
         if context and context.get("selection") and context.get("hwnd"):
             return context["hwnd"]
         return getattr(t, "target", None) or (context or {}).get("hwnd") or (getattr(t, "app", None) or {}).get("hwnd")
@@ -2047,6 +2109,7 @@ class VoiceTool:
         # Saved before pasting, so a failed paste never loses what was said.
         self._history({"raw": raw, "text": text, "app": app.get("app") or "", "audio": self._save_audio(audio, "dictate"),
                        "fixes": fixes})
+        # (dictation is checked against its window only: a title changes while text is being typed)
         typed = bool(text) and self._deliver(t, text + " ", self._target(t), "dictation")
         self._done(typed or not text)
 
@@ -2081,6 +2144,13 @@ class VoiceTool:
                 effect=f"{what.lower()} can't run right now"), 15)
             return None
 
+    def _command_not_done(self, said, context, audio, reason, title="Command not done", seconds=15):
+        """A spoken command that couldn't run: what was said and why go into History (nothing is lost), then a card."""
+        self._history({"command": said, "route": "failed", "app": context.get("app"), "title": context.get("title"),
+                       "result": "Not done: " + reason, "audio": self._save_audio(audio, "command")})
+        self._done(False)
+        self._card(title, reason, seconds)
+
     def _command(self, t, audio):
         t0 = time.perf_counter()
         said = corrections.apply(self.transcribe(audio))
@@ -2094,22 +2164,26 @@ class VoiceTool:
             time.sleep(0.02)
         context = t.context or commands.window_info()
         try:
-            client = self._model_client("Commands")  # (starting the model can be the slow step on a slow PC)
-            if client is None:  # the on-device model isn't downloaded yet: a plain card, nothing else
-                self._done()
-                return
+            client = self.azure._client()  # (starting the model can be the slow step on a slow PC)
             kind, text, extra = commands.route(client, CONFIG["cleanup_model"], said, context, self._style(context))
+        except TidyUpNotSetUp:  # the on-device model isn't downloaded yet: kept in History, with a plain card
+            log.warning("command not done | %s | the tidy-up model isn't set up yet", context.get("app"))
+            self._command_not_done(said, context, audio, "Commands need the tidy-up model, which isn't set up yet. "
+                                   "Open VoiceTool and click Finish setup.", "Finish setup first", 12)
+            return
+        except local_cleanup_win.ModelServerUnavailable:  # its program won't start (or already gave up this run)
+            log.warning("command not done | %s | the model server won't start", context.get("app"))
+            self._command_not_done(said, context, audio, local_cleanup_win.UNAVAILABLE_TEXT.format(
+                effect="commands can't run right now"), "Tidy-up won't start")
+            return
         except Exception as e:  # (a timeout or a lost connection: keep the command, and say what happened)
             failure = commands.as_command_failure(e, local=True) if hasattr(commands, "as_command_failure") else None
             if failure is not None:
-                reason = str(failure)  # (too slow, unreachable or still loading: the model's own plain message)
+                reason = str(failure)  # (too slow, unreachable, still loading or cut off: the model's own plain message)
             else:
                 reason = "That command didn't go through. It's saved in History, so you can try it again."
             log.warning("command failed | %s | %s", context.get("app"), str(e)[:200])
-            self._history({"command": said, "route": "failed", "app": context.get("app"), "title": context.get("title"),
-                           "result": "Not done: " + reason, "audio": self._save_audio(audio, "command")})
-            self._done(False)
-            self._card("Command not done", reason, 15)
+            self._command_not_done(said, context, audio, reason)
             return
         log.info("command | %s | %s | %.2fs | selection %d chars", kind, context.get("app"), time.perf_counter() - t0,
                  len(context.get("selection") or ""))
@@ -2119,16 +2193,18 @@ class VoiceTool:
             # "That should be ...": correct the selection now and remember the pair for every future dictation.
             text = {w.lower(): w for w in known_words()}.get(text.lower(), text)  # spelled-out letters lose capitals
             heard = context.get("selection") or ""
-            self._deliver(t, keep_punctuation(heard, text), self._target(t, context), "fix")
+            typed = self._deliver(t, keep_punctuation(heard, text), self._target(t, context), "fix", replacing=context)
             self._remember(heard, text, "fix that")  # (learned even if it couldn't be typed)
-            self._done()
+            self._done(typed)
         elif kind in ("rewrite", "write") and text:
             if kind == "rewrite":
                 # Keep the selection's own spaces and line breaks around the new text so it drops back in cleanly.
                 selected = context.get("selection") or ""
                 text = selected[:len(selected) - len(selected.lstrip())] + text + selected[len(selected.rstrip()):]
-            self._deliver(t, text, self._target(t, context), "rewrite" if kind == "rewrite" else "text")
-            self._done()
+            # (Text typed over a selection is checked against the captured selection first; text with none: the window only.)
+            typed = self._deliver(t, text, self._target(t, context), "rewrite" if kind == "rewrite" else "text",
+                                  replacing=context if context.get("selection") else None)
+            self._done(typed)
         elif kind == "answer" and text:
             self._done()
             self._card("Answer", text, speak=True)
@@ -2182,10 +2258,11 @@ class VoiceTool:
         import system_actions
         import system_windows
         self._wait_for_release(t)
-        if (extra.get("target") == "close_window" and context.get("hwnd")
-                and (self._front_window() or {}).get("hwnd") != context["hwnd"]):
-            log.warning("close window refused: the window in front changed")
-            self._card("Didn't close it", "You switched windows, so nothing was closed. Say it again in the window to close.", 8)
+        if (extra.get("target") == "close_window"
+                and (not context.get("hwnd") or (self._front_window() or {}).get("hwnd") != context["hwnd"])):
+            log.warning("close window refused: the window in front changed, or it was never known")
+            self._card("Didn't close it", "You switched windows (or the window couldn't be read), so nothing was closed. "
+                       "Say it again in the window to close.", 8)
             return
         try:
             msg = system_actions.run(system_windows, extra.get("target"), extra.get("value"), context)
