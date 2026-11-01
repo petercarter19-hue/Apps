@@ -212,6 +212,14 @@ def isolated(tmp_path, monkeypatch):
 PASTED, OPENED, LOCKED, SPOKEN, STOPS = [], [], [], [], []
 
 
+def identified(context):
+    """A hand-made context as the real capture makes it: with the identity of its whole selection (unless it has one, or says
+    "selection_id": None to be a context without)."""
+    if context and context.get("selection") and "selection_id" not in context:
+        return {**context, "selection_id": commands.selection_identity(context["selection"])}
+    return context
+
+
 @pytest.fixture
 def tool(monkeypatch):
     t = vt.VoiceTool(recorder=FakeRecorder(), transcriber=lambda a: "", cleaner=FakeCleaner(), with_ui=False)
@@ -228,6 +236,9 @@ def tool(monkeypatch):
     monkeypatch.setattr(t, "_front_window", same_window)
     # (copying the selection again, just before it is replaced, finds the selection it was given: nothing changed)
     monkeypatch.setattr(commands, "selected_text", lambda *a: (t.triggers[COMMAND].context or {}).get("selection", ""))
+    # (a context handed to the command key gets the whole-selection identity the real capture gives it)
+    monkeypatch.setattr(vt.Trigger, "context", property(lambda s: s.capture.context,
+                                                        lambda s, value: setattr(s.capture, "context", identified(value))))
     monkeypatch.setattr(t, "_card", lambda title, body, seconds=60, speak=False, buttons=None:
                         (t.cards.append((title, body, speak)), t.card_buttons.append(dict(buttons or []))))
     monkeypatch.setattr(vt.win32api, "GetAsyncKeyState", lambda vk: 0)
@@ -6647,14 +6658,16 @@ def test_review_a_model_that_is_too_slow_to_start_keeps_the_command_and_says_so(
 EDITING = {"app": "browser.exe", "title": "Private draft", "selection": "Private message", "pid": 1, "hwnd": 101, "focus": 31}
 
 
-def editing_now(tool, monkeypatch, copy="Private message", **window):
+def editing_now(tool, monkeypatch, copy="Private message", during=None, **window):
     """What is in front when the result is ready: window 101, the same tab and box, and `copy` selected (what Ctrl+C gives
-    now: text, or an Exception to raise), unless `window` (title, focus, app, hwnd...) says otherwise. Returns the re-copies."""
+    now: text, or an Exception to raise), unless `window` (title, focus, app, hwnd...) says otherwise. `during`: what changes
+    in the window while the selection is being copied again. Returns the re-copies."""
     now = {"app": "browser.exe", "title": "Private draft", "hwnd": 101, "focus": 31, **window}
     copies = []
 
     def recopy(*a):
         copies.append(1)
+        now.update(during or {})
         if isinstance(copy, Exception):
             raise copy
         return copy
@@ -6745,18 +6758,121 @@ def test_r1_dictation_is_checked_against_its_window_only_a_title_changes_while_t
     assert PASTED == ["hello there "]
 
 
-def test_r1_a_long_selection_is_compared_as_far_as_a_command_works_on_it_and_without_the_blanks_around_it(tool, monkeypatch):
-    assert commands.selection_key("  abc \r\n") == "abc" and commands.selection_key("a" * 13000) == "a" * 12000
-    assert commands.selection_key(None) == ""
-    long = "a" * 12000
-    editing_now(tool, monkeypatch, copy=long + " and a little more the copy has")  # (the same first 12000 characters)
+def test_r1_the_whole_selection_is_compared_without_the_blanks_around_it_whatever_the_model_was_given(tool, monkeypatch):
+    identity = commands.selection_identity
+    assert identity("  abc \r\n") == identity("abc") and identity(None) == identity("") and identity("abc") != identity("abd")
+    assert identity("a" * 12000 + "x") != identity("a" * 12000 + "y") and identity("a" * 12000) != identity("a" * 12000 + " b")
+    assert identity("abc").startswith("3:")  # (its whole length, then a hash)
+    long = "a" * 12000  # exactly what a command works on: replaced as before if the same whole selection is still there
+    editing_now(tool, monkeypatch, copy="  " + long + "\r\n")
     rewrite_in_browser(tool, {**EDITING, "selection": long})
     assert PASTED == ["Private rewritten text."]
 
 
+def capture_long(monkeypatch, copied):
+    """The real capture_context() of a selection whose whole text is `copied` (the window and the copy are fakes)."""
+    window = {k: v for k, v in EDITING.items() if k != "selection"}
+    monkeypatch.setattr(commands, "window_info", lambda: dict(window))
+    monkeypatch.setattr(commands, "selected_text", lambda *a: copied)
+    return commands.capture_context(None, None, None)
+
+
+def test_r1_a_selection_that_grew_or_changed_past_what_the_model_saw_is_not_replaced(tool, monkeypatch):
+    prefix = "a" * commands.SELECTION_LIMIT
+    context = capture_long(monkeypatch, prefix)
+    assert context["selection"] == prefix and context["selection_cut"] is False and context["selection_id"] == commands.selection_identity(prefix)
+    for now_selected in (prefix + " DIFFERENT SELECTED TEXT", prefix[:-1] + "b", prefix[:-1]):  # grown, other end, shorter
+        editing_now(tool, monkeypatch, copy=now_selected, title="Draft")
+        context = {**context, "title": "Draft"}
+        rewrite_in_browser(tool, context)
+        assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed")
+    # the identity is the whole selection: the same first 12000 characters with another ending are another selection
+    contrived = {**EDITING, "selection": prefix, "selection_id": commands.selection_identity(prefix + "tail one")}
+    editing_now(tool, monkeypatch, copy=prefix + "tail two")
+    rewrite_in_browser(tool, contrived)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection changed")
+
+
+def test_r1_a_selection_longer_than_the_model_saw_is_never_replaced_but_the_result_is_kept_with_copy(tool, monkeypatch):
+    whole = "a" * commands.SELECTION_LIMIT + " and a tail the model never saw"
+    context = capture_long(monkeypatch, whole)
+    assert len(context["selection"]) == commands.SELECTION_LIMIT and context["selection_cut"] is True
+    context = {**context, "title": "Private draft"}
+    copies = editing_now(tool, monkeypatch, copy=whole)  # (nothing changed at all)
+    run_command(tool, "make this shorter", {"route": "rewrite", "text": ""}, context, then=("Private rewritten text.",))
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection was too long")
+    assert "first part" in tool.cards[-1][1] and copies == []
+    # a write over it would replace all of it too
+    run_command(tool, "write a reply", {"route": "write", "text": "Thank you!"}, context)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection was too long", "Thank you!")
+    # a fix on a one-word selection that long (still a "fix") is not typed, and half a word is not learned
+    word = "w" * (commands.SELECTION_LIMIT + 50)
+    context = {**capture_long(monkeypatch, word), "title": "Private draft"}
+    editing_now(tool, monkeypatch, copy=word)
+    run_command(tool, "that should be Zephyr", {"route": "fix", "text": "Zephyr"}, context)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: the selection was too long", "Zephyr")
+    assert corrections.load() == []
+    # only blanks past the limit are no more of the selection: it is replaced as usual
+    PASTED.clear()
+    context = {**capture_long(monkeypatch, "a" * commands.SELECTION_LIMIT + "   \r\n"), "title": "Private draft"}
+    assert context["selection_cut"] is False
+    editing_now(tool, monkeypatch, copy="a" * commands.SELECTION_LIMIT)
+    rewrite_in_browser(tool, context)
+    assert PASTED == ["Private rewritten text."]
+    # the typed fix too
+    PASTED.clear()
+    tool.cards.clear()
+    tool.card_buttons.clear()
+    context = {**capture_long(monkeypatch, whole), "title": "Private draft"}
+    editing_now(tool, monkeypatch, copy=whole)
+    typed_fix(tool, monkeypatch, "a" * commands.SELECTION_LIMIT, context)
+    assert not PASTED and tool.cards[0][0] == "Not replaced: the selection was too long"
+
+
+def test_r1_a_selection_with_no_whole_selection_identity_cannot_be_checked(tool, monkeypatch):
+    copies = editing_now(tool, monkeypatch)
+    rewrite_in_browser(tool, {**EDITING, "selection_id": None})  # (a hand-made or older context)
+    assert_kept_not_typed(tool, monkeypatch, "Not replaced: couldn't check the selection")
+    assert copies == []
+    window = {"app": "browser.exe", "title": "Private draft", "hwnd": 101, "focus": 31}
+    assert tool._selection_problem({k: v for k, v in EDITING.items()}, window) == "unchecked"  # (no identity key at all)
+
+
+@pytest.mark.parametrize("why, during, title", [
+    ("another window", {"hwnd": 202, "title": "Other window", "focus": 44}, "Not typed: you switched windows"),
+    ("another tab", {"title": "Other tab"}, "Not replaced: the selection changed"),
+    ("another box", {"focus": 32}, "Not replaced: the selection changed"),
+    ("a window that can no longer be read", {"hwnd": 0}, "Not typed: unknown window"),
+    ("a box that can no longer be named", {"focus": 0}, "Not replaced: couldn't check the selection"),
+])
+def test_r1_a_change_while_the_selection_is_copied_again_is_not_typed_into(tool, monkeypatch, why, during, title):
+    """The copy waits and puts the clipboard back: the window, tab and box are read again after it, right before typing."""
+    editing_now(tool, monkeypatch, during=during)
+    rewrite_in_browser(tool)
+    assert_kept_not_typed(tool, monkeypatch, title)
+    # the same for the typed fix, which shares the delivery
+    PASTED.clear()
+    tool.cards.clear()
+    tool.card_buttons.clear()
+    editing_now(tool, monkeypatch, copy="zef fir ", during=during)
+    typed_fix(tool, monkeypatch, "zef fir", {**EDITING, "selection": "zef fir "})
+    assert not PASTED and ("zef fir", "Zephyr") in corrections.load(), why
+    assert any(card[0] == title for card in tool.cards), tool.cards
+
+
+def test_r1_nothing_changing_while_the_selection_is_copied_again_still_types_it(tool, monkeypatch):
+    copies = editing_now(tool, monkeypatch, during={"title": "Private draft", "focus": 31, "hwnd": 101})
+    rewrite_in_browser(tool)
+    assert PASTED == ["Private rewritten text."] and copies == [1]
+    PASTED.clear()
+    editing_now(tool, monkeypatch, copy="zef fir ")
+    typed_fix(tool, monkeypatch, "zef fir", {**EDITING, "selection": "zef fir "})
+    assert PASTED == ["Zephyr "]
+
+
 def test_r1_the_selection_check_says_unchecked_when_a_window_has_no_title_or_box_to_compare(tool):
     window = {"app": "browser.exe", "title": "T", "hwnd": 1, "focus": 3}
-    captured = {"app": "browser.exe", "title": "T", "selection": "x", "focus": 3}
+    captured = identified({"app": "browser.exe", "title": "T", "selection": "x", "focus": 3})
     assert tool._selection_problem({k: v for k, v in captured.items() if k != "title"}, window) == "unchecked"
     assert tool._selection_problem(captured, {k: v for k, v in window.items() if k != "title"}) == "unchecked"
     assert tool._selection_problem(captured, {**window, "title": "U"}) == "changed"
@@ -6877,7 +6993,7 @@ def test_r1_a_program_that_never_names_its_box_is_checked_by_its_title_and_the_f
     rewrite_in_browser(tool, unnamed)
     assert_kept_not_typed(tool, monkeypatch, "Not replaced: couldn't check the selection")
     # exactly one side naming its box can't be compared; both naming different boxes is a change
-    context = {"app": "browser.exe", "title": "T", "selection": "x"}
+    context = identified({"app": "browser.exe", "title": "T", "selection": "x"})
     window = {"app": "browser.exe", "title": "T", "hwnd": 1}
     monkeypatch.setattr(tool, "_recopy_selection", lambda: "x")
     assert tool._selection_problem({**context, "focus": 0}, {**window, "focus": 5}) == "unchecked"
@@ -6913,7 +7029,7 @@ def typed_fix(tool, monkeypatch, heard, context):
     """The typed-fix box saved: bring the window back, then put the fix over the selection captured when the box opened."""
     monkeypatch.setattr(vt, "bring_to_front", lambda hwnd, tries=10: True)
     monkeypatch.setattr(vt.time, "sleep", lambda s: None)
-    tool._learn_typed(heard, "Zephyr", 101, heard + " ", context)
+    tool._learn_typed(heard, "Zephyr", 101, heard + " ", identified(context))
 
 
 def test_r1_the_typed_fix_replaces_the_selection_only_if_the_same_one_is_still_there(tool, monkeypatch):

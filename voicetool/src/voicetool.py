@@ -1872,7 +1872,7 @@ class VoiceTool:
             if bring_to_front(target):
                 time.sleep(0.1)
                 context = context or {}
-                self._deliver_now(keep_punctuation(selection, meant), target, "fix", context if context.get("selection") else None,
+                self._deliver_now(keep_punctuation(selection, meant), target, "fix", context if commands.has_selection(context) else None,
                                   kept="The fix is still learned; copy the corrected text here.")
             else:
                 log.warning("couldn't switch back to the app; fix learned but not pasted")
@@ -1968,25 +1968,38 @@ class VoiceTool:
         """What is selected right now (copied and put back like the first copy; "" if nothing came)."""
         return commands.selected_text(_open_clipboard, save_clipboard, restore_clipboard)
 
-    def _selection_problem(self, context, now):
+    def _window_problem(self, context, now):
+        """Is `now` (the window in front) still the editing context captured in `context`? None if so, else "changed" (another
+        title, a browser's tab, or another box) or "unchecked" (a title or a box can't be compared). A program that never
+        names its focused box (0 on both sides) is not held up by it."""
+        if "title" in context and "title" in now and context["title"] != now["title"]:
+            return "changed"
+        before, after = context.get("focus") or 0, now.get("focus") or 0
+        if before and after and before != after:
+            return "changed"
+        if "title" not in context or "title" not in now or bool(before) != bool(after):
+            return "unchecked"  # (one side can't say which box: that can't be compared)
+        return None
+
+    def _selection_problem(self, context, now, recopy=True):
         """For text that would replace the selection captured in `context`: None if the same selection is still there, else
-        "changed" (another tab, box or selection) or "unchecked" (it can't be told, so it is treated as changed). Looks at
-        the program, its window title (a browser's tab), the control with the focus and the selected text itself."""
+        "changed" (another tab, box or selection), "too long" (only the first part of it was ever used) or "unchecked" (it
+        can't be told, so it is treated as changed). Looks at the program, the window title (a browser's tab), the control
+        with the focus and, if `recopy`, the whole selected text itself, copied again."""
         try:
+            if context.get("selection_cut"):
+                return "too long"  # (the model saw only the start of it: never replace the whole of it automatically)
             if (context.get("app") or "").lower() in commands.NO_COPY_APPS or (now.get("app") or "").lower() in commands.NO_COPY_APPS:
                 return "unchecked"  # (a program where Ctrl+C might stop something is never copied from)
-            if "title" in context and "title" in now and context["title"] != now["title"]:
-                return "changed"
-            before, after = context.get("focus") or 0, now.get("focus") or 0
-            if before and after and before != after:
-                return "changed"
-            if "title" not in context or "title" not in now or bool(before) != bool(after):
-                return "unchecked"  # (one side can't say which box: that can't be compared)
-            # (Both 0: this program never names its focused box. The title and the fresh copy below still decide.)
-            again = commands.selection_key(self._recopy_selection())
-            if not again:
+            problem = self._window_problem(context, now)
+            if problem or not context.get("selection_id"):
+                return problem or "unchecked"  # (a context with no whole-selection identity can't be checked)
+            if not recopy:
+                return None
+            again = self._recopy_selection()
+            if not (again or "").strip():
                 return "unchecked"  # the copy gave nothing
-            return None if again == commands.selection_key(context.get("selection")) else "changed"
+            return None if commands.selection_identity(again) == context["selection_id"] else "changed"
         except Exception:
             log.exception("could not check that the selection is unchanged")
             return "unchecked"
@@ -1996,39 +2009,47 @@ class VoiceTool:
         typed unless the window in front is the `target` it was recorded for: if that was never known, can't be read now,
         or is another window (the person switched while it was being written), the text is kept (it's already in History)
         and a card offers to copy it. `replacing` is the captured context when the text would replace a selection: then
-        the selection itself is checked again just before (same tab, same box, same selected text), and if that changed or
-        can't be checked, nothing is typed over it. Returns True if it was typed."""
+        the selection itself is checked again just before (same tab, same box, the same whole selected text, and one that
+        wasn't cut for the model), and if that changed or can't be checked, nothing is typed over it. Returns True if it
+        was typed."""
         self._wait_for_release(t)
         return self._deliver_now(text, target, what, replacing)
+
+    def _delivery_problem(self, target, now, what, replacing, recopy=True):
+        """(card title, what the card says first) if text for `target` must not be typed with `now` in front, else None."""
+        here = now.get("hwnd")
+        if not target or not here:
+            log.warning("%s not typed: couldn't tell which window it belongs in", what)
+            return ("Not typed: unknown window",
+                    f"VoiceTool couldn't tell which window your {what} was meant for, so it wasn't typed. " if not target else
+                    f"VoiceTool couldn't tell which window you're in now, so your {what} wasn't typed. ")
+        if here != target:
+            log.warning("%s not typed: the window in front changed while it was being written", what)
+            return "Not typed: you switched windows", f"Your {what} wasn't typed into the window you're in now. "
+        if replacing:
+            problem = self._selection_problem(replacing, now, recopy)
+            if problem:
+                log.warning("%s not typed over the selection: %s", what, problem)
+                if problem == "changed":
+                    return ("Not replaced: the selection changed",
+                            f"The text you had selected has changed, so your {what} wasn't put over what's selected now. ")
+                if problem == "too long":
+                    return ("Not replaced: the selection was too long",
+                            f"Only the first part of what you had selected could be used for your {what}, so it wasn't put "
+                            "over the whole selection. ")
+                return ("Not replaced: couldn't check the selection",
+                        f"VoiceTool couldn't check that your selected text is still the same, so your {what} wasn't put over it. ")
+        return None
 
     def _deliver_now(self, text, target, what, replacing=None, kept="It's saved in History, or copy it here."):
         """The checks and the typing of _deliver, for when no trigger key can be held (the typed fix's own box). `kept` is
         what the card says about where the text still is."""
-        now = self._front_window() or {}
-        here = now.get("hwnd")
-        title = body = None
-        if not target or not here:
-            log.warning("%s not typed: couldn't tell which window it belongs in", what)
-            title = "Not typed: unknown window"
-            body = (f"VoiceTool couldn't tell which window your {what} was meant for, so it wasn't typed. " if not target else
-                    f"VoiceTool couldn't tell which window you're in now, so your {what} wasn't typed. ")
-        elif here != target:
-            log.warning("%s not typed: the window in front changed while it was being written", what)
-            title = "Not typed: you switched windows"
-            body = f"Your {what} wasn't typed into the window you're in now. "
-        elif replacing:
-            problem = self._selection_problem(replacing, now)
-            if problem:
-                log.warning("%s not typed over the selection: it %s", what,
-                            "changed while it was being written" if problem == "changed" else "couldn't be checked")
-                if problem == "changed":
-                    title = "Not replaced: the selection changed"
-                    body = f"The text you had selected has changed, so your {what} wasn't put over what's selected now. "
-                else:
-                    title = "Not replaced: couldn't check the selection"
-                    body = f"VoiceTool couldn't check that your selected text is still the same, so your {what} wasn't put over it. "
-        if title:
-            self._card(title, body + kept,
+        problem = self._delivery_problem(target, self._front_window() or {}, what, replacing)
+        if problem is None and replacing:
+            # (Copying the selection again took time, and the clipboard was put back: the window, tab and box are read afresh.)
+            problem = self._delivery_problem(target, self._front_window() or {}, what, replacing, recopy=False)
+        if problem:
+            self._card(problem[0], problem[1] + kept,
                        seconds=60, buttons=[("Copy", lambda: set_clipboard_text(text)), ("Close", lambda: None)])
             return False
         paste(text)
@@ -2194,7 +2215,8 @@ class VoiceTool:
             text = {w.lower(): w for w in known_words()}.get(text.lower(), text)  # spelled-out letters lose capitals
             heard = context.get("selection") or ""
             typed = self._deliver(t, keep_punctuation(heard, text), self._target(t, context), "fix", replacing=context)
-            self._remember(heard, text, "fix that")  # (learned even if it couldn't be typed)
+            if not context.get("selection_cut"):  # (the start of a very long selection is no word to learn)
+                self._remember(heard, text, "fix that")  # (learned even if it couldn't be typed)
             self._done(typed)
         elif kind in ("rewrite", "write") and text:
             if kind == "rewrite":
@@ -2203,7 +2225,7 @@ class VoiceTool:
                 text = selected[:len(selected) - len(selected.lstrip())] + text + selected[len(selected.rstrip()):]
             # (Text typed over a selection is checked against the captured selection first; text with none: the window only.)
             typed = self._deliver(t, text, self._target(t, context), "rewrite" if kind == "rewrite" else "text",
-                                  replacing=context if context.get("selection") else None)
+                                  replacing=context if commands.has_selection(context) else None)
             self._done(typed)
         elif kind == "answer" and text:
             self._done()

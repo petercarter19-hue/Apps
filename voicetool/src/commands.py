@@ -9,6 +9,7 @@ automatically.
 """
 import ctypes
 import ctypes.wintypes as wintypes
+import hashlib
 import json
 import queue
 import subprocess
@@ -131,9 +132,16 @@ def selected_text(open_clipboard, save_clipboard, restore_clipboard):
 SELECTION_LIMIT = 12000  # the most of a selection a command works on
 
 
-def selection_key(text):
-    """A selection as it is compared: cut at the limit, and without the blanks around it (apps differ in those)."""
-    return (text or "")[:SELECTION_LIMIT].strip()
+def selection_identity(text):
+    """The whole of a selection, without the blanks around it (apps differ in those), as its length and a hash: what is
+    compared before text replaces it. Independent of the part of it that is sent to the model (SELECTION_LIMIT)."""
+    whole = (text or "").strip()
+    return f"{len(whole)}:{hashlib.sha256(whole.encode('utf-8', 'surrogatepass')).hexdigest()}"
+
+
+def has_selection(context):
+    """True if the context holds a selection (even one whose first SELECTION_LIMIT characters are all blanks)."""
+    return bool((context or {}).get("selection") or (context or {}).get("selection_id"))
 
 
 def capture_context(open_clipboard, save_clipboard, restore_clipboard):
@@ -141,8 +149,12 @@ def capture_context(open_clipboard, save_clipboard, restore_clipboard):
     info["selection"] = ""
     if info["app"].lower() not in NO_COPY_APPS:
         try:
-            chosen = selected_text(open_clipboard, save_clipboard, restore_clipboard)[:SELECTION_LIMIT]
+            copied = selected_text(open_clipboard, save_clipboard, restore_clipboard)
+            chosen = copied[:SELECTION_LIMIT]
             info["selection"] = chosen if chosen.strip() else ""  # (cutting a long one could leave only blanks)
+            if copied.strip():
+                info["selection_id"] = selection_identity(copied)  # (of the whole selection, not just what the model is given)
+                info["selection_cut"] = bool(copied[SELECTION_LIMIT:].strip())  # (True: the model sees only the start of it)
         except Exception:
             pass
     return info

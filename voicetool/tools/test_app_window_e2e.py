@@ -929,6 +929,8 @@ sys.path.insert(0, sys.argv[1])
 import numpy as np
 import voicetool as vt
 import meetings
+import commands
+commands.window_info = lambda: {"app": "notepad.exe", "bundle": "", "title": "Untitled - Notepad", "pid": 0, "hwnd": 4242, "focus": 0}  # a made-up window in front, never the real one
 
 vt.CONFIG["show_light"] = False
 vt.CONFIG["save_recordings"] = False
