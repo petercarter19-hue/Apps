@@ -6,6 +6,7 @@ Small Windows apps you can build yourself with AI, skills for your AI app, and C
 
 | App | What it does |
 | --- | --- |
+| [chirpy](chirpy/) | Talk instead of typing, anywhere: hold Left Alt, talk, let go, and your words appear where your cursor is. Free, no account, English only; speech is recognized on your PC. Download the installer from the latest release. |
 | [glance](glance/) | A memory meter by the clock: hover it to see which apps use the most memory, and end a greedy one in two clicks. Comes with a build-it-yourself kit, every prompt, and the finished code. |
 | [phototwins](phototwins/) | A duplicate photo finder: it finds the same photo saved more than once, shows each group side by side with the best copy starred, and clears out the extras safely, to the Recycle Bin with Undo. Comes with a build-it-yourself kit, every prompt, and the finished code. |
 | [voicetool](voicetool/) | Talk instead of typing, anywhere: hold Left Alt, talk, and your words land where your cursor is. Hold Left Ctrl to rewrite, write, fix a word, take meeting notes or read aloud. Runs on free AI models on your own PC. Comes with a build-it-yourself kit, every prompt, and the finished code. |
