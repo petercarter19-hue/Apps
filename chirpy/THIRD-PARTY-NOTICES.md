@@ -1,6 +1,6 @@
 # Third-party notices
 
-Chirpy itself is released under the MIT license (`LICENSE.txt`, Copyright (c) 2026 Peter Carter). This application also uses the components below. Each component keeps its own license and copyright notices.
+Chirpy itself is released under the MIT license (`LICENSE.txt`, Copyright (c) 2026 petercarter19-hue). This application also uses the components below. Each component keeps its own license and copyright notices.
 
 ## Speech model
 

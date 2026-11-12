@@ -11,7 +11,7 @@ Download **Chirpy-Setup.exe** from the [latest release](https://github.com/peter
 To check your download is the real file, its SHA-256 fingerprint is:
 
 ```
-639E423A1988A267486ADF2487711A22A837E8FF467BF0CD58CEFA83880A55B9
+A882B759A9042A79B0C2CFED5F88FD69AC7D3298CE8E8822B9ACC751BD30F337
 ```
 
 In PowerShell: `Get-FileHash .\Chirpy-Setup.exe` (the same line is in [Chirpy-Setup.exe.sha256](Chirpy-Setup.exe.sha256)).
