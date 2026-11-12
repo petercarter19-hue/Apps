@@ -11,7 +11,7 @@ Download **Chirpy-Setup.exe** from the [latest release](https://github.com/peter
 To check your download is the real file, its SHA-256 fingerprint is:
 
 ```
-A882B759A9042A79B0C2CFED5F88FD69AC7D3298CE8E8822B9ACC751BD30F337
+639E423A1988A267486ADF2487711A22A837E8FF467BF0CD58CEFA83880A55B9
 ```
 
 In PowerShell: `Get-FileHash .\Chirpy-Setup.exe` (the same line is in [Chirpy-Setup.exe.sha256](Chirpy-Setup.exe.sha256)).
@@ -22,7 +22,7 @@ In PowerShell: `Get-FileHash .\Chirpy-Setup.exe` (the same line is in [Chirpy-Se
 2. Windows may show a blue **Windows protected your PC** screen that says "Unknown publisher". Chirpy isn't signed yet, and Windows can show this for programs it doesn't recognize. If you got Chirpy from this page, click **More info**, then **Run anyway**.
 3. Chirpy installs to your user folder, adds itself to the Start menu and starts. It beeps twice when it is ready (about 10 seconds).
 
-Needs Windows 10 or 11 (64-bit) and a microphone. Only one voice tool can listen for keys at a time, so close any other dictation app first.
+Needs Windows 11 (64-bit) and a microphone. It may work on current Windows 10 but isn't tested there. Only one voice tool can listen for keys at a time, so close any other dictation app first.
 
 ## Use it
 
