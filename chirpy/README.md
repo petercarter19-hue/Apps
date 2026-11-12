@@ -6,7 +6,7 @@ Free, no account, English only. Your voice is turned into text on your own PC.
 
 ## Download
 
-Download **Chirpy-Setup.exe** from the [latest release](https://github.com/petercarter19-hue/Apps/releases/latest) (about 500 MB, because the speech model comes with it, so Chirpy doesn't need to download anything while it sets up).
+Download **Chirpy-Setup.exe** from the [latest release](https://github.com/petercarter19-hue/Apps/releases/tag/chirpy-v1.0.0) (about 500 MB, because the speech model comes with it, so Chirpy doesn't need to download anything while it sets up).
 
 To check your download is the real file, its SHA-256 fingerprint is:
 
