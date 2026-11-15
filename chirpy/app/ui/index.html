@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chirpy</title>
+<style>
+  :root {
+    --bg: #121216; --side: #17171c; --panel: #1d1d23; --card: #23232b; --card-2: #2a2a33;
+    --line: rgba(255,255,255,.07); --text: #f3f3f6; --muted: #9b9ba6; --faint: #6c6c78;
+    --accent: #a970ff; --accent-2: #c9a7ff; --accent-soft: rgba(169,112,255,.14);
+    --red: #ff5a5f; --amber: #f5b700; --green: #3ecf8e; --claude: #d97757;
+    --radius: 12px; --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font);
+    -webkit-font-smoothing: antialiased; user-select: none; }
+  ::selection { background: var(--accent-soft); }
+  .app { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
+
+  /* sidebar */
+  nav { background: var(--side); border-right: 1px solid var(--line); padding: 46px 12px 16px; display: flex;
+    flex-direction: column; gap: 2px; -webkit-app-region: drag; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 10px 18px; }
+  .brand .logo { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(145deg, #b98aff, #8a4dff);
+    display: grid; place-items: center; box-shadow: 0 4px 14px rgba(140,80,255,.35); }
+  .brand b { font-size: 15px; letter-spacing: .2px; }
+  .brand small { display: block; color: var(--faint); font-size: 11px; font-weight: 500; }
+  nav button { -webkit-app-region: no-drag; all: unset; display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    border-radius: 8px; color: var(--muted); cursor: default; font-weight: 500; }
+  nav button svg { width: 17px; height: 17px; flex: none; opacity: .85; }
+  nav button:hover { background: rgba(255,255,255,.04); color: var(--text); }
+  nav button.on { background: var(--accent-soft); color: var(--text); }
+  nav button.on svg { color: var(--accent-2); opacity: 1; }
+  nav .grow { flex: 1; }
+  .status-pill { -webkit-app-region: no-drag; margin: 0 6px; padding: 10px 12px; border-radius: 10px; background: var(--panel);
+    border: 1px solid var(--line); display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.15); flex: none; }
+  .dot.off { background: var(--faint); box-shadow: none; }
+
+  /* content */
+  main { overflow-y: auto; padding: 40px 44px 48px; }
+  main::-webkit-scrollbar { width: 10px; } main::-webkit-scrollbar-thumb { background: #33333d; border-radius: 10px; border: 3px solid var(--bg); }
+  h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -.2px; }
+  .sub { color: var(--muted); margin: 0 0 26px; }
+  h2 { font-size: 11.5px; letter-spacing: .9px; text-transform: uppercase; color: var(--accent-2); margin: 28px 0 10px; font-weight: 650; }
+  .page { display: none; max-width: 860px; } .page.on { display: block; animation: rise .18s ease; }
+  @keyframes rise { from { transform: translateY(4px); } to { transform: none; } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+  .grid { display: grid; gap: 12px; }
+  .g4 { grid-template-columns: repeat(4, 1fr); } .g2 { grid-template-columns: 1fr 1fr; }
+
+  .hero { display: flex; align-items: center; gap: 18px; padding: 22px 24px;
+    background: radial-gradient(120% 140% at 0% 0%, rgba(169,112,255,.20), transparent 55%), var(--panel); }
+  .hero .big { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center;
+    background: linear-gradient(145deg, #b98aff, #8a4dff); box-shadow: 0 8px 26px rgba(140,80,255,.35); flex: none; }
+  .hero.paused .big { background: #3a3a44; box-shadow: none; }
+  .hero h3 { margin: 0; font-size: 18px; } .hero p { margin: 2px 0 0; color: var(--muted); }
+  .hero .push { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+
+  .gesture { padding: 14px 16px; }
+  .gesture .k { display: inline-block; font-size: 11.5px; font-weight: 600; color: var(--accent-2); background: var(--accent-soft);
+    padding: 3px 8px; border-radius: 6px; margin-bottom: 8px; }
+  .gesture b { display: block; font-size: 14px; } .gesture span { color: var(--muted); font-size: 12.5px; }
+
+  .stat { padding: 14px 16px; } .stat .n { font-size: 24px; font-weight: 650; letter-spacing: -.3px; }
+  .stat .l { color: var(--muted); font-size: 12.5px; }
+
+  .notice { display: flex; gap: 12px; align-items: flex-start; border-color: rgba(245,183,0,.25);
+    background: linear-gradient(0deg, rgba(245,183,0,.06), rgba(245,183,0,.06)), var(--panel); margin-top: 12px; }
+  .notice svg { color: var(--amber); flex: none; margin-top: 2px; } .notice p { margin: 2px 0 0; color: var(--muted); }
+
+  /* lists */
+  .item { display: grid; grid-template-columns: 74px 1fr auto; gap: 14px; padding: 13px 4px; border-bottom: 1px solid var(--line); }
+  .item:last-child { border-bottom: 0; }
+  .item .when { color: var(--faint); font-size: 12px; padding-top: 2px; font-variant-numeric: tabular-nums; }
+  .item .what { user-select: text; white-space: pre-wrap; word-break: break-word; }
+  .item .said { color: var(--faint); font-size: 12.5px; margin-top: 4px; user-select: text; }
+  .badge { font-size: 10.5px; font-weight: 650; letter-spacing: .3px; padding: 2px 7px; border-radius: 5px; margin-right: 6px;
+    text-transform: uppercase; vertical-align: 1px; }
+  .b-dictate { background: rgba(255,90,95,.14); color: #ff9a9d; } .b-command { background: var(--accent-soft); color: var(--accent-2); }
+  .b-claude { background: rgba(217,119,87,.16); color: #f0a487; } .b-meeting, .b-transcript { background: rgba(62,207,142,.13); color: #7fe3b4; } .b-phone { background: rgba(255,255,255,.07); color: var(--muted); }
+  .empty { color: var(--faint); padding: 26px 4px; text-align: center; }
+
+  /* controls */
+  .btn { all: unset; display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 8px; font-size: 13px;
+    font-weight: 550; background: var(--card-2); color: var(--text); border: 1px solid var(--line); cursor: default; }
+  .btn:hover { background: #33333d; } .btn.primary { background: var(--accent); border-color: transparent; color: #fff; }
+  .btn.primary:hover { background: #9a5cff; } .btn.danger { color: #ffb3c7; } .btn.small { padding: 4px 9px; font-size: 12px; }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); } .btn.ghost:hover { color: var(--text); background: var(--card); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input[type=text], textarea { all: unset; box-sizing: border-box; background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; color: var(--text); font: inherit; user-select: text; }
+  input[type=text]:focus, textarea:focus { border-color: rgba(169,112,255,.6); box-shadow: 0 0 0 3px var(--accent-soft); }
+  input.search { width: 100%; padding: 10px 14px 10px 38px; font-size: 14px; background-repeat: no-repeat; background-position: 12px 50%;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239b9ba6' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E"); }
+  .chips { display: flex; gap: 6px; margin: 12px 0 6px; }
+  .chip { all: unset; padding: 5px 12px; border-radius: 999px; font-size: 12.5px; color: var(--muted); border: 1px solid var(--line); }
+  .chip.on { background: var(--accent-soft); color: var(--text); border-color: transparent; }
+
+  .toggle { position: relative; width: 40px; height: 23px; flex: none; }
+  .toggle input { display: none; }
+  .toggle span { position: absolute; inset: 0; border-radius: 99px; background: #4a4a54; transition: .15s; }
+  .toggle span::after { content: ""; position: absolute; width: 17px; height: 17px; left: 3px; top: 3px; border-radius: 50%;
+    background: #fff; transition: .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .toggle input:checked + span { background: var(--accent); } .toggle input:checked + span::after { transform: translateX(17px); }
+
+  .feature { display: grid; grid-template-columns: 52px 1fr; gap: 4px; padding: 13px 16px; margin-bottom: 6px; }
+  .feature .t { font-weight: 600; } .feature .d { color: var(--muted); font-size: 12.5px; grid-column: 2; }
+  .feature .k { font-size: 11px; font-weight: 600; color: var(--accent-2); background: var(--accent-soft); padding: 2px 7px;
+    border-radius: 5px; margin-left: 8px; vertical-align: 1px; }
+
+  .wordchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .wordchip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 11px; border-radius: 8px; background: var(--card);
+    border: 1px solid var(--line); font-weight: 550; }
+  .x { all: unset; width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: var(--faint); }
+  .x:hover { background: rgba(255,255,255,.08); color: var(--text); }
+  .edit { cursor: text; } .edit:hover { color: var(--accent-2); }
+  .wordchip.editing { padding: 3px 4px; } .wordchip.editing input[type=text] { padding: 4px 8px; width: 180px; }
+  tr.editing input[type=text] { width: 100%; padding: 6px 10px; }
+  #fixlist .num { white-space: nowrap; } #fixlist .num .x { display: inline-grid; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; color: var(--faint); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { padding: 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; } td.num, th.num { text-align: right; }
+  .arrow { color: var(--faint); padding: 0 6px; }
+  .muted { color: var(--muted); } .faint { color: var(--faint); font-size: 12.5px; }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s;
+    background: #2c2c35; border: 1px solid var(--line); padding: 9px 16px; border-radius: 10px; font-size: 13px; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+:root {
+  --bg: #111416; --side: #15191b; --panel: #1b1f22; --card: #212629; --card-2: #282e31;
+  --accent: #2bbfae; --accent-2: #6fe6d6; --accent-soft: rgba(43,191,174,.14);
+}
+.brand .logo, .hero .big { background: linear-gradient(145deg, #4fe0cf, #17a594); }
+.brand .logo { box-shadow: 0 4px 14px rgba(23,165,148,.35); }
+.hero .big { box-shadow: 0 8px 26px rgba(23,165,148,.35); }
+.hero { background: radial-gradient(120% 140% at 0% 0%, rgba(43,191,174,.18), transparent 55%), var(--panel); }
+.btn.primary { color: #04110f; } .btn.primary:hover { background: #3fd6c4; }
+input[type=text]:focus, textarea:focus { border-color: rgba(43,191,174,.6); }
+main::-webkit-scrollbar-thumb { background: #30373b; } .btn:hover { background: #30373b; }
+.b-dictate { background: rgba(43,191,174,.13); color: #6fe6d6; }
+.b-command { background: rgba(92,170,240,.15); color: #9cc8ff; }
+.b-meeting, .b-transcript { background: rgba(242,180,92,.13); color: #f2c47e; }
+.hero.paused .big { background: #353b3f; } .toggle span { background: #454c50; }
+
+/* Home: Runs on your PC; Today has five numbers; key labels stay on one line (two columns when the window is narrow) */
+.g5 { grid-template-columns: repeat(5, 1fr); }
+.gesture .k { white-space: nowrap; }
+@media (max-width: 980px) { #page-home .g4 { grid-template-columns: 1fr 1fr; } #page-home .g5 { grid-template-columns: repeat(3, 1fr); } }
+.pccard { margin-top: 12px; }
+.pccard .ph { display: flex; align-items: center; gap: 10px; } .pccard .ph b { font-size: 16px; }
+.pccard .lock { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--accent-2); background: var(--accent-soft); flex: none; }
+.pccard .ph > span:not(.lock) { color: var(--muted); }
+.pccard .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 14px 0 12px; }
+.pccard small { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 650; letter-spacing: .4px; text-transform: uppercase; color: var(--accent-2); margin-bottom: 6px; }
+.pccard small.on { color: var(--amber); }
+.pccard .cols span { display: block; padding: 3px 0; font-size: 13px; }
+.pccard .foot { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.pccard .foot b { color: var(--text); font-weight: 600; }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.page { margin: 0 auto; }
+.pccard .pcline { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+/* the Chirpy bird (Bubble Beak) replaces the old microphone mark on Home and in the sidebar */
+.brand .logo, .hero .big { background: none; box-shadow: none; }
+.brand .logo { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%2312AD9C' d='M 22.4,357.8 C 27.5,357.5 31.6,357.5 37.7,357.5 C 60.2,357 82.6,342.7 92.8,325.4 C 107.1,302.9 137.7,244.8 163.2,196.8 C 183.6,159.1 215.2,115.2 260.1,84.6 C 281.5,73.4 300.9,70.4 317.2,70.9 C 358,71.4 403.9,102 422.3,139.7 C 423.3,168.3 425.3,188.7 429.4,209.1 C 436.5,226.4 440.6,252.9 439.6,275.4 C 438.6,306 425.3,336.6 404.9,362.1 C 378.4,392.7 342.7,415.1 307,425.3 C 281.5,433.5 245.8,439.6 215.2,439.6 C 184.6,439.6 154,435.5 128.5,428.4 C 88.7,419.2 52,393.7 20.9,364.1 C 16.3,360 17.8,358 22.4,357.8 Z'/%3E%3Cpath fill='%230B8A7C' d='M 23.4,175.4 C 41.8,178.5 92.8,189.7 138.7,194.3 C 189.7,196.8 217.2,229.5 217.2,270.3 C 217.2,311.1 186.6,342.7 145.8,342.7 C 125.4,342.7 105,336.6 92.8,325.4 C 57.1,302.9 16.3,229.5 23.4,175.4 Z'/%3E%3Cpath fill='%23FDFCF5' d='M 312.1,226.4 H347.8 C 383.5,226.4 404.9,255 404.9,290.7 C 404.9,328.4 380.4,357 337.6,367.2 C 317.2,369.2 291.7,369.2 273.3,369.2 C 262.1,369.2 258,373.3 247.8,378.4 C 235.6,384.5 217.2,393.7 203,394.7 C 192.8,395.7 187.7,387.6 193.8,381.5 C 199.9,374.3 217.2,360 230.5,341.7 C 241.7,323.3 246.8,298.8 247.8,275.4 C 249.9,250.9 280.5,230.5 312.1,226.4 Z'/%3E%3Cpath fill='%23FE7350' d='M 422.3,132.6 C 434.5,124.4 460,112.2 480.4,110.1 C 490.6,109.1 498.8,111.2 497.7,116.3 C 494.7,127.5 478.4,142.8 455.9,159.1 L 439.6,167.3 C 460,175.4 484.5,193.8 498.8,205 C 501.8,210.1 499.8,218.3 492.6,219.3 C 478.4,220.3 447.8,211.1 429.4,203 L 422.3,203 Z'/%3E%3Ccircle fill='%23FFFFFF' cx='356' cy='141.8' r='25.5'/%3E%3Ccircle fill='%2312AD9C' cx='281.5' cy='296.8' r='14.3'/%3E%3Ccircle fill='%2312AD9C' cx='327.4' cy='296.8' r='14.3'/%3E%3Ccircle fill='%2312AD9C' cx='373.3' cy='296.8' r='14.3'/%3E%3C/svg%3E") center / contain no-repeat; }
+.hero .big { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%2312AD9C' d='M 36.2,351.8 C 41,351.5 44.8,351.5 50.6,351.5 C 71.7,351 92.8,337.6 102.4,321.3 C 115.8,300.2 144.6,245.4 168.6,200.3 C 187.8,164.8 217.6,123.5 259.8,94.7 C 280,84.2 298.2,81.3 313.6,81.8 C 352,82.2 395.2,111 412.5,146.6 C 413.4,173.4 415.4,192.6 419.2,211.8 C 425.9,228.2 429.8,253.1 428.8,274.2 C 427.8,303 415.4,331.8 396.2,355.8 C 371.2,384.6 337.6,405.8 304,415.4 C 280,423 246.4,428.8 217.6,428.8 C 188.8,428.8 160,425 136,418.2 C 98.6,409.6 64,385.6 34.7,357.8 C 30.4,353.9 31.8,352 36.2,351.8 Z'/%3E%3Cpath fill='%230B8A7C' d='M 37.1,180.2 C 54.4,183 102.4,193.6 145.6,197.9 C 193.6,200.3 219.5,231 219.5,269.4 C 219.5,307.8 190.7,337.6 152.3,337.6 C 133.1,337.6 113.9,331.8 102.4,321.3 C 68.8,300.2 30.4,231 37.1,180.2 Z'/%3E%3Cpath fill='%23FDFCF5' d='M 308.8,228.2 H342.4 C 376,228.2 396.2,255 396.2,288.6 C 396.2,324.2 373.1,351 332.8,360.6 C 313.6,362.6 289.6,362.6 272.3,362.6 C 261.8,362.6 257.9,366.4 248.3,371.2 C 236.8,377 219.5,385.6 206.1,386.6 C 196.5,387.5 191.7,379.8 197.4,374.1 C 203.2,367.4 219.5,353.9 232,336.6 C 242.6,319.4 247.4,296.3 248.3,274.2 C 250.2,251.2 279,232 308.8,228.2 Z'/%3E%3Cpath fill='%23FE7350' d='M 412.5,146.6 C 424,140.8 448,130.2 464.3,129.3 C 473,128.8 479.7,129.3 479.2,133.1 C 476.8,139.8 462.4,151.4 443.2,165.8 L 425.9,172.5 C 444.2,180.2 467.2,195.5 479.7,205.1 C 482.6,209 480.6,214.7 474.9,215.7 C 462.4,218.1 436.5,209.9 419.2,200.3 L 412.5,199.4 Z'/%3E%3Ccircle fill='%23FFFFFF' cx='350.6' cy='147.5' r='19.2'/%3E%3Ccircle fill='%236ACCBE' cx='287.2' cy='294.4' r='10.6'/%3E%3Ccircle fill='%236ACCBE' cx='321.8' cy='294.4' r='10.6'/%3E%3Ccircle fill='%236ACCBE' cx='356.8' cy='294.4' r='10.6'/%3E%3C/svg%3E") center / contain no-repeat; }
+.brand .logo svg, .hero .big svg { display: none; }
+.badge.b-dictate { display: none; }
+#historylist { margin-top: 14px; }
+#page-words .row:has(#fixheard) { flex-wrap: nowrap; }
+#fixheard, #fixmeant { min-width: 0; }
+@media (max-width: 980px) { #page-home .g3 .gesture .k { white-space: normal; } }
+:root[data-theme="light"] {
+  --bg: #f4f6f6; --side: #eaeeef; --panel: #ffffff; --card: #f1f4f4; --card-2: #e8edee;
+  --line: rgba(16,24,28,.10); --text: #14191b; --muted: #535e62; --faint: #6a7478;
+  --accent: #2bbfae; --accent-2: #0b7d70; --accent-soft: rgba(43,191,174,.16);
+  --red: #d93a40; --amber: #9a6800; --green: #1f9e68;
+  color-scheme: light;
+}
+[data-theme="light"] nav button:hover { background: rgba(16,24,28,.05); }
+[data-theme="light"] .card { box-shadow: 0 1px 2px rgba(16,24,28,.05); }
+[data-theme="light"] .hero { background: radial-gradient(120% 140% at 0% 0%, rgba(43,191,174,.16), transparent 55%), var(--panel); }
+[data-theme="light"] .hero.paused .big { background: #b5bec1; box-shadow: none; }
+[data-theme="light"] .btn:hover { background: #dfe5e6; }
+[data-theme="light"] .btn.primary:hover { background: #3fd6c4; }
+[data-theme="light"] .btn.ghost:hover { background: var(--card); }
+[data-theme="light"] .btn.danger { color: #c22f4f; }
+[data-theme="light"] .x:hover { background: rgba(16,24,28,.07); }
+[data-theme="light"] .toggle span { background: #c2cacc; }
+[data-theme="light"] .b-dictate { background: rgba(43,191,174,.16); color: #0b7d70; }
+[data-theme="light"] .toast { background: #ffffff; color: var(--text); box-shadow: 0 6px 24px rgba(16,24,28,.14); }
+[data-theme="light"] main::-webkit-scrollbar-thumb { background: #c6cdcf; }
+[data-theme="light"] * { scrollbar-color: #c6cdcf transparent; }
+select { all: unset; box-sizing: border-box; background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 30px 7px 12px; font: inherit; color: var(--text); min-width: 150px; cursor: pointer; background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%239b9ba6' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+select:focus { border-color: rgba(43,191,174,.6); box-shadow: 0 0 0 3px var(--accent-soft); }
+select option { background: var(--panel); color: var(--text); }
+:root[data-theme="dark"] select { color-scheme: dark; }
+.keyrow { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 18px; padding: 13px 16px; margin-bottom: 6px; }
+.keyrow .t { font-weight: 600; } .keyrow .d { color: var(--muted); font-size: 12.5px; } .keyrow select { width: 190px; }
+.hero .push.stack { flex-direction: column; align-items: stretch; gap: 8px; }
+.hero .push .switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.wordchips { min-width: 0; }
+.wordchip { max-width: 100%; min-width: 0; }
+.wordchip .edit { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.wordchip.editing input[type=text] { max-width: 100%; }
+#fixlist td { overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="brand">
+      <div class="logo"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="8.5" y="2.5" width="7" height="12" rx="3.5"/><path d="M5 11a7 7 0 0 0 14 0" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M12 18v3.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+      <div><b>Chirpy</b><small id="computer">&nbsp;</small></div>
+    </div>
+    <button data-page="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+    <button data-page="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>History</button>
+    <button data-page="words"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg>Words &amp; fixes</button>
+    <button data-page="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</button>
+    <div class="grow"></div>
+    <div class="status-pill"><span class="dot" id="navdot"></span><span id="navstatus">Loading…</span></div>
+  </nav>
+
+  <main>
+    <!-- HOME -->
+    <section class="page on" id="page-home">
+      <h1>Home</h1>
+      <p class="sub">Talk anywhere on this computer. Your words land where the cursor is.</p>
+      <div class="card hero" id="hero">
+        <div class="big"><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><rect x="8.5" y="2.5" width="7" height="12" rx="3.5"/><path d="M5 11a7 7 0 0 0 14 0" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M12 18v3.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <div><h3 id="herotitle">Chirpy is on</h3><p id="herosub">Ready when you are.</p></div>
+        <div class="push stack">
+          <label class="switch"><span>Pause everything</span><span class="toggle"><input type="checkbox" id="pause"><span></span></span></label>
+          <label class="switch"><span>Dark mode</span><span class="toggle"><input type="checkbox" id="darkhome"><span></span></span></label>
+        </div>
+      </div>
+      <div id="notices"></div>
+      <div class="card pccard" id="pccard"></div>
+
+      <h2>Three ways to use it</h2>
+      <div class="grid g3">
+        <div class="card gesture"><span class="k" id="k-hold">Hold Left Alt</span><b>Dictate</b><span>Talk, let go, it types.</span></div>
+        <div class="card gesture"><span class="k" id="k-double">Double-tap Left Alt</span><b>Hands-free</b><span>Talk as long as you like. Tap to stop.</span></div>
+        <div class="card gesture"><span class="k" id="k-teach">Shift + tap Left Alt</span><b>Teach a word</b><span>Select the word, type the fix.</span></div>
+      </div>
+
+      <h2>Today</h2>
+      <div class="grid g3">
+        <div class="card stat"><div class="n" id="s-dict">–</div><div class="l">dictations</div></div>
+        <div class="card stat"><div class="n" id="s-words">–</div><div class="l">words written</div></div>
+        <div class="card stat"><div class="n" id="s-fixes">–</div><div class="l">fixes made for you</div></div>
+      </div>
+
+      <h2>Most recent</h2>
+      <div class="card" id="recent"></div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="page" id="page-history">
+      <h1>History</h1>
+      <p class="sub">Everything you've dictated. Kept only on this computer.</p>
+      <input type="text" class="search" id="q" placeholder="Search what you said…" autocomplete="off">
+      <div class="row" style="justify-content:flex-end; margin-top:10px"><button class="btn small ghost" id="clearhist">Clear history</button></div>
+      <div class="card" id="clearask" style="display:none; margin-top:10px">
+        <b>Clear all of your history?</b>
+        <p class="muted" style="margin:6px 0 12px">This deletes the History Chirpy keeps of what you've dictated. It doesn't remove text you already pasted anywhere, or Windows clipboard history. It can't be undone.</p>
+        <div class="row"><button class="btn small danger" id="clearyes">Yes, clear it</button><button class="btn small ghost" id="clearno">Cancel</button></div>
+      </div>
+      <div class="card" id="historylist"></div>
+    </section>
+
+    <!-- WORDS & FIXES -->
+    <section class="page" id="page-words">
+      <h1>Words &amp; fixes</h1>
+      <p class="sub">Names it must spell exactly, and the mishearings it has learned to fix.</p>
+      <input type="text" class="search" id="wq" placeholder="Search your words and fixes…" autocomplete="off">
+      <h2>My words</h2>
+      <div class="card">
+        <div class="row"><input type="text" id="newword" placeholder="Add a name or word, e.g. Kubernetes" style="flex:1" autocomplete="off">
+          <button class="btn primary" id="addword">Add</button></div>
+        <div class="wordchips" id="wordlist"></div>
+      </div>
+      <h2>Learned fixes</h2>
+      <div class="card">
+        <div class="row" style="margin-bottom:10px">
+          <input type="text" id="fixheard" placeholder="It wrote…" style="flex:1" autocomplete="off">
+          <span class="arrow">→</span>
+          <input type="text" id="fixmeant" placeholder="You meant…" style="flex:1" autocomplete="off">
+          <button class="btn primary" id="addfix">Add fix</button>
+        </div>
+        <table><thead><tr><th>It wrote</th><th></th><th>You meant</th><th>Learned</th><th></th></tr></thead><tbody id="fixlist"></tbody></table>
+      </div>
+    </section>
+
+
+    <!-- SETTINGS -->
+    <section class="page" id="page-settings">
+      <h1>Settings</h1>
+      <p class="sub">Every feature, its key and an on/off switch. Changes apply at once.</p>
+      <div id="featurelist"></div>
+      <h2>Keys</h2>
+      <div class="card keyrow"><div><div class="t">Dictate</div><div class="d">Hold the key and talk, or double-tap it for hands-free.</div></div>
+        <select id="dictatekey"></select></div>
+      <div class="card keyrow"><div><div class="t">Teach a word</div><div class="d">Select the word, hold Shift and tap this key.</div></div>
+        <select id="teachkey"></select></div>
+      <h2>General</h2>
+      <div class="card feature"><label class="toggle"><input type="checkbox" id="startup"><span></span></label>
+        <div class="t">Start when I sign in</div><div class="d">Opens Chirpy automatically each time you log in.</div></div>
+      <div class="card feature"><label class="toggle"><input type="checkbox" id="darkset"><span></span></label>
+        <div class="t">Dark mode</div><div class="d">Use the dark look. It is the same switch as on Home.</div></div>
+      <div class="row" style="margin-top:18px">
+        <button class="btn" data-open="log">Open log</button><button class="btn" data-open="folder">Open folder</button>
+        <button class="btn" id="feedback">Send feedback</button>
+        <span style="flex:1"></span><button class="btn danger" id="quit">Quit Chirpy</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- bridge to the host program (same page on the Mac and the PC) ----------
+const vt = {
+  id: 0, pending: {},
+  call(name, args = {}) {
+    if (window.pywebview && window.pywebview.api) return window.pywebview.api.call(name, args);   // PC
+    return new Promise((resolve, reject) => {                                                     // Mac
+      const id = ++this.id; this.pending[id] = { resolve, reject };
+      window.webkit.messageHandlers.vt.postMessage({ id, name, args });
+    });
+  },
+  reply(id, ok, data) {
+    const p = this.pending[id]; if (!p) return; delete this.pending[id];
+    ok ? p.resolve(data) : p.reject(new Error(data));
+  },
+};
+window.vt = vt;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function toast(msg, long) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), long ? Math.max(1800, 1200 + 45 * String(msg).length) : 1800); }
+async function call(name, args) { try { return await vt.call(name, args); } catch (e) { toast("Couldn't do that: " + e.message); throw e; } }
+
+function when(at) {
+  if (!at) return "";
+  const d = new Date(at.replace(" ", "T")), now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return time;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return "Yesterday<br>" + time;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" }) + "<br>" + time;
+}
+const KIND = { dictate: "Dictation" };
+function itemHTML(r) {
+  const said = r.said && r.said.trim() !== r.text.trim() ? `<div class="said">${r.kind === "dictate" ? "Heard" : "You said"}: ${esc(r.said)}</div>` : "";
+  return `<div class="item"><div class="when">${when(r.at)}</div>
+    <div><div class="what"><span class="badge b-${r.kind}">${KIND[r.kind]}</span>${r.phone ? '<span class="badge b-phone">Phone</span>' : ""}${esc(r.text || "(nothing)")}</div>${said}</div>
+    <div><button class="btn ghost small" data-copy="${esc(r.text)}">Copy</button></div></div>`;
+}
+document.addEventListener("click", e => {
+  const c = e.target.closest("[data-copy]"); if (c) { call("copy", { text: c.dataset.copy }).then(() => toast("Copied")); }
+  const o = e.target.closest("[data-open]"); if (o) { call("open", { what: o.dataset.open }).then(r => r.opened === false && toast("Nothing learned yet")); }
+});
+
+// ---------- navigation ----------
+const loaders = {};
+function show(page) {
+  document.querySelectorAll("nav button[data-page]").forEach(b => b.classList.toggle("on", b.dataset.page === page));
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + page));
+  (loaders[page] || (() => {}))();
+}
+document.querySelectorAll("nav button[data-page]").forEach(b => b.onclick = () => show(b.dataset.page));
+window.showPage = show;   // the host can open a page directly (e.g. Settings from the menu bar)
+
+// ---------- Home ----------
+function setStatus(enabled) {
+  $("#navdot").classList.toggle("off", !enabled); $("#navstatus").textContent = enabled ? "On and listening for keys" : "Paused";
+  $("#hero").classList.toggle("paused", !enabled); $("#pause").checked = !enabled;
+  $("#herotitle").textContent = enabled ? "Chirpy is on" : "Chirpy is paused";
+  $("#herosub").textContent = enabled ? "Ready when you are." : "The keys do their normal jobs until you turn it back on.";
+}
+async function refreshStatus() {   // the sidebar's name and on/off light, on every page
+  const o = await call("overview");
+  $("#computer").textContent = o.computer;
+  setStatus(o.enabled);
+  return o;
+}
+loaders.home = async () => {
+  const o = await refreshStatus();
+  $("#s-dict").textContent = o.today.dictations; $("#s-words").textContent = o.today.words.toLocaleString();
+  $("#s-fixes").textContent = o.today.fixes || 0;
+  drawPC();
+  drawKeyNames(o.keys); applyTheme(o.theme);
+  drawNotice(o.notice);
+  $("#recent").innerHTML = o.recent.length ? o.recent.map(itemHTML).join("") : `<div class="empty">Nothing yet. ${esc(o.keys.hold)} and say something.</div>`;
+};
+const LOCK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const CLOUD = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/></svg>';
+function drawPC() {   // Light runs entirely on this PC: there is nothing to switch
+  $("#pccard").innerHTML = `<div class="ph"><span class="lock">${LOCK}</span><b>Runs on your PC</b>
+      <span>Your voice is turned into text on this PC.</span></div>
+    <p class="pcline">Turning your voice into text happens on this PC, with no account and no online service, and your history, words and fixes are kept on this PC. To type what you said, Chirpy puts the text on the Windows clipboard for about a second, then tries to put back what you had copied. Some things you copy, such as pictures, may not come back. Chirpy asks Windows to keep that text out of clipboard history and clipboard sync, but that request doesn't always work. When it doesn't, Windows may keep your dictated text in clipboard history, or send it to your other devices through your Microsoft account if you have turned on clipboard sync across your devices, depending on your clipboard settings (Windows Settings &gt; System &gt; Clipboard).</p>`;
+}
+$("#pause").onchange = async e => { const r = await call("set_paused", { paused: e.target.checked }); setStatus(r.enabled); if (!r.saved) toast(r.toast); };
+function drawNotice(text) {   // said once, in plain words, when the settings had to be reset; "Got it" puts it away for good
+  if (!text) { $("#notices").innerHTML = ""; return; }
+  if ($("#dismissnotice")) return;
+  $("#notices").innerHTML = `<div class="card notice">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <div><b>About your settings</b><p>${esc(text)}</p></div>
+      <button class="btn ghost small" id="dismissnotice">Got it</button></div>`;
+  $("#dismissnotice").onclick = async () => { await call("dismiss_notice"); $("#notices").innerHTML = ""; };
+}
+function drawKeyNames(k) {   // every place on Home that names a key says the keys chosen in Settings
+  if (!k) return;
+  $("#k-hold").textContent = k.hold; $("#k-double").textContent = k.double; $("#k-teach").textContent = k.teach;
+}
+function applyTheme(t) {   // the one dark / light setting: Home's switch and Settings' switch always show it, and the page follows at once
+  if (t !== "light" && t !== "dark") return;
+  document.documentElement.dataset.theme = t;
+  $("#darkhome").checked = $("#darkset").checked = t === "dark";
+}
+async function chooseTheme(dark) {
+  const was = document.documentElement.dataset.theme;
+  applyTheme(dark ? "dark" : "light");
+  try { const r = await call("set_theme", { theme: dark ? "dark" : "light" }); if (!r.saved) toast(r.toast); } catch (e) { applyTheme(was); }
+}
+$("#darkhome").onchange = e => chooseTheme(e.target.checked);
+$("#darkset").onchange = e => chooseTheme(e.target.checked);
+
+// ---------- History ----------
+let kind = "all", qTimer;
+let histGen = 0;   // every History read gets a number; only the newest may draw (a slow older reply never repaints deleted entries)
+loaders.history = async () => {
+  const mine = ++histGen;
+  const r = await call("history", { query: $("#q").value, kind });
+  if (mine !== histGen) return;
+  $("#historylist").innerHTML = r.items.length ? r.items.map(itemHTML).join("") : `<div class="empty">${$("#q").value ? "Nothing matches." : "No history yet."}</div>`;
+};
+$("#q").oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(loaders.history, 150); };
+$("#clearhist").onclick = () => { $("#clearask").style.display = ""; $("#clearhist").style.display = "none"; $("#clearno").focus(); };
+$("#clearno").onclick = () => { $("#clearask").style.display = "none"; $("#clearhist").style.display = ""; $("#clearhist").focus(); };
+$("#clearyes").onclick = async () => {
+  const r = await call("clear_history");
+  $("#clearask").style.display = "none"; $("#clearhist").style.display = "";
+  toast(r.toast, true); if (r.cleared) { histGen++; loaders.history(); }
+};
+
+// ---------- Words & fixes ----------
+let words = [], fixes = [], editWord = -1, editFix = -1;   // which word or fix is open for editing (-1: none)
+const wq = () => $("#wq").value.trim().toLowerCase();   // the search box on Words & fixes ("" shows everything)
+const hit = (...t) => !wq() || t.some(x => String(x || "").toLowerCase().includes(wq()));
+function drawWords() {
+  $("#wordlist").innerHTML = words.map((w, i) => !hit(w) && i !== editWord ? "" : i === editWord
+      ? `<span class="wordchip editing"><input type="text" id="editword" value="${esc(w)}" autocomplete="off">
+          <button class="btn small primary" data-save-word>Save</button><button class="btn small ghost" data-cancel-word>Cancel</button></span>`
+      : `<span class="wordchip"><span class="edit" data-edit-word="${i}" title="Click to edit">${esc(w)}</span><button class="x" data-i="${i}" title="Remove">✕</button></span>`).join("")
+    || `<span class="faint">${words.length ? "No words match." : "No words yet."}</span>`;
+  if (editWord >= 0) { const box = $("#editword"); box.focus(); box.select(); }
+}
+function drawFixes() {
+  const shown = fixes.filter((x, i) => i === editFix || hit(x.heard, x.meant));
+  $("#fixlist").innerHTML = shown.length ? fixes.map((x, i) => i !== editFix && !hit(x.heard, x.meant) ? "" : i === editFix
+      ? `<tr class="editing"><td><input type="text" id="editheard" value="${esc(x.heard)}" placeholder="It wrote…" autocomplete="off"></td><td class="arrow">→</td>
+          <td><input type="text" id="editmeant" value="${esc(x.meant)}" placeholder="You meant…" autocomplete="off"></td>
+          <td colspan="2" class="num"><button class="btn small primary" data-save-fix>Save</button> <button class="btn small ghost" data-cancel-fix>Cancel</button></td></tr>`
+      : `<tr><td class="edit" data-edit-fix="${i}" title="Click to edit">${esc(x.heard)}</td><td class="arrow">→</td><td class="edit" data-edit-fix="${i}" title="Click to edit"><b>${esc(x.meant)}</b></td>
+          <td class="faint">${esc(x.added)}${x.source ? " · " + esc(x.source) : ""}</td>
+          <td class="num"><button class="x" data-edit-fix="${i}" title="Edit">✎</button><button class="x" data-forget="${i}" title="Forget">✕</button></td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">${fixes.length ? "No fixes match." : "No fixes learned yet."}</td></tr>`;
+  if (editFix >= 0) $("#editmeant").focus();
+}
+$("#wq").oninput = () => { drawWords(); drawFixes(); };
+loaders.words = async () => {
+  editWord = editFix = -1;
+  words = (await call("words")).words; drawWords();
+  fixes = (await call("fixes")).fixes; drawFixes();
+};
+$("#wordlist").onclick = async e => {
+  if (e.target.closest("[data-save-word]")) return saveWord();
+  if (e.target.closest("[data-cancel-word]")) { editWord = -1; return drawWords(); }
+  const ed = e.target.closest("[data-edit-word]"); if (ed) { editWord = +ed.dataset.editWord; return drawWords(); }
+  const b = e.target.closest("[data-i]"); if (!b) return;
+  const r = await call("remove_word", { word: words[+b.dataset.i] });
+  editWord = -1; words = r.words; drawWords(); if (!r.saved || r.kept) toast(r.toast, true);
+};
+$("#wordlist").onkeydown = e => {
+  if (e.target.id !== "editword") return;
+  if (e.key === "Enter") { e.preventDefault(); saveWord(); }
+  if (e.key === "Escape") { e.preventDefault(); editWord = -1; drawWords(); }
+};
+async function saveWord() {
+  const r = await call("edit_word", { old: words[editWord], new: $("#editword").value });
+  if (!r.saved) { toast(r.reason || "That change wasn't saved", true); return; }
+  words = r.words; editWord = -1; drawWords(); toast(r.kept ? r.toast : "Saved", true);
+}
+async function addWord() {
+  const v = $("#newword").value.trim();
+  if (!v) { $("#newword").value = ""; toast("Type a word first, then press Add"); return; }
+  if (words.some(w => w.toLowerCase() === v.toLowerCase())) { toast("Already in your list"); return; }
+  const r = await call("add_word", { word: v });
+  words = r.words; if (!r.saved) { toast(r.toast, true); return; }
+  $("#newword").value = ""; editWord = -1; drawWords(); toast(r.kept ? r.toast : "Added", true);
+}
+$("#addword").onclick = addWord; $("#newword").onkeydown = e => { if (e.key === "Enter") addWord(); };  // (returning false here would block every key)
+$("#fixlist").onclick = async e => {
+  if (e.target.closest("[data-save-fix]")) return saveFix();
+  if (e.target.closest("[data-cancel-fix]")) { editFix = -1; return drawFixes(); }
+  if (e.target.closest("tr.editing")) return;
+  const ed = e.target.closest("[data-edit-fix]"); if (ed) { editFix = +ed.dataset.editFix; return drawFixes(); }
+  const b = e.target.closest("[data-forget]"); if (!b) return;
+  const r = await call("delete_fix", { heard: fixes[+b.dataset.forget].heard });
+  fixes = r.fixes; editFix = -1; drawFixes(); toast(r.saved ? (r.kept ? r.toast : "Forgotten") : r.toast, true);
+};
+$("#fixlist").onkeydown = e => {
+  if (e.target.id !== "editheard" && e.target.id !== "editmeant") return;
+  if (e.key === "Enter") { e.preventDefault(); saveFix(); }
+  if (e.key === "Escape") { e.preventDefault(); editFix = -1; drawFixes(); }
+};
+async function saveFix() {
+  const r = await call("edit_fix", { old_heard: fixes[editFix].heard, heard: $("#editheard").value, meant: $("#editmeant").value });
+  if (!r.saved) { toast(r.failed ? r.reason : "Not saved: " + (r.reason || "check both sides"), true); return; }
+  fixes = r.fixes; editFix = -1; drawFixes(); toast(r.kept ? r.toast : "Saved", true);
+}
+async function addFix() {
+  const heard = $("#fixheard").value.trim(), meant = $("#fixmeant").value.trim();
+  if (!heard || !meant) {
+    if (!heard) $("#fixheard").value = ""; if (!meant) $("#fixmeant").value = "";
+    toast(!heard && !meant ? "Type what it wrote and what you meant, then press Add fix" : !heard ? "Type what it wrote too" : "Type what you meant too");
+    return;
+  }
+  const r = await call("add_fix", { heard, meant }); if (!r.added) { toast(r.failed ? r.reason : "Not added: " + (r.reason || "check both sides"), true); return; }
+  $("#fixheard").value = $("#fixmeant").value = ""; loaders.words(); toast(r.kept ? r.toast : "Learned", true);
+}
+$("#addfix").onclick = addFix; $("#fixmeant").onkeydown = e => { if (e.key === "Enter") addFix(); };  // (returning false here would block every key)
+
+
+// ---------- Settings ----------
+loaders.settings = async () => {
+  const s = await call("settings"); let section = "", html = "";
+  for (const f of s.features) {
+    if (f.section !== section) { section = f.section; html += `<h2>${esc(section)}</h2>`; }
+    html += `<div class="card feature"><label class="toggle"><input type="checkbox" data-key="${f.key}" ${f.on ? "checked" : ""}><span></span></label>
+      <div class="t">${esc(f.title)}${f.badge ? `<span class="k">${esc(f.badge)}</span>` : ""}</div><div class="d">${esc(f.text)}</div></div>`;
+  }
+  $("#featurelist").innerHTML = html; $("#startup").checked = s.startup;
+  drawKeyChoices(s.keys); applyTheme(s.theme);
+};
+$("#featurelist").onchange = e => { const i = e.target.closest("[data-key]"); if (i) call("set_setting", { key: i.dataset.key, on: i.checked }).then(r => toast(r.toast)); };
+function drawKeyChoices(k) {   // the two lists, with the saved keys chosen
+  const fill = (box, list, chosen) => { box.innerHTML = list.map(c => `<option value="${esc(c.id)}"${c.id === chosen ? " selected" : ""}>${esc(c.label)}</option>`).join(""); };
+  fill($("#dictatekey"), k.choices.dictate, k.dictate_key); fill($("#teachkey"), k.choices.teach, k.teach_key);
+}
+async function saveKey(which, box) {   // each list sends only its own key
+  const r = await call("set_keys", { [which]: box.value });
+  if (r.saved) { toast("Saved: " + r.keys.hold + ", " + r.keys.teach); loaders.settings(); } else { drawKeyChoices(r.keys); toast(r.reason || r.toast); }
+}
+$("#dictatekey").onchange = e => saveKey("dictate", e.target); $("#teachkey").onchange = e => saveKey("teach", e.target);
+$("#startup").onchange = e => call("set_startup", { on: e.target.checked }).then(r => { e.target.checked = r.startup; toast("Saved"); });
+$("#quit").onclick = () => call("quit");
+$("#feedback").onclick = () => call("send_feedback");
+
+
+// Home refreshes itself while it's showing.
+setInterval(() => { if ($("#page-home").classList.contains("on") && !document.hidden) loaders.home().catch(() => {}); }, 5000);
+document.addEventListener("DOMContentLoaded", () => { applyTheme(document.documentElement.dataset.theme); show(location.hash.slice(1) || "home"); refreshStatus().catch(() => {}); });
+</script>
+</body>
+</html>

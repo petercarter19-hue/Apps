@@ -1,0 +1,17 @@
+{
+  "dictate_key": "alt_l",
+  "let_key_through": true,
+  "teach_key": "alt_l",
+  "mic_name_contains": "",
+  "hold_seconds": 0.3,
+  "double_tap_seconds": 0.4,
+  "speech_model": "nemo-parakeet-tdt-0.6b-v2",
+  "speech_model_path": "models/parakeet-tdt-0.6b-v2",
+  "beeps": true,
+  "beep_volume": 0.12,
+  "enabled": true,
+  "dictate_enabled": true,
+  "show_light": true,
+  "typed_fix": true,
+  "min_peak": 0.005
+}
