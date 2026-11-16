@@ -6,15 +6,13 @@ Made by Pete Carter. Learning, building, and sharing AI with everyone. [Follow t
 
 [Windows apps](#windows-apps) · [Agent Skills](#agent-skills) · [Claude Code mods](#claude-code-mods) · [Help and feedback](#help-and-feedback)
 
-## Spotlight
+## Chirpy
 
-**Spotlight: focus on the window you're using.** Dim the surrounding desktop while you work. Click a different window and Spotlight follows it. Free for Windows. Runs locally. No account required.
+**Chirpy: talk instead of type, anywhere.** Hold Left Alt, talk, let go, and your words appear where your cursor is. Free for Windows 11. Your voice is turned into text on your own PC. No account required. English only.
 
-![Spotlight: one window stays bright and everything else is dimmed. The windows in this picture are made-up samples.](spotlight/docs/kit/hero-lit-window.jpg)
-
-- **[Download Spotlight for Windows](https://github.com/petercarter19-hue/Apps/releases/tag/spotlight-v1.3.0)** (Spotlight 1.3.0, the installer `Spotlight-Setup-1.3.0.exe`, about 44 MB)
-- **[Build Spotlight yourself](spotlight/KIT.md)** with an AI app, no coding
-- **[View source](spotlight/)**
+- **[Download Chirpy for Windows](https://github.com/petercarter19-hue/Apps/releases/tag/chirpy-v1.0.0)** (Chirpy 1.0.0, the installer `Chirpy-Setup.exe`, about 500 MB because the speech model is included)
+- **[How to install and use it](chirpy/README.md)**
+- **[View source and build steps](chirpy/README.md#build-it-yourself)**
 
 ## Windows apps
 
@@ -22,8 +20,8 @@ Each app has its own download page (a release for that app only) and its own fol
 
 | App | What it helps with | Download | Build it yourself |
 | --- | --- | --- | --- |
-| [Spotlight](spotlight/) | Dims everything on every screen except the window you are working in, and the light follows the window you click. Windows 11. | [Spotlight 1.3.0 installer](https://github.com/petercarter19-hue/Apps/releases/tag/spotlight-v1.3.0) | [Build kit](spotlight/KIT.md) |
 | [Chirpy](chirpy/) | Hold Left Alt, speak, and place the words where your cursor is. Speech is recognized on your PC; English only. Windows 11. | [Chirpy 1.0.0 installer](https://github.com/petercarter19-hue/Apps/releases/tag/chirpy-v1.0.0) (about 500 MB, the speech model is included) | [Source and build steps](chirpy/README.md#build-it-yourself) (no AI build kit yet) |
+| [Spotlight](spotlight/) | Dims everything on every screen except the window you are working in, and the light follows the window you click. Windows 11. | [Spotlight 1.3.0 installer](https://github.com/petercarter19-hue/Apps/releases/tag/spotlight-v1.3.0) | [Build kit](spotlight/KIT.md) |
 | [Glance](glance/) | A memory meter by the clock: hover it to see which apps use the most memory, and end a greedy one in two clicks. Windows 10 or 11. | [Glance 1.1.1](https://github.com/petercarter19-hue/Apps/releases/tag/glance-v1.1.1) | [Build kit](glance/KIT.md) |
 | [PhotoTwins](phototwins/) | Finds the same photo saved more than once, shows each group side by side with the best copy starred, and clears the extras safely, to the Recycle Bin with Undo. Windows 10 or 11. | [PhotoTwins 1.0.0](https://github.com/petercarter19-hue/Apps/releases/tag/phototwins-v1.0.0) | [Build kit](phototwins/KIT.md) |
 
