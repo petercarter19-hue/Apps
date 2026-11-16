@@ -7,6 +7,14 @@ Dims everything on every screen except the window you are working in. Click anot
 
 ![One window stays bright, everything else is dimmed](docs/kit/hero-lit-window.jpg)
 
+## Download
+
+**Needs:** Windows 11 (64-bit). Free, no account, nothing leaves your computer.
+
+**[Download Spotlight for Windows](https://github.com/petercarter19-hue/Apps/releases/tag/spotlight-v1.3.0)**: `Spotlight-Setup-1.3.0.exe` on the Spotlight 1.3.0 release (the page lists its SHA-256 so you can check the file). The installer is not signed, so Windows shows a "protected your PC" box: choose More info, then Run anyway. Installing needs no administrator rights, and uninstalling cleans up after itself.
+
+**Getting started:** run the installer. Spotlight starts, dims everything except the window you are in, and puts an icon by the clock. Click another window and the light follows. Click the icon to turn it on or off, double-click it for settings, or press Ctrl+Alt+S.
+
 ## What it does
 
 - **The light follows you.** Click, drag, resize, snap or maximize a window and the light goes with it.
@@ -15,11 +23,10 @@ Dims everything on every screen except the window you are working in. Click anot
 - **Your choices:** how dark (0 to 100%), five dimming colors, a soft glowing edge, pick an area like a snip, pause for an hour, never dim around chosen programs, step aside for meeting apps, keep the taskbar and pop-ups bright, hide the dimming from screen sharing.
 - **One click or one key:** click the tray icon (by the clock) to turn it on or off, double-click for settings, or press Ctrl+Alt+S (changeable).
 
-## Get it
+## Build it yourself
 
-- **Use it:** download `Spotlight-Setup-1.3.0.exe` from the [Spotlight 1.3.0 release](https://github.com/petercarter19-hue/Apps/releases/tag/spotlight-v1.3.0) (the page lists its SHA-256 so you can check the file). The installer is not signed, so Windows shows a "protected your PC" box: choose More info, then Run anyway. Uninstall cleans up after itself.
-- **Build it yourself with AI, no coding:** read the [kit](KIT.md) (or the printable [PDF](docs/build-it-yourself-kit.pdf)) and paste the message in [prompts/kickoff.txt](prompts/kickoff.txt).
-- **Build the finished code:** see [AGENTS.md](AGENTS.md). In short: `powershell -ExecutionPolicy Bypass -File tools\build.ps1` (needs the free .NET 10 SDK; Inno Setup 6 for the installer). Tests: `dotnet run --project tests -c Release`.
+- **With AI, no coding:** read the [kit](KIT.md) (or the printable [PDF](docs/build-it-yourself-kit.pdf)) and paste the message in [prompts/kickoff.txt](prompts/kickoff.txt).
+- **From the finished code:** see [AGENTS.md](AGENTS.md). In short: `powershell -ExecutionPolicy Bypass -File tools\build.ps1` (needs the free .NET 10 SDK; Inno Setup 6 for the installer). Tests: `dotnet run --project tests -c Release`.
 
 ## Local data (what it reads and writes)
 

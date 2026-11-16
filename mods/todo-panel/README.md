@@ -15,13 +15,15 @@ Claude can read and add to the list only through two small tools this mod provid
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install todo-panel --marketplace petercarter19-hue/apps
+/plugin marketplace add petercarter19-hue/apps
+/plugin install todo-panel@apps
 ```
 
 From a shell:
 
 ```
-claude plugin install todo-panel --marketplace petercarter19-hue/apps
+claude plugin marketplace add petercarter19-hue/apps
+claude plugin install todo-panel@apps
 ```
 
 In the desktop app: click + next to the prompt box, then Plugins, Add marketplace with `petercarter19-hue/apps`, then Add plugin.

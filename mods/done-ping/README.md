@@ -20,13 +20,15 @@ In `/config` (or the plugin's settings):
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install done-ping --marketplace petercarter19-hue/apps
+/plugin marketplace add petercarter19-hue/apps
+/plugin install done-ping@apps
 ```
 
 From a shell:
 
 ```
-claude plugin install done-ping --marketplace petercarter19-hue/apps
+claude plugin marketplace add petercarter19-hue/apps
+claude plugin install done-ping@apps
 ```
 
 In the desktop app: click + next to the prompt box, then Plugins, Add marketplace with `petercarter19-hue/apps`, then Add plugin.

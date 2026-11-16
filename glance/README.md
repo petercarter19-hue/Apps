@@ -1,6 +1,16 @@
-# Build your own memory meter with AI
+# Glance
 
 A free little Windows app that shows your memory use right by the clock. Hover it to see which apps are using the most, and end a greedy one in two clicks, without opening Task Manager.
+
+## Download
+
+**Needs:** Windows 10 or 11 (64-bit). Free, no account, no network connections.
+
+**[Download Glance 1.1.1](https://github.com/petercarter19-hue/Apps/releases/tag/glance-v1.1.1)**: `Glance.exe` on the Glance 1.1.1 release. It isn't code-signed, so Windows shows "Windows protected your PC": click **More info**, then **Run anyway**.
+
+**Getting started:** double-click `Glance.exe`. The memory number appears by the clock (if you can't see it, click the **^** arrow there and drag it onto the taskbar). Hover it for the card; see [Using it](#using-it) below.
+
+## Build it yourself
 
 **You build it yourself, with AI, without writing any code.** This folder has everything you need: the step-by-step kit, every message to send, and the finished code to compare with or build directly. It's all open source.
 
@@ -46,7 +56,7 @@ dotnet publish Glance.csproj -c Release -r win-x64 --self-contained true -p:Publ
 
 The app is `dist\Glance.exe`. Because you built it on your own PC, Windows opens it without any warning.
 
-**Just want to try ours?** A ready-made Glance.exe is on the [Glance 1.1.1 release](https://github.com/petercarter19-hue/Apps/releases/tag/glance-v1.1.1). Windows shows "Windows protected your PC" for downloaded apps that aren't code-signed. Click **More info**, then **Run anyway**.
+**Just want to try ours?** The ready-made `Glance.exe` is on the [Glance 1.1.1 release](https://github.com/petercarter19-hue/Apps/releases/tag/glance-v1.1.1) (see [Download](#download) above).
 
 ## Using it
 

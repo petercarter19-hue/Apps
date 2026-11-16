@@ -1,6 +1,16 @@
-# Build your own duplicate photo finder with AI
+# PhotoTwins
 
 A free Windows app that finds the same photo saved more than once on your computer, shows each group side by side with the best copy starred, and clears out the extras safely: to the Recycle Bin, with an Undo list that puts them back.
+
+## Download
+
+**Needs:** Windows 10 or 11 (64-bit). Free, no account, no network connections.
+
+**[Download PhotoTwins 1.0.0](https://github.com/petercarter19-hue/Apps/releases/tag/phototwins-v1.0.0)**: `PhotoTwins.exe` on the PhotoTwins 1.0.0 release. It isn't code-signed, so Windows shows "Windows protected your PC": click **More info**, then **Run anyway**.
+
+**Getting started:** double-click `PhotoTwins.exe` and start a scan. It begins with your Pictures folder; add or remove folders under **Settings**. Nothing is removed without your click, and removed photos go to the Recycle Bin. See [Using it](#using-it) below.
+
+## Build it yourself
 
 **You build it yourself, with AI, without writing any code.** This folder has everything you need: the step-by-step kit, every message to send, and the finished code to compare with or build directly. It's all open source.
 
@@ -47,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File tools\install.ps1
 
 It builds the app, checks it, puts it at `app\PhotoTwins.exe` and adds **PhotoTwins** to your Start menu. Because you built it on your own PC, Windows opens it without any warning.
 
-**Just want to try ours?** A ready-made PhotoTwins.exe is on the [PhotoTwins 1.0.0 release](https://github.com/petercarter19-hue/Apps/releases/tag/phototwins-v1.0.0). Windows shows "Windows protected your PC" for downloaded apps that aren't code-signed. Click **More info**, then **Run anyway**.
+**Just want to try ours?** The ready-made `PhotoTwins.exe` is on the [PhotoTwins 1.0.0 release](https://github.com/petercarter19-hue/Apps/releases/tag/phototwins-v1.0.0) (see [Download](#download) above).
 
 ## Using it
 

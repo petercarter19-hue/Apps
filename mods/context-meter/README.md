@@ -24,13 +24,15 @@ Today's totals are kept between sessions. The meter refreshes after every reply,
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install context-meter --marketplace petercarter19-hue/apps
+/plugin marketplace add petercarter19-hue/apps
+/plugin install context-meter@apps
 ```
 
 From a shell:
 
 ```
-claude plugin install context-meter --marketplace petercarter19-hue/apps
+claude plugin marketplace add petercarter19-hue/apps
+claude plugin install context-meter@apps
 ```
 
 In the desktop app: click + next to the prompt box, then Plugins, Add marketplace with `petercarter19-hue/apps`, then Add plugin.

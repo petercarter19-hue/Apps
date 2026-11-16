@@ -54,13 +54,15 @@ In the terminal the strip is a colored line with the same words, painted in each
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install mood-strip --marketplace petercarter19-hue/apps
+/plugin marketplace add petercarter19-hue/apps
+/plugin install mood-strip@apps
 ```
 
 From a shell:
 
 ```
-claude plugin install mood-strip --marketplace petercarter19-hue/apps
+claude plugin marketplace add petercarter19-hue/apps
+claude plugin install mood-strip@apps
 ```
 
 In the desktop app: click + next to the prompt box, then Plugins, Add marketplace with `petercarter19-hue/apps`, then Add plugin. Start a new session and type `/mood demo`.

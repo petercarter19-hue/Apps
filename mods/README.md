@@ -13,10 +13,14 @@ Small add-ons that change how Claude Code looks and behaves. You install them fr
 
 In the Claude desktop app (Code tab, a local session): click + next to the prompt box, then Plugins, Add marketplace with `petercarter19-hue/apps`, then Add plugin and pick each mod you want.
 
-From a terminal:
+At the prompt of a Claude Code terminal session, add the marketplace once (it is named `apps`), then install the mods you want:
 
 ```
-claude plugin install context-meter --marketplace petercarter19-hue/apps
+/plugin marketplace add petercarter19-hue/apps
+/plugin install context-meter@apps
+/plugin install mood-strip@apps
+/plugin install done-ping@apps
+/plugin install todo-panel@apps
 ```
 
 ## License
