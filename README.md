@@ -1,6 +1,6 @@
 # Useful apps. Built with AI. Shared for free.
 
-Small Windows tools that make everyday computer work easier, plus reusable AI skills and Claude Code mods. Download a finished app or learn how to build your own with the guides, prompts, and source available for each project.
+Windows tools that make everyday computer work easier, plus reusable AI skills and Claude Code mods. Download a finished app or learn how to build your own with the guides, prompts, and source available for each project.
 
 Made by Pete Carter. Learning, building, and sharing AI with everyone. [Follow the builds on X](https://x.com/PeteC_19).
 
