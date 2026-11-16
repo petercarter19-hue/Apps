@@ -20,7 +20,7 @@ Each app has its own download page (a release for that app only) and its own fol
 
 | App | What it helps with | Download | Build it yourself |
 | --- | --- | --- | --- |
-| [Chirpy](chirpy/) | Hold Left Alt, speak, and place the words where your cursor is. Speech is recognized on your PC; English only. Windows 11. | [Chirpy 1.0.0 installer](https://github.com/petercarter19-hue/Apps/releases/tag/chirpy-v1.0.0) (about 500 MB, the speech model is included) | [Source and build steps](chirpy/README.md#build-it-yourself) (no AI build kit yet) |
+| [Chirpy](chirpy/) | Hold Left Alt, speak, and place the words where your cursor is. Speech is recognized on your PC; English only. Windows 11. | [Chirpy 1.0.0 installer](https://github.com/petercarter19-hue/Apps/releases/tag/chirpy-v1.0.0) (about 500 MB, the speech model is included) | [Build kit](chirpy/KIT.md) |
 | [Spotlight](spotlight/) | Dims everything on every screen except the window you are working in, and the light follows the window you click. Windows 11. | [Spotlight 1.3.0 installer](https://github.com/petercarter19-hue/Apps/releases/tag/spotlight-v1.3.0) | [Build kit](spotlight/KIT.md) |
 | [Glance](glance/) | A memory meter by the clock: hover it to see which apps use the most memory, and end a greedy one in two clicks. Windows 10 or 11. | [Glance 1.1.1](https://github.com/petercarter19-hue/Apps/releases/tag/glance-v1.1.1) | [Build kit](glance/KIT.md) |
 | [PhotoTwins](phototwins/) | Finds the same photo saved more than once, shows each group side by side with the best copy starred, and clears the extras safely, to the Recycle Bin with Undo. Windows 10 or 11. | [PhotoTwins 1.0.0](https://github.com/petercarter19-hue/Apps/releases/tag/phototwins-v1.0.0) | [Build kit](phototwins/KIT.md) |

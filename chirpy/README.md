@@ -4,6 +4,8 @@ A free Windows app that lets you talk instead of type, anywhere. Hold Left Alt, 
 
 Free, no account, English only. Your voice is turned into text on your own PC. The source code is in this folder, and you can [build it yourself](#build-it-yourself).
 
+**Build it yourself with AI, no coding:** read the [build kit](KIT.md) (or the printable [PDF](docs/build-it-yourself-kit.pdf)) and paste the message in [prompts/kickoff.txt](prompts/kickoff.txt). It works with any AI coding app.
+
 ## Download
 
 Download **Chirpy-Setup.exe** from the [Chirpy 1.0.0 release](https://github.com/petercarter19-hue/Apps/releases/tag/chirpy-v1.0.0) (about 500 MB, because the speech model comes with it, so Chirpy doesn't need to download anything while it sets up).
@@ -47,6 +49,10 @@ Windows Settings > Apps > Chirpy > Uninstall. It asks whether to keep your words
 Bugs, comments or requests: [open a new issue](https://github.com/petercarter19-hue/Apps/issues/new).
 
 ## Build it yourself
+
+**With AI, no coding:** the [build kit](KIT.md) walks you through it, and [prompts/kickoff.txt](prompts/kickoff.txt) is the message to paste into your AI app.
+
+**From the finished code:** the steps below build this exact app and installer.
 
 The source is in this folder, so you can read it and build the same app and installer. Everything below is for Windows 11 (64-bit) and PowerShell. Nothing here installs or runs Chirpy; a build only writes into the folders you name.
 

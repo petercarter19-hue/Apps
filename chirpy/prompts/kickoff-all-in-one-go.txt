@@ -1,0 +1,28 @@
+I want to build a free voice-typing app for Windows called [Chirpy]: hold a key, talk, and my words are typed where my cursor is. I'm not technical and I've never coded. Build it step by step, show me something working after each step, and test what you can yourself before asking me.
+
+FIRST
+- Check my PC (Windows edition, disk space, microphone, Windows Sandbox). Turn Sandbox on if it's there (I'll restart). On Windows Home, test in a throwaway folder and leave the installer try to me.
+- Write PLAN.md with the steps below and a short GOOD-ENOUGH LIST in plain words: my files are never lost or broken, two quick changes both stick, starting the app twice never breaks anything, and no message says something the code doesn't do. Every later check is graded against that list.
+
+WHAT IT DOES
+- Hold [Left Alt], talk, let go: typed where my cursor is. Double-tap for hands-free, tap to stop, Esc cancels. Alt+Tab never starts it.
+- English only, American spelling. A second dictation into the same window within 2 minutes starts with a space (and a capital after . ? !).
+- Teach: I select a wrong word, hold Shift and tap [Left Alt], type the fix, press Enter. Never copy text in a terminal or code editor. Words it must spell right: [my name, my company].
+- A window with Home, History (search, Copy, Clear history), Words & fixes and Settings (a switch per feature, keys from a short list); a dark/light switch on Home; an icon by the clock (Open, Settings, Pause, Quit); a small light while it listens. Look: [calm teal, light first].
+- Plain messages: no microphone, a change that couldn't be saved, or an app that can't start each say what to do, in one sentence.
+
+DECISIONS ALREADY MADE
+- Speech: the free local NVIDIA Parakeet TDT 0.6B v2 model (int8, ONNX) with onnx-asr, on the CPU. Credit NVIDIA in a notices file that lists every part and its license. My own code is MIT, "Copyright (c) [year] [Chirpy]".
+- Typing: paste through the clipboard for about a second, then put my clipboard back. Say honestly on Home that Windows clipboard history or sync may still see it.
+- Saving: ONE careful way to save every file of mine (temporary copy, then swap; never write a file you couldn't read). A second start only reads.
+- Only one voice app may listen to the keys at a time: refuse to start, or quit, and say why.
+- Package: its own Python and the model, per user, no administrator. Installer: Inno Setup, unsigned, license page first, an UNCHECKED "Start when I sign in", and an uninstaller that asks whether to keep my words and history.
+
+HOW TO WORK WITH ME
+- Plain English, short answers. Don't ask me technical questions.
+- Test installs, uninstalls and key presses ONLY in Windows Sandbox, never with real keys or clicks on my screen. Any test that starts the app stops it by its exact process ID.
+- Run installers from PowerShell. Ask before deleting anything of mine.
+- Promise only what the code does. If the same fix fails three times, stop and give me the simpler way forward.
+
+STEPS: 1 Talk and it types  2 Teach a word  3 The app  4 The installer  5 A second opinion
+Build all the steps without stopping. Test each one yourself, and only stop when everything works or you need a decision only I can make.
