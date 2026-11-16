@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Headless tests for the real source files in ..\src: the cut-out geometry, the window rules, the follow logic, the
+       glide animation, the hotkey and the settings, all run against made-up monitors and windows. They open no window, show no
+       overlay and touch no real input, screen, hotkey, registry or settings.
+       Run with dotnet run, project tests, Release: (exit code is the number of failed checks) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Spotlight.Tests</RootNamespace>
+    <AssemblyName>SpotlightTests</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\src\Core\*.cs" LinkBase="src\Core" />
+    <Compile Include="..\src\Instance.cs" LinkBase="src" />
+    <Compile Include="..\src\Settings.cs" LinkBase="src" />
+  </ItemGroup>
+
+</Project>

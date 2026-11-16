@@ -1,0 +1,36 @@
+Build me a small free Windows 11 app called [APP NAME], in C# with .NET and Windows Forms, as a single-file self-contained exe plus a professional per-user installer (Inno Setup, no admin needed).
+
+WHAT IT DOES: it dims everything on every monitor except the window I am working in. When I click another window the light glides to it (about 0.25 s, with a short fade in and out). It runs from a tray icon (no main window). Clicks, typing and scrolling must go straight through the dimming and it must never take focus or show in Alt+Tab.
+
+HOW TO BUILD IT (lessons we already learned, keep them):
+- One solid-black, see-through, click-through, topmost window per monitor, and cut the "light" out of it with a window region (a hole shaped like the active window, rounded like Windows 11 windows, square when maximized). Moving the light is then only a new region, so it uses almost no CPU. Do not redraw bitmaps every frame.
+- Make each dimming window ONE PIXEL ROW SHORTER than its monitor. A window that covers a whole screen makes Windows think a full-screen app is running and it switches on Do Not Disturb by itself.
+- Follow windows with Windows event hooks (foreground change, minimize, destroy), never with a polling loop; attach the "location changed" hook only to the lit window's thread. Keep the delegate in a field so it is never garbage-collected. If a hook fails, fall back to a slow poll and tell me once.
+- Use the visible frame (DWMWA_EXTENDED_FRAME_BOUNDS), not GetWindowRect, which includes invisible resize borders.
+- Do not dim: the desktop, Start, search, Alt+Tab, full-screen apps (a window with no title bar that covers a monitor), minimized windows. Keep the old light while the taskbar has focus. When a full-screen app returns to normal, bring the dimming back by itself.
+- Keep every decision (where the hole goes, which window to light, the glide math) in plain classes with no Windows calls, so you can test them with made-up monitors and windows.
+- Support several monitors with different scaling; rebuild on display changes.
+
+CONTROLS: tray icon: one click turns it on or off (gray icon when off), double-click opens a settings window, right-click shows a short menu. Hotkey [HOTKEY] toggles it. Settings window with tabs: Basics (on/off button, a "How dark" slider 0 to 100 with live preview and a default of [DEFAULT DARKNESS]%, dimming color choices [COLORS], a Change button to record a new shortcut that refuses keys that would block typing and keys another program already owns, Pause for 1 hour, Start when I sign in [START WITH WINDOWS]); Where (follow the window, or "only an area I pick": a see-through selection sheet over all screens where I drag a rectangle, Esc cancels; dim only the screen the light is on; soft glowing edge; keep the taskbar, tray pop-up and menus lit); Apps (a list of programs to never dim around); Focus (keep notification pop-ups lit, step aside for video-meeting apps, hide the dimming from screen sharing). The settings window is its own short-lived copy of the exe so it is lit like any window, and it must close by itself if the tray copy quits. Size the tabs to fit at any display scale (a fixed height cut the last option off at 125%).
+QUICK BAR [QUICK BAR]: a small floating glass pill (a see-through, always-on-top window drawn by the app itself, never taking focus, kept above the dimming, hidden while a full-screen app is in front) with a drag grip (it snaps gently to screen edges and remembers where it was left), the on/off switch, the dimming percent and a chevron that opens a panel UNDER the pill (above it only if there is no room below) with How dark (a slider), Color, Where, Pause 1 hour, Settings and Hide this bar. Give it a dark smoked-glass look and a light frosted-glass look, with a soft shadow in its own click-through window so a click in the shadow reaches the window underneath. The settings window follows the same look and opens right under the pill when started from it.
+EXTRAS I WANT: [EXTRAS]
+
+SAVING: only its own files in %LocalAppData%\[APP NAME] (settings.json, a small log, and settings.bad.json as a copy of a damaged settings file) plus the per-user startup entry when I tick Start at sign-in; write settings.json by saving a new file beside it and swapping it in, so nobody reads half a file; if one field is damaged keep all the others, keep a copy of the damaged file as settings.bad.json and tell me once; never write anything else.
+
+SAFETY AND TESTING:
+- Tests and any test run must never take screenshots of my real screen, press real keys, register the real hotkey, or touch my real settings or startup entry. Give test copies their own names for the lock, the settings folder and the startup entry (an environment variable).
+- Build in a copy of the folder and swap it in only when the tests pass. Nothing may fail silently: log repeats once.
+- Write headless tests for the geometry, the window rules, the glide, the hotkey and the settings (all with made-up data) and run them. Then build the installer; its uninstaller must quit the running copy first, wait for it, and remove the settings, the Start menu shortcut and the startup entry. If anything is still running, including a picking sheet that was open, the installer stops it.
+- When done, give me the installer path, a one-page how-to-use, and a test checklist for trying it in Windows Sandbox.
+
+Work step by step in this order, and after each step tell me in two lines what I can try, then wait for me to say "Works. Next step.":
+1. The dimming and the glide between windows.
+2. What it must skip (desktop, Start, Alt+Tab, full-screen apps) and what it must keep bright.
+3. The tray icon (one click on or off, gray when off, double-click for settings), the hotkey and the right-click menu.
+4. The settings window: Basics, Where, Apps and Focus, with the slider, colors, pause and the quick bar choices.
+5. Pick an area like a snip.
+6. The extras I chose.
+7. The quick bar (the small glass pill with its panel, dark and light looks).
+8. The installer and uninstaller, then the test checklist for Windows Sandbox.
+
+Do not stop between steps. Build everything, run all the tests, build the installer, and only then tell me what to try.

@@ -9,6 +9,7 @@ Small Windows apps you can build yourself with AI, skills for your AI app, and C
 | [chirpy](chirpy/) | Talk instead of typing, anywhere: hold Left Alt, talk, let go, and your words appear where your cursor is. Free, no account, English only; speech is recognized on your PC. Download the installer from the latest release, or read the source and build it yourself. |
 | [glance](glance/) | A memory meter by the clock: hover it to see which apps use the most memory, and end a greedy one in two clicks. Comes with a build-it-yourself kit, every prompt, and the finished code. |
 | [phototwins](phototwins/) | A duplicate photo finder: it finds the same photo saved more than once, shows each group side by side with the best copy starred, and clears out the extras safely, to the Recycle Bin with Undo. Comes with a build-it-yourself kit, every prompt, and the finished code. |
+| [spotlight](spotlight/) | Dims everything on every screen except the window you are working in; the light glides to the window you click. A small floating glass quick bar (dark or light), pick an area like a snip, pause, never-dim list, and more. Free, local, no account. Download the installer from the latest Spotlight release, or read the source and build it yourself with the kit. |
 
 ## Skills
 
