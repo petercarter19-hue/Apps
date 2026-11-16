@@ -1,8 +1,16 @@
-# Useful apps. Built with AI. Shared for free.
+# Free apps, built with AI, shared with everyone
 
-Windows tools that make everyday computer work easier, plus reusable AI skills and Claude Code mods. Download a finished app or learn how to build your own with the guides, prompts, and source available for each project.
+Hi, I'm Pete Carter. I'm not a programmer. I build apps with AI, and I share what I make here for free, so we can learn together.
 
-Made by Pete Carter. Learning, building, and sharing AI with everyone. [Follow the builds on X](https://x.com/PeteC_19).
+Some of these apps are small and simple. Some are big and complex. Each one comes three ways:
+
+- **Download it.** Get the finished app and start using it.
+- **Look at the code.** The full source stays here for everybody, so anyone can see exactly what an app does, change it, or share it.
+- **Build it yourself.** Each app comes with a free build-it-yourself kit: step-by-step instructions and the exact prompts to paste into an AI app. No coding needed. Instructional videos are coming for some of the apps.
+
+What I care about most is helping people use AI safely and learn when to trust it. Every app here is built by one AI and checked by a different one, tested before it's released, and scanned so no passwords or keys slip out. The apps run on your own computer and need no account, and each app's page says what it reads, writes, and keeps private.
+
+I'm having a lot of fun with this, and I'm learning as I go. Come along: [follow the builds on X](https://x.com/PeteC_19), try an app, and [tell me what works and what doesn't](https://github.com/petercarter19-hue/Apps/issues/new).
 
 [Windows apps](#windows-apps) · [Agent Skills](#agent-skills) · [Claude Code mods](#claude-code-mods) · [Help and feedback](#help-and-feedback)
 
@@ -10,9 +18,12 @@ Made by Pete Carter. Learning, building, and sharing AI with everyone. [Follow t
 
 **Chirpy: talk instead of type, anywhere.** Hold Left Alt, talk, let go, and your words appear where your cursor is. Free for Windows 11. Your voice is turned into text on your own PC. No account required. English only.
 
+![Chirpy's Home screen: Chirpy is on and ready, with the three ways to use it: hold Left Alt to dictate, double-tap for hands-free, and Shift + tap to teach a word.](chirpy/docs/kit/home-light.jpg)
+
 - **[Download Chirpy for Windows](https://github.com/petercarter19-hue/Apps/releases/tag/chirpy-v1.0.0)** (Chirpy 1.0.0, the installer `Chirpy-Setup.exe`, about 500 MB because the speech model is included)
 - **[How to install and use it](chirpy/README.md)**
-- **[View source and build steps](chirpy/README.md#build-it-yourself)**
+- **[Build Chirpy yourself](chirpy/KIT.md)** with an AI app, no coding
+- **[View source](chirpy/)**
 
 ## Windows apps
 
