@@ -391,15 +391,16 @@ Test("hole follows the glide across screens: a mid-glide frame spans both screen
 });
 
 // ---- strength, hotkey, settings -----------------------------------------------------------------
-Test("dim slider 0 to 100: 0 is no dimming, steps only get darker, 100 is never fully black, scaled by the fade", () =>
+Test("dim slider 0 to 100: 0 is no dimming, steps only get darker, 100 is a full blackout, in a straight line, scaled by the fade", () =>
 {
     Eq(Strengths.Alpha(0, 1), (byte)0, "0% = no dimming");
     byte prev = 0; bool rising = true;
     for (int p = 1; p <= 100; p++) { byte a = Strengths.Alpha(p, 1); if (a < prev) rising = false; prev = a; }
-    Expect(rising, "never gets lighter as the slider goes up"); Expect(Strengths.Alpha(100, 1) < 255 && Strengths.Alpha(100, 1) > Strengths.Alpha(75, 1), "100% is dark but not black");
+    Expect(rising, "never gets lighter as the slider goes up"); Eq(Strengths.Alpha(100, 1), (byte)255, "100% is a full blackout");
+    for (int p = 0; p <= 100; p++) Eq(Strengths.Alpha(p, 1), (byte)Math.Round(p / 100.0 * 255), $"straight line at {p}%");
     Eq(Strengths.Alpha(100, 0), (byte)0, "no fade = clear"); Eq(Strengths.Alpha(50, 5), Strengths.Alpha(50, 1), "fade clamped");
     Eq(Strengths.Alpha(-20, 1), (byte)0, "below 0 = 0"); Eq(Strengths.Alpha(500, 1), Strengths.Alpha(100, 1), "above 100 = 100");
-    Eq(Strengths.Alpha(Strengths.FromLegacy(DimStrength.Medium), 1), (byte)Math.Round(0.55 * 0.95 * 255), "default is the old Medium look");
+    Eq(Strengths.Alpha(Strengths.FromLegacy(DimStrength.Medium), 1), (byte)Math.Round(0.55 * 255), "default is 55%, a straight line");
     Expect(Strengths.FromLegacy(DimStrength.Light) < Strengths.FromLegacy(DimStrength.Medium) && Strengths.FromLegacy(DimStrength.Medium) < Strengths.FromLegacy(DimStrength.Strong), "old three ordered");
 });
 Test("hotkey from pressed keys (settings window): needs Ctrl, Alt or Win and a letter, digit or F1-F12", () =>
@@ -457,7 +458,7 @@ Test("item 3: settings.json does not save the derived ParsedHotkey block; an old
 // ---- version 1.2.0 options ------------------------------------------------------------------------
 Test("soft edge: layers stack to the chosen darkness far away and build up in equal steps toward the window", () =>
 {
-    foreach (double d in new[] { 0.2, 0.55, 0.95 })
+    foreach (double d in new[] { 0.2, 0.55, 0.95, 1.0 })
     {
         var plan = SoftEdge.Plan(d);
         Eq(plan.Length, SoftEdge.LayerCount, "layers");

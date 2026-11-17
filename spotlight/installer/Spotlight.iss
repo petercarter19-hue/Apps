@@ -1,6 +1,6 @@
 ; Spotlight installer (Inno Setup 6). Per-user, no admin. Build with tools\build.ps1.
 #define AppName "Spotlight"
-#define AppVersion "1.3.0"
+#define AppVersion "1.3.1"
 #define AppExe "Spotlight.exe"
 
 [Setup]

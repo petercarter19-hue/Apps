@@ -12,8 +12,8 @@ internal static class Strengths
 
     public static int Clamp(int percent) => Math.Clamp(percent, 0, 100);
 
-    /// <summary>How dark the dimming gets, 0 to 1. 100% on the slider is 95% dark, so something is always faintly visible.</summary>
-    public static double Level(int percent) => Clamp(percent) / 100.0 * 0.95;
+    /// <summary>How dark the dimming gets, 0 to 1, in a straight line: 0% is completely clear, 100% is a full blackout.</summary>
+    public static double Level(int percent) => Clamp(percent) / 100.0;
 
     /// <summary>The overlay's opacity byte for a slider value and the animation's current opacity.</summary>
     public static byte Alpha(int percent, double opacity) =>
@@ -111,7 +111,7 @@ internal static class SoftEdge
     /// </summary>
     public static (int Grow, double Alpha)[] Plan(double totalDim)
     {
-        double d = Math.Clamp(totalDim, 0, 0.95);
+        double d = Math.Clamp(totalDim, 0, 1);
         var plan = new (int, double)[LayerCount];
         for (int j = 0; j < LayerCount; j++)
         {
