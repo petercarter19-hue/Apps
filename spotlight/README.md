@@ -17,7 +17,7 @@ Dims everything on every screen except the window you are working in. Click anot
 
 ## Get it
 
-- **Use it:** download `Spotlight-Setup-1.3.1.exe` from the [Spotlight 1.3.1 release](https://github.com/petercarter19-hue/Apps/releases/tag/spotlight-v1.3.1) (the page lists its SHA-256 so you can check the file). The installer is not signed, so Windows shows a "protected your PC" box: choose More info, then Run anyway. Uninstall cleans up after itself.
+- **Use it:** download `Spotlight-Setup-1.3.2.exe` from the [Spotlight 1.3.2 release](https://github.com/petercarter19-hue/Apps/releases/tag/spotlight-v1.3.2) (the page lists its SHA-256 so you can check the file). The installer is not signed, so Windows shows a "protected your PC" box: choose More info, then Run anyway. Uninstall cleans up after itself.
 - **Build it yourself with AI, no coding:** read the [kit](KIT.md) (or the printable [PDF](docs/build-it-yourself-kit.pdf)) and paste the message in [prompts/kickoff.txt](prompts/kickoff.txt).
 - **Build the finished code:** see [AGENTS.md](AGENTS.md). In short: `powershell -ExecutionPolicy Bypass -File tools\build.ps1` (needs the free .NET 10 SDK; Inno Setup 6 for the installer). Tests: `dotnet run --project tests -c Release`.
 

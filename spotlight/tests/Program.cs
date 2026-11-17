@@ -391,16 +391,17 @@ Test("hole follows the glide across screens: a mid-glide frame spans both screen
 });
 
 // ---- strength, hotkey, settings -----------------------------------------------------------------
-Test("dim slider 0 to 100: 0 is no dimming, steps only get darker, 100 is a full blackout, in a straight line, scaled by the fade", () =>
+Test("dim slider 0 to 100: 0 is no dimming, steps only get darker, 100 is a full blackout, steep early curve, scaled by the fade", () =>
 {
     Eq(Strengths.Alpha(0, 1), (byte)0, "0% = no dimming");
     byte prev = 0; bool rising = true;
     for (int p = 1; p <= 100; p++) { byte a = Strengths.Alpha(p, 1); if (a < prev) rising = false; prev = a; }
     Expect(rising, "never gets lighter as the slider goes up"); Eq(Strengths.Alpha(100, 1), (byte)255, "100% is a full blackout");
-    for (int p = 0; p <= 100; p++) Eq(Strengths.Alpha(p, 1), (byte)Math.Round(p / 100.0 * 255), $"straight line at {p}%");
+    for (int p = 0; p <= 100; p++) Eq(Strengths.Alpha(p, 1), (byte)Math.Round((1 - Math.Pow(1 - p / 100.0, 2.5)) * 255), $"curve at {p}%");
+    Expect(Strengths.Alpha(40, 1) >= 0.70 * 255, "40% is already clearly dark"); Expect(Strengths.Alpha(20, 1) >= 0.40 * 255, "20% is visible");
     Eq(Strengths.Alpha(100, 0), (byte)0, "no fade = clear"); Eq(Strengths.Alpha(50, 5), Strengths.Alpha(50, 1), "fade clamped");
     Eq(Strengths.Alpha(-20, 1), (byte)0, "below 0 = 0"); Eq(Strengths.Alpha(500, 1), Strengths.Alpha(100, 1), "above 100 = 100");
-    Eq(Strengths.Alpha(Strengths.FromLegacy(DimStrength.Medium), 1), (byte)Math.Round(0.55 * 255), "default is 55%, a straight line");
+    Expect(Math.Abs(Strengths.Alpha(Strengths.FromLegacy(DimStrength.Medium), 1) - 0.5225 * 255) < 3, "old Medium keeps its look");
     Expect(Strengths.FromLegacy(DimStrength.Light) < Strengths.FromLegacy(DimStrength.Medium) && Strengths.FromLegacy(DimStrength.Medium) < Strengths.FromLegacy(DimStrength.Strong), "old three ordered");
 });
 Test("hotkey from pressed keys (settings window): needs Ctrl, Alt or Win and a letter, digit or F1-F12", () =>
@@ -427,13 +428,13 @@ Test("hotkey: Ctrl+Alt+S is the default; parses, prints, and rejects unsafe or m
 Test("settings: first run writes defaults; changes survive a reload; a broken file falls back to defaults", () =>
 {
     var s = Settings.Load();
-    Expect(s.FirstRun && s.Enabled && s.DimPercent == 55 && s.Strength == null && s.Hotkey == "Ctrl+Alt+S", "defaults");
+    Expect(s.FirstRun && s.Enabled && s.DimPercent == Strengths.Default && s.Strength == null && s.Hotkey == "Ctrl+Alt+S", "defaults");
     s.Enabled = false; s.DimPercent = 80; s.Hotkey = "Ctrl+Alt+L"; s.Save();
     var r = Settings.Load();
     Expect(!r.FirstRun && !r.Enabled && r.DimPercent == 80 && r.ParsedHotkey.ToString() == "Ctrl+Alt+L", "saved");
     File.WriteAllText(Path.Combine(dir, "settings.json"), "{ not json");
     var bad = Settings.Load();
-    Expect(bad.Enabled && bad.DimPercent == 55, "broken file = defaults");
+    Expect(bad.Enabled && bad.DimPercent == Strengths.Default, "broken file = defaults");
     File.WriteAllText(Path.Combine(dir, "settings.json"), "{\"Hotkey\":\"banana\"}");
     Eq(Settings.Load().ParsedHotkey, Hotkey.Default, "bad hotkey text falls back to Ctrl+Alt+S");
     File.WriteAllText(Path.Combine(dir, "settings.json"), "{\"DimPercent\":250}"); Eq(Settings.Load().DimPercent, 100, "too high pulled to 100");
@@ -447,11 +448,11 @@ Test("item 3: settings.json does not save the derived ParsedHotkey block; an old
     File.WriteAllText(Path.Combine(dir, "settings.json"),
         "{\"Enabled\":false,\"Strength\":\"Strong\",\"Hotkey\":\"Ctrl+Alt+K\",\"ParsedHotkey\":{\"Modifiers\":3,\"VirtualKey\":75}}");
     var old = Settings.Load();
-    Expect(!old.Enabled && old.DimPercent == 75 && old.Hotkey == "Ctrl+Alt+K" && old.ParsedHotkey.ToString() == "Ctrl+Alt+K", "old file with the block loads");
+    Expect(!old.Enabled && old.DimPercent == Strengths.FromLegacy(DimStrength.Strong) && old.Hotkey == "Ctrl+Alt+K" && old.ParsedHotkey.ToString() == "Ctrl+Alt+K", "old file with the block loads");
     old.Save();
     string saved = File.ReadAllText(Path.Combine(dir, "settings.json"));
     Expect(!saved.Contains("ParsedHotkey"), "block dropped on next save");
-    Expect(!saved.Contains("\"Strength\"") && saved.Contains("\"DimPercent\": 75"), "old Strength word is replaced by the number on the next save");
+    Expect(!saved.Contains("\"Strength\"") && saved.Contains("\"DimPercent\": " + Strengths.FromLegacy(DimStrength.Strong)), "old Strength word is replaced by the number on the next save");
     File.WriteAllText(Path.Combine(dir, "settings.json"), "{\"Strength\":\"Light\",\"DimPercent\":20}");
     Eq(Settings.Load().DimPercent, 20, "a file with both keeps the number");
 });
@@ -619,8 +620,8 @@ Test("settings file: saved atomically (no half file, no leftover), one bad field
     Expect(File.Exists(Path.Combine(dir, "settings.bad.json")), "a copy of the damaged file was kept");
     Expect(Settings.TakeProblem() is { Length: > 20 }, "a message is waiting for the tray"); Expect(Settings.TakeProblem() is null, "and it is shown only once");
     File.WriteAllText(Path.Combine(dir, "settings.json"), "garbage");
-    var g = Settings.Load(); Expect(g.DimPercent == 55 && g.Enabled, "total garbage: defaults"); Expect(Settings.TakeProblem() is not null, "total garbage also leaves a message");
-    File.WriteAllText(Path.Combine(dir, "settings.json"), "[1,2,3]"); Expect(Settings.Load().DimPercent == 55, "wrong shape: defaults");
+    var g = Settings.Load(); Expect(g.DimPercent == Strengths.Default && g.Enabled, "total garbage: defaults"); Expect(Settings.TakeProblem() is not null, "total garbage also leaves a message");
+    File.WriteAllText(Path.Combine(dir, "settings.json"), "[1,2,3]"); Expect(Settings.Load().DimPercent == Strengths.Default, "wrong shape: defaults");
     Settings.TakeProblem();
 });
 Test("quick bar rests on a real screen: never in a gap between screens, never half off, nearest screen wins", () =>

@@ -5,15 +5,19 @@ internal enum DimStrength { Light, Medium, Strong }
 
 internal static class Strengths
 {
-    public const int Default = 55;
+    public const int Default = 30;
 
-    /// <summary>The old Light, Medium, Strong choices as slider values (the same darkness they had).</summary>
-    public static int FromLegacy(DimStrength s) => s switch { DimStrength.Light => 35, DimStrength.Strong => 75, _ => 55 };
+    /// <summary>The old Light, Medium, Strong choices as slider values (the same darkness they had on the 1.3.1 curve).</summary>
+    public static int FromLegacy(DimStrength s) => s switch { DimStrength.Light => 15, DimStrength.Strong => 39, _ => 26 };
 
     public static int Clamp(int percent) => Math.Clamp(percent, 0, 100);
 
-    /// <summary>How dark the dimming gets, 0 to 1, in a straight line: 0% is completely clear, 100% is a full blackout.</summary>
-    public static double Level(int percent) => Clamp(percent) / 100.0;
+    /// <summary>
+    /// How dark the dimming gets, 0 to 1. Eyes notice dimming late, so a straight line looks like nothing happens at first:
+    /// the curve is steep at the start (40% on the slider is already about 72% dark), 0% is completely clear and 100% is a full blackout.
+    /// </summary>
+    public const double Curve = 2.5;
+    public static double Level(int percent) => 1 - Math.Pow(1 - Clamp(percent) / 100.0, Curve);
 
     /// <summary>The overlay's opacity byte for a slider value and the animation's current opacity.</summary>
     public static byte Alpha(int percent, double opacity) =>

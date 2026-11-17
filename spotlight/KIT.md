@@ -75,7 +75,7 @@ Fill the [brackets] in the message in section 5 with your choices. Not sure? Use
 |---|---|---|
 | [APP NAME] | Spotlight | Shows in the Start menu, the Apps list and the tray tooltip. |
 | [HOTKEY] | Ctrl+Alt+S | Must use Ctrl, Alt or the Windows key plus a letter, number or F-key, so it can never block normal typing. |
-| [DEFAULT DARKNESS] | 55% | 0 means no dimming, 100% means a full blackout. |
+| [DEFAULT DARKNESS] | 30% | 0 means no dimming, 100% means a full blackout. The slider is steep at first, so 40% is already clearly dark. |
 | [COLORS] | Black, Warm, Blue, Green, Purple | All dark, soft shades; the color of the dimming, not a bright tint. |
 | [EXTRAS] | All of them | Pause for an hour, pick an area, never-dim list, meeting apps, taskbar always lit, notification pop-ups lit, hide from screen sharing, one screen only, soft edge. Say "none" for the simplest version. |
 | [QUICK BAR] | On, with a dark and a light look | The small floating pill. Say "none" to leave it out. The settings window takes the same dark or light look. |
