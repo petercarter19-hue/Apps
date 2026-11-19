@@ -14,13 +14,13 @@
   #error Pass /DPackageDir=<the built package folder, the one that holds Setup.cmd>; tools/build_chirpy_setup.ps1 does.
 #endif
 #ifndef ChirpyVersion
-  #define ChirpyVersion "unknown"
+  #define ChirpyVersion "1.1.0"
 #endif
 #ifndef ChirpyBuild
   #define ChirpyBuild "unknown"
 #endif
 #ifndef NumericVersion
-  #define NumericVersion "0.0.0.0"
+  #define NumericVersion "1.1.0.0"
 #endif
 #ifndef ImagesDir
   #error Pass /DImagesDir=<folder with the wizard pictures>; tools/build_chirpy_setup.ps1 does.
@@ -531,7 +531,7 @@ begin
     repeat
       if (Found.Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0 then
         if IsGeneratedTemp(Found.Name, 'words.txt.') or IsGeneratedTemp(Found.Name, 'corrections.json.') or
-           IsGeneratedCopy(Found.Name, 'words', '.txt') or IsGeneratedCopy(Found.Name, 'corrections', '.json') then
+           IsGeneratedTemp(Found.Name, 'usual_words.json.') or IsGeneratedCopy(Found.Name, 'words', '.txt') or IsGeneratedCopy(Found.Name, 'corrections', '.json') then
           DeleteFile(Dir + '\' + Found.Name);
     until not FindNext(Found);
   finally
@@ -567,6 +567,7 @@ begin
     DeleteFile(Dir + '\corrections.json');
     DeleteFile(Dir + '\corrections_pending.json');
     DeleteFile(Dir + '\history.jsonl');
+    DeleteFile(Dir + '\usual_words.json');
     DeleteMatching(Dir, 'config.damaged-*.json');
     DeleteMatching(Dir, 'config.reset-*.json');
     DeleteMatching(Dir, 'config.backup*');

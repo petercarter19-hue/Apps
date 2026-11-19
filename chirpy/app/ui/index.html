@@ -465,12 +465,13 @@ function drawWords() {
   if (editWord >= 0) { const box = $("#editword"); box.focus(); box.select(); }
 }
 function drawFixes() {
+  const condition = x => x.context ? `<div class="faint">${esc(x.context)}</div>` : "";
   const shown = fixes.filter((x, i) => i === editFix || hit(x.heard, x.meant));
   $("#fixlist").innerHTML = shown.length ? fixes.map((x, i) => i !== editFix && !hit(x.heard, x.meant) ? "" : i === editFix
       ? `<tr class="editing"><td><input type="text" id="editheard" value="${esc(x.heard)}" placeholder="It wrote…" autocomplete="off"></td><td class="arrow">→</td>
-          <td><input type="text" id="editmeant" value="${esc(x.meant)}" placeholder="You meant…" autocomplete="off"></td>
+          <td><input type="text" id="editmeant" value="${esc(x.meant)}" placeholder="You meant…" autocomplete="off">${condition(x)}</td>
           <td colspan="2" class="num"><button class="btn small primary" data-save-fix>Save</button> <button class="btn small ghost" data-cancel-fix>Cancel</button></td></tr>`
-      : `<tr><td class="edit" data-edit-fix="${i}" title="Click to edit">${esc(x.heard)}</td><td class="arrow">→</td><td class="edit" data-edit-fix="${i}" title="Click to edit"><b>${esc(x.meant)}</b></td>
+      : `<tr><td class="edit" data-edit-fix="${i}" title="Click to edit">${esc(x.heard)}</td><td class="arrow">→</td><td class="edit" data-edit-fix="${i}" title="Click to edit"><b>${esc(x.meant)}</b>${condition(x)}</td>
           <td class="faint">${esc(x.added)}${x.source ? " · " + esc(x.source) : ""}</td>
           <td class="num"><button class="x" data-edit-fix="${i}" title="Edit">✎</button><button class="x" data-forget="${i}" title="Forget">✕</button></td></tr>`).join("")
     : `<tr><td colspan="5" class="empty">${fixes.length ? "No fixes match." : "No fixes learned yet."}</td></tr>`;
@@ -524,7 +525,9 @@ $("#fixlist").onkeydown = e => {
   if (e.key === "Escape") { e.preventDefault(); editFix = -1; drawFixes(); }
 };
 async function saveFix() {
-  const r = await call("edit_fix", { old_heard: fixes[editFix].heard, heard: $("#editheard").value, meant: $("#editmeant").value });
+  const change = { old_heard: fixes[editFix].heard, heard: $("#editheard").value, meant: $("#editmeant").value };
+  change.expected_context = fixes[editFix].context;
+  const r = await call("edit_fix", change);
   if (!r.saved) { toast(r.failed ? r.reason : "Not saved: " + (r.reason || "check both sides"), true); return; }
   fixes = r.fixes; editFix = -1; drawFixes(); toast(r.kept ? r.toast : "Saved", true);
 }

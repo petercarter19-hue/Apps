@@ -15,10 +15,11 @@ NOT_SAVED = "Couldn't save this change. Your words and fixes were left as they w
 CLEARED = "History cleared"
 ALREADY_EMPTY = "History is already empty"
 NOT_CLEARED = "Couldn't clear History. Nothing was removed."
+PAIRS_KEPT = "History cleared, but Chirpy couldn't remove the word counts it learned from it. They only stay on this PC."
 WORDS_HEADER = "# One word or name per line. Chirpy spells these exactly like this.\n"
 
 CLEAR_TRIES = 6
-_TEMP = re.compile(r"(?:words\.txt|corrections\.json)\.\d+-[0-9a-f]{8}\.tmp")
+_TEMP = re.compile(r"(?:words\.txt|corrections\.json|usual_words\.json)\.\d+-[0-9a-f]{8}\.tmp")
 
 def kept_note(name):
     return f"The earlier file couldn't be read, so Chirpy kept it as {name} in its folder."
@@ -207,18 +208,45 @@ def append_history(path, line):
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)
 
-def clear_history(path):
+def _delete(path):
+
+    for attempt in range(CLEAR_TRIES):
+        try:
+            os.unlink(path)
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError:
+            if attempt == CLEAR_TRIES - 1:
+                return None
+            time.sleep(light_keys.READ_WAIT_SECONDS)
+
+def _leftovers(path):
 
     path = Path(path)
+    mine = re.compile(re.escape(path.name) + r"\.\d+-[0-9a-f]{8}\.tmp")
+    try:
+        entries = list(os.scandir(path.parent))
+    except OSError:
+        return []
+    found = []
+    for entry in entries:
+        try:
+            info = os.lstat(entry.path)
+            if mine.fullmatch(entry.name) and stat.S_ISREG(info.st_mode) and not getattr(info, "st_file_attributes", 0) & 0x400:
+                found.append(Path(entry.path))
+        except OSError:
+            pass
+    return found
+
+def clear_history(path, also=()):
+
     with light_keys._LOCK:
-        for attempt in range(CLEAR_TRIES):
-            try:
-                os.unlink(path)
-                return {"cleared": True, "toast": CLEARED}
-            except FileNotFoundError:
-                return {"cleared": True, "toast": ALREADY_EMPTY}
-            except OSError:
-                if attempt == CLEAR_TRIES - 1:
-                    break
-                time.sleep(light_keys.READ_WAIT_SECONDS)
-    return {"cleared": False, "toast": NOT_CLEARED}
+        gone = _delete(Path(path))
+        if gone is None:
+            return {"cleared": False, "toast": NOT_CLEARED}
+        results = [_delete(Path(p)) for p in also]
+        results += [_delete(left) for p in also for left in _leftovers(p)]
+    if any(r is None for r in results):
+        return {"cleared": True, "toast": PAIRS_KEPT}
+    return {"cleared": True, "toast": CLEARED if gone or any(results) else ALREADY_EMPTY}

@@ -19,7 +19,7 @@ foreach ($need in 'Setup.cmd', 'setup.ps1', 'VERSION.txt', 'app\voicetool.py', '
 }
 if (-not (Test-Path -LiteralPath $Iscc)) { throw "Inno Setup's compiler is not at $Iscc." }
 $versionText = (Get-Content -LiteralPath (Join-Path $pkg 'VERSION.txt') -Raw).Trim()
-if ($versionText -notmatch '^Chirpy \(from daily\) ([0-9a-f]{8})\s+Version: (\d{4})\.(\d{1,2})\.(\d{1,2})$') { throw "VERSION.txt says '$versionText'." }
+if ($versionText -notmatch '^Chirpy \(from daily\) ([0-9a-f]{8})\s+Version: ([0-9]+)\.([0-9]+)\.([0-9]+)$') { throw "VERSION.txt says '$versionText'." }
 $sha = $Matches[1]
 $version = "$($Matches[2]).$($Matches[3]).$($Matches[4])"
 $numeric = "$version.0"

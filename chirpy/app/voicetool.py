@@ -37,6 +37,8 @@ import commands
 import corrections
 import light_files
 import light_keys
+import usual_words
+usual_words.LOCK = light_keys._LOCK
 import mic_light
 import screen_layout
 import settings_window
@@ -659,6 +661,8 @@ class VoiceTool:
         self._keys_gen = 0
         self.triggers, self._shared = {}, {}
         self._build_keys()
+        self.clash = light_keys.KeyClash()
+        self.clash_probe = None
         self.active = None
         self.events = queue.Queue()
         self.jobs = queue.Queue()
@@ -747,6 +751,8 @@ class VoiceTool:
             self._install_hook()
             threading.Thread(target=self._watch_keys, daemon=True, name="key watchdog").start()
             threading.Thread(target=self._watch_daily, daemon=True, name="daily watch").start()
+            self.clash_probe = other_dictation_apps
+            threading.Thread(target=self._watch_clash, daemon=True, name="key clash watch").start()
             log.info("ready: hold %s to talk; double-tap to lock on, tap again to stop", light_keys.resolve(CONFIG)[0])
             beep((880, 60), (1320, 60))
             if light_start:
@@ -774,6 +780,7 @@ class VoiceTool:
         listener.start()
         if not listener.wait() or not listener.installed:
             log.error("Windows refused the keyboard hook (error %s)", listener.error)
+            self._clash_say(self.clash.seen(light_keys.resolve(CONFIG)[0], None, hook_ok=False))
         self.listener = listener
         self._hook_gen = gen
         if old is not None:
@@ -819,6 +826,7 @@ class VoiceTool:
                     t.missed_down_since = -1
                     log.warning("keyboard hook missed a %s press (in %s); re-installing it", t.name,
                                 self._front_window().get("app") or "?")
+                    self._clash_missed(t)
                     self._install_hook()
                     log.info("keyboard hook re-installed")
             elif not down and t.hook_down and now - t.hook_at >= HOOK_MISSED_RELEASE_SECONDS:
@@ -832,6 +840,7 @@ class VoiceTool:
                     self.events.put(("trigger", t, False, since))
                     log.warning("keyboard hook missed a %s release (in %s); handled it and re-installing the hook",
                                 t.name, self._front_window().get("app") or "?")
+                    self._clash_missed(t)
                     self._install_hook()
                     log.info("keyboard hook re-installed")
             elif not down:
@@ -1181,6 +1190,36 @@ class VoiceTool:
             log.exception("could not show the stepping-aside message")
         self._quit()
 
+    CLASH_CHECK_SECONDS = 1.5
+
+    def _clash_say(self, words):
+
+        if not words:
+            return
+        log.warning("another app is using the hold key; told the person (%s)", light_keys.resolve(CONFIG)[0])
+        self._card(light_keys.CLASH_TITLE, words, seconds=60,
+                   buttons=[(light_keys.CLASH_BUTTON, self._open_settings), ("Close", lambda: None)])
+
+    def _clash_check(self):
+
+        probe = self.clash_probe
+        if probe is not None:
+            self._clash_say(self.clash.seen(light_keys.resolve(CONFIG)[0], probe()))
+
+    def _watch_clash(self, every=None):
+
+        while not self._quitting:
+            try:
+                self._clash_check()
+            except Exception:
+                log.exception("could not check for another dictation app")
+            time.sleep(every or self.CLASH_CHECK_SECONDS)
+
+    def _clash_missed(self, t):
+
+        if t.name == "dictate":
+            self._clash_say(self.clash.missed(light_keys.resolve(CONFIG)[0], time.monotonic()))
+
     def _build_keys(self):
 
         dictate_key, teach_key = light_keys.resolve(CONFIG)
@@ -1206,6 +1245,10 @@ class VoiceTool:
         dictate_key, teach_key = light_keys.resolve(CONFIG)
         log.info("keys changed: dictate %s, teach Shift + %s", dictate_key, teach_key)
         self._refresh_icon()
+        try:
+            self._clash_check()
+        except Exception:
+            log.exception("could not check for another dictation app")
 
     def _chord(self, t, down):
 
@@ -1307,9 +1350,14 @@ class VoiceTool:
 
         heard = strip_punctuation(heard)
         if heard:
-            result = corrections.add_saved(heard, meant, source)
+            recent = corrections.last_dictation_text(HERE / "history.jsonl") if usual_words.history_on(CONFIG) else ""
+            match = corrections.around(heard, meant, recent)
+            result = corrections.add_saved(heard, meant, source, match=match)
             if result["saved"]:
-                body = f"From now on, “{heard}” becomes “{meant}”."
+                if match:
+                    body = "From now on, " + corrections.context_summary({"match": match})
+                else:
+                    body = f"From now on, “{heard}” becomes “{meant}”."
                 if len(meant.split()) <= 3:
                     word = corrections.remember_word(meant)
                     if not word["saved"]:
@@ -1482,6 +1530,8 @@ class VoiceTool:
             self._light(None if ok else "error")
 
     def _history(self, entry):
+        if not usual_words.history_on(CONFIG):
+            return
         entry = {"at": time.strftime("%Y-%m-%d %H:%M:%S"), **entry}
         light_files.append_history(HERE / "history.jsonl", json.dumps(entry) + "\n")
 
@@ -1491,11 +1541,16 @@ class VoiceTool:
         raw = self.transcribe(audio)
         t1 = time.perf_counter()
         text, fixes = corrections.apply_counted(raw)
+        keep = usual_words.history_on(CONFIG)
+
+        text, usual = usual_words.apply(corrections.USUAL, text, after=usual_words.after(CONFIG), on=keep, fixes=corrections.apply_counted,
+                                        protect=corrections.protected_words() | usual_words.words_of(known_words()))
         text = spell_words(text, known_words())
         app = t.app or {}
         log.info("%.1fs audio (peak %.3f) | speech %.2fs | %d words",
                  len(audio) / RATE, float(np.abs(audio).max()), t1 - t0, len(text.split()))
-        self._history({"raw": raw, "text": text, "app": app.get("app") or "", "fixes": fixes})
+
+        self._history({"raw": raw, "text": text, "app": app.get("app") or "", "fixes": fixes, **({"usual": usual} if usual else {})})
         target = self._target(t)
         last = getattr(self, "_last_insert", None)
         before = last["text"] if last and last["hwnd"] == target and time.monotonic() - last["at"] <= light_keys.CONTINUE_SECONDS else ""
@@ -1504,6 +1559,7 @@ class VoiceTool:
         if typed:
             self._last_insert = {"hwnd": target, "text": typing, "at": time.monotonic()}
         self._done(typed or not text)
+        usual_words.count_dictation(corrections.USUAL, text, history=HERE / "history.jsonl", on=keep, changed=bool(usual))
 
 class WinHost:
 
@@ -1556,6 +1612,7 @@ class WinHost:
 OPEN_SETTINGS_EVENT = "VoiceToolLight-open-settings"
 MUTEX_NAME = "VoiceToolLight-single-instance"
 DAILY_MUTEX = "VoiceTool-single-instance"
+COMPLETE_MUTEX = r"Local\VoiceTool.Complete.Running"
 DAILY_RUNNING_TEXT = ("Your everyday VoiceTool is running, and both can't listen for keys at once. "
                       "Quit VoiceTool from its icon by the clock, then start Chirpy again.")
 
@@ -1570,6 +1627,18 @@ def daily_running():
     except Exception:
         pass
     return True
+
+def other_dictation_apps():
+
+    try:
+        handle = win32event.OpenMutex(0x00100000, False, COMPLETE_MUTEX)
+    except Exception:
+        return []
+    try:
+        win32api.CloseHandle(handle)
+    except Exception:
+        pass
+    return ["another dictation app"]
 
 def tell(text):
     ctypes.windll.user32.MessageBoxW(None, text, "Chirpy", 0x40 | 0x10000)

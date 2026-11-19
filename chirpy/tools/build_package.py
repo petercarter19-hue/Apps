@@ -1,7 +1,7 @@
 """Builds the Chirpy package: a folder with Setup.cmd that installs without internet or administrator rights.
 
     python tools/build_package.py --runtime <runtime folder> --model <model folder> --out <output folder>
-                                  [--build 16d40c5d] [--version 2026.11.11]
+                                  [--build 014a42c3] [--version 1.1.0]
 
 <runtime folder>  a Python 3.13 for Windows (python.exe, pythonw.exe, Lib, tcl) with the pinned packages in
                   installer/requirements-friend.txt already installed. tools/make_runtime.ps1 makes one.
@@ -63,7 +63,7 @@ def build(runtime, model, out, build_id, version):
     pkg = out / "Chirpy"
     if pkg.exists():
         raise FileExistsError(f"{pkg} already exists; choose an empty output folder")
-    shutil.copytree(HERE / "app", pkg / "app", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(HERE / "app", pkg / "app", ignore=shutil.ignore_patterns("__pycache__", "FILES.sha256"))
     for name in SETUP_FILES:
         shutil.copy2(HERE / "installer" / name, pkg / name)
     shutil.copy2(HERE / "LICENSE", pkg / "LICENSE.txt")
@@ -85,9 +85,9 @@ if __name__ == "__main__":
     ap.add_argument("--runtime", required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--build", default="16d40c5d")
-    ap.add_argument("--version", default="2026.11.11")
+    ap.add_argument("--build", default="014a42c3")
+    ap.add_argument("--version", default="1.1.0")
     a = ap.parse_args()
-    if not re.fullmatch(r"[0-9a-f]{8}", a.build) or not re.fullmatch(r"\d{4}\.\d{1,2}\.\d{1,2}", a.version):
-        sys.exit("--build must be 8 hex digits and --version like 2026.11.11")
+    if not re.fullmatch(r"[0-9a-f]{8}", a.build) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", a.version):
+        sys.exit("--build must be 8 hex digits and --version like 1.1.0")
     print(build(a.runtime, a.model, a.out, a.build, a.version))

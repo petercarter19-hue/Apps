@@ -6,7 +6,7 @@ if not exist "%~dp0setup.ps1" (
     pause
     exit /b 1
 )
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" %*
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" %*
 set "VT_EXIT=%errorlevel%"
 if not "%VT_EXIT%"=="0" (
     echo.

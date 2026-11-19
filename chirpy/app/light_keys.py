@@ -16,6 +16,8 @@ except ImportError:
     msvcrt = None
     import fcntl
 
+VERSION = "1.1.0"
+
 DEFAULT_DICTATE = "alt_l"
 DEFAULT_TEACH = "alt_l"
 
@@ -393,3 +395,52 @@ def features(rows, config):
 
     named = badges(config)
     return [(s, k, t, named.get(k, b), d) for s, k, t, b, d in rows]
+
+CLASH_TITLE = "Hold key in use"
+CLASH_BUTTON = "Open key setting"
+
+def clash_text(ident):
+
+    return f"Another app is using {label(ident)}. Pick a different hold key in Settings, or close the other app."
+
+class KeyClash:
+
+    MISSES, WITHIN = 3, 60.0
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._app_key = None
+        self._hook_told = set()
+        self._hook_since_app = None
+        self._misses = {}
+
+    def seen(self, ident, others, hook_ok=True):
+
+        with self._lock:
+            if others:
+                if self._app_key is not None:
+                    return None
+                self._app_key = ident
+                hook_already_said = ident in (self._hook_since_app or ())
+                self._hook_since_app = None
+                return None if hook_already_said else clash_text(ident)
+            if others is not None and self._app_key is not None:
+                self._app_key = None
+                self._hook_since_app = set()
+            return self._tell_hook(ident) if not hook_ok else None
+
+    def missed(self, ident, now):
+
+        with self._lock:
+            times = [at for at in self._misses.get(ident, []) if now - at < self.WITHIN] + [now]
+            self._misses[ident] = times
+            return self._tell_hook(ident) if len(times) >= self.MISSES else None
+
+    def _tell_hook(self, ident):
+
+        if ident == self._app_key or ident in self._hook_told:
+            return None
+        self._hook_told.add(ident)
+        if self._hook_since_app is not None:
+            self._hook_since_app.add(ident)
+        return clash_text(ident)

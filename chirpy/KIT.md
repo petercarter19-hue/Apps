@@ -1,6 +1,6 @@
 # Build your own Chirpy
 
-Hold a key, talk, and your words are typed wherever your cursor is: in email, documents, chat. Double-tap the key and talk hands-free. Select a word it got wrong, press one shortcut, type the fix, and it spells that word right from then on. A free speech model turns your voice into text on your own computer: no account, no API key, no online service. It types English. You don't write any code. You paste one message to the AI, try what it builds, and tell it what happened.
+Hold a key, talk, and your words are typed wherever your cursor is: in email, documents, chat. Double-tap the key and talk hands-free. Select a word it got wrong, press one shortcut, type the fix, and it remembers the correction. A fix can depend on the words or numbers next to it. A free speech model turns your voice into text on your own computer: no account, no API key, no online service. It types English. You don't write any code. You paste one message to the AI, try what it builds, and tell it what happened.
 
 | Time | Messages | Cost | Coding |
 |:-:|:-:|:-:|:-:|
@@ -43,7 +43,7 @@ Prefer to read it on paper? There is a printable [PDF of this kit](docs/build-it
 ## 3. Get set up (10 minutes)
 
 1. **Install your AI app** and sign in. Use one that can work on your computer, not just chat.
-2. **Make an empty folder** for your app, for example `C:\MyVoiceApp` (short, no spaces, not in OneDrive).
+2. **Make an empty folder** for your app, for example a folder named `MyVoiceApp` (short, no spaces, not in OneDrive).
 3. **Open that folder in your AI app**, in the part that can work on your computer.
 4. **When it asks permission** to run something or download a file, read the one-line description and allow it for this folder. That's how it installs things for you.
 
@@ -161,6 +161,8 @@ Open the app. Click all four pages, flip Dark mode on Home, choose another key i
 
 Say: "Run the installer in the Sandbox and show me a picture of every page, then the uninstall question." Check every sentence is true. Then: "Where is Setup.exe? I'll install it on my PC now." If Windows warns, choose *More info*, then *Run anyway*: that's normal for a free, unsigned app. (On Windows Home: say "Where is Setup.exe?", run it yourself and check each page against the pictures.)
 
+These screenshots show an earlier setup build. The Chirpy 1.1 installer shows version 1.1.0 in its title.
+
 ![Setup: the license page](docs/kit/setup-license.jpg)
 
 *The first page is your app's free license.*
@@ -226,7 +228,7 @@ Tell the AI what you did and what happened, and ask it to read the app's log (Se
 
 - **Your microphone.** It listens only while you hold the key or have hands-free on, and the light shows it. Get people's OK before dictating their voices.
 - **The clipboard.** To type, the app puts your words on the clipboard for about a second, then tries to put back what you had copied (pictures may not come back). If Windows clipboard history or sync is on, Windows may keep that text.
-- **Your history** stays on your PC until you press Clear history.
+- **Your history** and the word-pair counts Chirpy learns from it stay on your PC until you press Clear history.
 - **Test away from your real PC.** Installs and key tests go in the Sandbox.
 - **Unsigned installer.** Windows warns once (*More info*, *Run anyway*). Never turn your antivirus off for it.
 - **Ask before deleting.** Tell the AI to ask you first and use the Recycle Bin.

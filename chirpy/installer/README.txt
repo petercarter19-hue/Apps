@@ -23,13 +23,23 @@ Use it
 - Hold Left Alt, talk, let go: the text is typed where your cursor is.
 - Double-tap Left Alt for hands-free; tap once more to stop. Esc cancels.
 - Select a misheard word, hold Shift and tap Left Alt, type what it should be and press Enter. Chirpy types the fix and
-  tries to save it for next time. If Chirpy tries to save it and the save fails, a card says so.
+  tries to save it for next time. The Learned card tells you what was saved. If the save fails, a card says so.
+  Fix "saw" next to a number, and Chirpy fixes it next to a number on that same side. For example, "saw 6.1" becomes
+  "Sol 6.1" and "I saw the dog" stays as you said it. From the latest dictation, the fix saves only which side had a
+  number. To tie a fix to a particular word, select the neighboring word too and leave it in the correction, as in
+  "ask saw" to "ask Sol". If you also select a number right on the other side, as in "ask saw 6.1", only the number
+  condition applies. For example, "send saw 6.2" becomes "send Sol 6.2". With neither condition, the fix works everywhere.
+  Words & fixes shows the condition when you edit a fix.
 - Open Chirpy from the Start menu or the Chirpy bird icon by the clock for Home, History, Words & fixes and Settings. Settings
   lets you pick other keys for talking and for fixing a word: Left Alt, Right Alt, Right Ctrl, Caps Lock or F13 to F24 (Left
   Alt is where you start). Home and Settings both have the dark / light switch.
 
 Only one voice tool can listen for keys at a time: Setup won't install, and Chirpy won't start, while the everyday VoiceTool
 runs. If the everyday VoiceTool starts while Chirpy runs, Chirpy says so and closes.
+
+If Chirpy notices that another app is using its hold key, a card says "Another app is using" that key, with a button that
+opens the key setting. Pick a different hold key in Settings, or close the other app. Chirpy never takes the key from the
+other app and never stops it.
 
 The window needs Microsoft Edge WebView2 Runtime, which comes with Windows 11 and current Windows 10. Without it, a small
 settings window opens instead (dictation and teaching a word still work).
@@ -41,6 +51,15 @@ kept in Chirpy's own folder on this PC. Its log (voicetool.log) says what Chirpy
 teach Chirpy (a word you add, or a fix and what it should be). It doesn't record the text you dictate.
 History keeps what you dictated so you can search it. To erase it, open History and choose Clear history (it asks first,
 then deletes it from this PC).
+Chirpy also learns from your History which words you say next to each other. It counts, on this PC only, how many times you
+said each word and the pairs of words you said one after the other in the final text you dictated. When Chirpy first
+builds these counts, it uses up to the last 2 MB of existing History. It skips commands and dictations changed by a usual
+word swap. The counts are in usual_words.json next to your fixes. Word pairs can reveal parts of a phrase. This file is
+limited in size (the least-said counts are dropped first) and is never sent anywhere. When Chirpy hears a rare word where
+you usually say a similar word, it can type your usual word instead. A pair normally needs to occur three times.
+Clear history removes the History and its counts. Fixes you taught Chirpy stay in Words & fixes, where you can forget them.
+To stop saving History and learning or applying usual words, set "keep_history": false in config.json. Turning History off leaves
+existing History and counts on this PC until you choose Clear history. Adjust "usual_words_after" to change the learning threshold.
 To type what you said, Chirpy puts the text on the Windows clipboard for about a second, then tries to put back what you had
 copied. Some things you copy, such as pictures, may not come back.
 Chirpy asks Windows to keep that text out of clipboard history and clipboard sync, but that request doesn't always work. When

@@ -37,7 +37,7 @@ $ErrorActionPreference = 'Stop'
 trap { if ($SaidFile) { try { Add-Content -LiteralPath $SaidFile -Encoding UTF8 -Value "Setup stopped: $($_.Exception.Message)" } catch { } }; Write-Host "Setup stopped: $($_.Exception.Message)"; exit 1 }
 $here = $PSScriptRoot
 $marker = '.voicetool-light-from-daily'
-$keep = @('config.json', 'words.txt', 'corrections.json', 'corrections_pending.json', 'history.jsonl')
+$keep = @('config.json', 'words.txt', 'corrections.json', 'corrections_pending.json', 'history.jsonl', 'usual_words.json')
 
 # ---- carry-over from the earlier name (tested on their own in test_light_edition.py) ----
 $oldName = 'VoiceTool Light'
@@ -67,7 +67,7 @@ function Find-OldInstall([string]$startMenuDir, [string]$runCommand, [string]$de
 }
 # What each of the person's own files is called in Setup's messages.
 $friendly = @{ 'config.json' = 'settings'; 'words.txt' = 'words'; 'corrections.json' = 'fixes'
-               'corrections_pending.json' = 'pending fixes'; 'history.jsonl' = 'history' }
+               'corrections_pending.json' = 'pending fixes'; 'history.jsonl' = 'history'; 'usual_words.json' = 'usual words' }
 function Get-FriendlyList([string[]]$names) { (@($names | ForEach-Object { "$($friendly[$_]) ($_)" })) -join ', ' }
 # Copies the person's own files (words, fixes, history, settings) that the new folder doesn't have yet. Nothing is overwritten
 # and nothing in the earlier folder is changed or deleted. A settings file that can't be read is not copied (Chirpy would not

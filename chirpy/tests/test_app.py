@@ -58,7 +58,8 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(ui_api, "WORDS", tmp_path / "words.txt")
     monkeypatch.setattr(corrections, "FILE", tmp_path / "corrections.json")
     monkeypatch.setattr(corrections, "PENDING", tmp_path / "corrections_pending.json")
-    monkeypatch.setattr(corrections, "_cache", {"mtime": None, "pairs": []})
+    monkeypatch.setattr(corrections, "USUAL", tmp_path / "usual_words.json")
+    monkeypatch.setattr(corrections, "_cache", {"mtime": None, "pairs": [], "rules": []})
     monkeypatch.setattr(vt, "beep", lambda *a: None)
     monkeypatch.setattr(vt, "paste", lambda text: PASTED.append(text))
     monkeypatch.setattr(vt.win32api, "keybd_event", lambda *a: None)
@@ -108,7 +109,8 @@ def test_the_left_out_modules_are_not_in_the_folder():
     assert not hasattr(vt.VoiceTool, "_command") and not hasattr(vt.VoiceTool, "_claude")
     assert not hasattr(vt.VoiceTool, "_start_meeting") and not hasattr(vt.VoiceTool, "_read")
     import commands
-    assert not hasattr(commands, "route") and not hasattr(commands, "ClaudeSession") and not hasattr(commands, "USER_SAYS")
+    assert not hasattr(commands, "route") and not hasattr(commands, "ClaudeSession")
+    assert not [name for name in dir(commands) if name.endswith("_SAYS")]  # (another dictation app's own writing-style text is not here)
     assert hasattr(commands, "capture_context") and hasattr(commands, "NO_COPY_APPS")
 
 
@@ -866,7 +868,7 @@ def test_the_window_opens_in_the_look_chosen_and_changes_look_at_once(monkeypatc
     assert sent == [{"cmd": "theme", "theme": "dark"}]
 
 
-# ---------------------------------------------------------------------------------------------- the first-try fixes
+# ---------------------------------------------------------------------------------------------- the as-user fixes
 
 def test_the_word_list_header_does_not_name_a_left_out_feature(isolated):
     api = ui_api.API(Host(), {}, fake_save())
@@ -1065,7 +1067,7 @@ def test_the_privacy_wording_promises_only_what_chirpy_can_prove():
     assert "It marks that text" not in html and "clipboard history" in html
 
 
-# ---------------------------------------------------------------------------------------------- punctuation: dictating again
+# ---------------------------------------------------------------------------------------------- the owner's punctuation: dictating again
 
 def say(tool, monkeypatch, words, hwnd=2):
     monkeypatch.setattr(tool, "_front_window", lambda: {"app": "notepad.exe", "title": "Untitled", "hwnd": hwnd, "focus": 20})
@@ -1156,13 +1158,13 @@ def test_send_feedback_opens_the_public_issue_page_and_is_always_shown(isolated)
 
 def test_the_feedback_link_has_the_title_chirpy_feedback_and_the_version_in_the_body(tmp_path):
     from urllib.parse import parse_qs, urlsplit
-    (tmp_path / ".voicetool-light-from-daily").write_text("Chirpy (from daily) 3e17f4e6" + chr(10) + "Version: 2026.11.9" + chr(10), encoding="utf-8")
-    assert light_keys.app_version(tmp_path) == "2026.11.9 (3e17f4e6)" and light_keys.app_version(tmp_path / "none") == "unknown"
+    (tmp_path / ".voicetool-light-from-daily").write_text("Chirpy (from daily) 3e17f4e6" + chr(10) + "Version: 1.1.0" + chr(10), encoding="utf-8")
+    assert light_keys.app_version(tmp_path) == "1.1.0 (3e17f4e6)" and light_keys.app_version(tmp_path / "none") == "unknown"
     link = light_keys.feedback_link(light_keys.FEEDBACK_URL, light_keys.app_version(tmp_path))
     parts = urlsplit(link)
     assert (parts.scheme, parts.netloc, parts.path) == ("https", "github.com", "/petercarter19-hue/Apps/issues/new")
     query = parse_qs(parts.query)
-    assert query["title"] == ["Chirpy feedback: "] and "Chirpy version: 2026.11.9 (3e17f4e6)" in query["body"][0]
+    assert query["title"] == ["Chirpy feedback: "] and "Chirpy version: 1.1.0 (3e17f4e6)" in query["body"][0]
 
 
 def test_the_feedback_button_and_tray_entry_are_always_there():
@@ -1394,3 +1396,382 @@ def test_R3_1_add_reports_already_in_your_list_when_teach_saved_that_word_first(
     monkeypatch.setattr(light_files, "_rewrite", teach_first)
     r = api.call("add_word", {"word": "Racer"})
     assert r["saved"] is False and r["toast"] == "Already in your list" and r["words"].count("Racer") == 1
+
+
+# ---------------------------------------------------------------------------------------------- context word fixes (CW1, CW2)
+
+def one_dictation(tool, text):
+    """One whole dictation through the real key handlers, with the speech model replaced by `text`."""
+    tool.transcribe = lambda audio: text
+    tool._last_insert = None  # (a dictation right after another would continue it: not what is tried here)
+    now = time.monotonic()
+    key(tool, ALT, True, now)
+    key(tool, ALT, False, now + 1.0)
+    run_jobs(tool)
+
+
+def test_CW1_a_typed_fix_remembers_the_neighbors_from_the_latest_dictation_only_when_history_is_on(tool, isolated, monkeypatch):
+    monkeypatch.setattr(vt, "bring_to_front", lambda hwnd, tries=10: False)
+    one_dictation(tool, "I saw 6.1 today.")
+    tool._learn_typed("saw", "Sol", 0, "saw")
+    row = json.loads((isolated / "corrections.json").read_text(encoding="utf-8"))[0]
+    assert row["heard"] == "saw" and row["meant"] == "Sol" and row["match"] == {"heard": "saw", "meant": "Sol", "after": "<number>"}
+    PASTED.clear()
+    one_dictation(tool, "I saw 6.2 and I saw the dog.")
+    assert PASTED == ["I Sol 6.2 and I saw the dog."]
+    (isolated / "corrections.json").unlink()
+    corrections._cache["mtime"] = None
+    one_dictation(tool, "saw 6.1")
+    assert corrections.last_dictation_text(isolated / "history.jsonl") == "saw 6.1"
+    vt.CONFIG["keep_history"] = False
+
+    def unexpected_history_read(path):
+        pytest.fail(f"Teaching a fix read {path.name} while History was off")
+
+    monkeypatch.setattr(corrections, "last_dictation_text", unexpected_history_read)
+    tool._learn_typed("saw", "Sol", 0, "saw")
+    assert "match" not in json.loads((isolated / "corrections.json").read_text(encoding="utf-8"))[0]
+
+
+@pytest.mark.parametrize("threshold", [1, 3])
+def test_CW1_a_frequently_misheard_name_is_fixed_everywhere(tool, isolated, threshold):
+    vt.CONFIG["usual_words_after"] = threshold
+    for _ in range(5):
+        one_dictation(tool, "Open Quill pad now.")
+    counts = json.loads(corrections.USUAL.read_text(encoding="utf-8"))
+    assert counts["pairs"]["quill pad"] == 5
+    tool._learn_typed("Quill pad", "Quillpad", 0, "Quill pad")
+    row = json.loads(corrections.FILE.read_text(encoding="utf-8"))[0]
+    assert "match" not in row
+    assert all(word not in str(row).lower() for word in ("open", "now"))
+    one_dictation(tool, "Quill pad is great.")
+    assert PASTED[-1] == "Quillpad is great."
+
+
+@pytest.mark.parametrize("previous", [0, 5])
+@pytest.mark.parametrize(("heard", "meant"), [("saw", "Sol"), ("saw 6.1", "Sol 6.1")])
+def test_CW1_both_gestures_limit_the_fix_to_numbers_regardless_of_counts(tool, isolated, previous, heard, meant):
+    for _ in range(previous):
+        one_dictation(tool, "We saw cats.")
+    one_dictation(tool, "I saw 6.1 today.")
+    tool._learn_typed(heard, meant, 0, heard)
+    assert tool.cards[-1] == ("Learned", "From now on, “saw” becomes “Sol” when a number comes right after it.")
+    one_dictation(tool, "I saw 6.2 and I saw the dog.")
+    assert PASTED[-1] == "I Sol 6.2 and I saw the dog."
+
+
+@pytest.mark.parametrize(("recent", "condition"), [
+    ("saw 6.1", "when a number comes right after it"),
+    ("6.1 saw", "when a number comes right before it"),
+    ("6.1 saw 6.2", "between two numbers"),
+])
+def test_CW1_the_learned_card_and_fixes_page_describe_the_saved_rule(tool, isolated, recent, condition):
+    one_dictation(tool, recent)
+    tool._learn_typed("saw", "Sol", 0, "saw")
+    assert tool.cards[-1] == ("Learned", f"From now on, “saw” becomes “Sol” {condition}.")
+    api = window_api()
+    assert condition in api.call("fixes")["fixes"][0]["context"].lower()
+    changed = api.call("edit_fix", {"old_heard": "saw", "heard": "sow", "meant": "Sol"})
+    assert changed["saved"] and condition in changed["fixes"][0]["context"].lower()
+    assert corrections.apply("I sow seeds") == "I sow seeds"
+    assert corrections.apply(recent.replace("saw", "sow")) == recent.replace("saw", "Sol")
+
+
+def test_CW1_teaching_again_without_a_number_makes_the_fix_plain(tool, isolated):
+    one_dictation(tool, "saw 6.1")
+    tool._learn_typed("saw", "Sol", 0, "saw")
+    for _ in range(5):
+        one_dictation(tool, "We saw cats there.")
+    tool._learn_typed("saw", "Sol", 0, "saw")
+    row = json.loads(corrections.FILE.read_text(encoding="utf-8"))[0]
+    assert "match" not in row
+    assert tool.cards[-1] == ("Learned", "From now on, “saw” becomes “Sol”.")
+    one_dictation(tool, "We saw 6.2 and I saw the dog.")
+    assert PASTED[-1] == "We Sol 6.2 and I Sol the dog."
+
+
+def test_CW1_an_edit_opened_before_a_conditional_fix_was_forgotten_cannot_recreate_it_as_plain(isolated):
+    api = window_api()
+    saved = api.call("add_fix", {"heard": "ask saw", "meant": "ask Sol"})["fixes"][0]
+    assert "“saw”" in saved["context"] and "“ask”" in saved["context"]
+    api.call("delete_fix", {"heard": saved["heard"]})
+    changed = api.call("edit_fix", {"old_heard": saved["heard"], "heard": "sow", "meant": "Sol",
+                                    "expected_context": saved["context"]})
+    assert not changed["saved"] and changed["fixes"] == []
+    assert corrections.apply("I sow seeds") == "I sow seeds"
+
+
+def test_CW2_a_swap_is_refused_only_if_it_creates_another_fix_match(tool, isolated):
+    for _ in range(3):
+        one_dictation(tool, "Restart the kubernetes cluster.")
+    corrections.add("Chirpy", "Chirpy app", "typed fix")
+    text = "Chirpy, restart the kubernetis cluster."
+    one_dictation(tool, text)
+    assert PASTED[-1] == "Chirpy app, restart the kubernetes cluster."
+    corrections.add("kubernetes", "K8s", "typed fix")
+    one_dictation(tool, text)
+    assert PASTED[-1] == "Chirpy app, restart the kubernetis cluster."
+
+
+def test_CW2_a_row_a_swap_changed_is_marked_and_a_plain_row_is_not(tool, isolated):
+    for _ in range(3):
+        one_dictation(tool, "Restart the kubernetes cluster.")
+    one_dictation(tool, "Restart the kubernetis cluster.")
+    rows = [json.loads(line) for line in (isolated / "history.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert rows[-1]["text"] == "Restart the kubernetes cluster." and rows[-1]["usual"] == 1
+    assert all("usual" not in row for row in rows[:-1])
+
+
+def test_CW1_the_window_saves_a_fix_with_its_neighbors_and_an_edit_makes_them_again_from_the_new_words(isolated):
+    api = window_api()
+    assert api.call("add_fix", {"heard": "saw 6.1", "meant": "Sol 6.1"})["added"] is True
+    assert json.loads((isolated / "corrections.json").read_text(encoding="utf-8"))[0]["match"] == {"heard": "saw", "meant": "Sol", "after": "<number>"}
+    assert corrections.apply("saw 6.9 and saw the dog") == "Sol 6.9 and saw the dog"
+    assert api.call("add_fix", {"heard": "quill pad", "meant": "Quillpad"})["added"] is True  # (a plain fix stays plain)
+    assert "match" not in json.loads((isolated / "corrections.json").read_text(encoding="utf-8"))[1]
+    assert api.call("edit_fix", {"old_heard": "saw 6.1", "heard": "saw 6.1", "meant": "Soul 6.1"})["saved"] is True
+    assert corrections.apply("saw 6.3 and saw it") == "Soul 6.3 and saw it"
+
+
+def test_CW2_a_rare_word_becomes_the_usual_word_and_a_swap_is_not_counted(tool, isolated):
+    for _ in range(3):
+        one_dictation(tool, "Restart the kubernetes cluster.")
+    file = isolated / "usual_words.json"
+    assert file.exists() and json.loads(file.read_text(encoding="utf-8"))["pairs"]["the kubernetes"] == 3
+    PASTED.clear()
+    one_dictation(tool, "Restart the kubernetis cluster.")
+    assert PASTED == ["Restart the kubernetes cluster."]
+    assert json.loads(file.read_text(encoding="utf-8"))["pairs"]["the kubernetes"] == 3  # (a dictation it changed is not counted)
+    assert json.loads((isolated / "history.jsonl").read_text(encoding="utf-8").splitlines()[-1])["text"] == "Restart the kubernetes cluster."
+    # his own words are left alone: a word on his list is never swapped
+    (isolated / "words.txt").write_text("Kubernetis\n", encoding="utf-8")
+    PASTED.clear()
+    one_dictation(tool, "Restart the kubernetis cluster.")
+    assert PASTED == ["Restart the Kubernetis cluster."]
+
+
+def test_CW2_history_off_means_no_history_no_counting_and_no_swap_and_clear_history_clears_the_counts(tool, isolated):
+    for _ in range(3):
+        one_dictation(tool, "Restart the kubernetes cluster.")
+    file = isolated / "usual_words.json"
+    counts, history = file.read_bytes(), (isolated / "history.jsonl").read_bytes()
+    vt.CONFIG["keep_history"] = False
+    PASTED.clear()
+    one_dictation(tool, "Restart the kubernetis cluster.")
+    assert PASTED == ["Restart the kubernetis cluster."]  # (no swap)
+    assert file.read_bytes() == counts and (isolated / "history.jsonl").read_bytes() == history  # (nothing counted, nothing saved)
+    del vt.CONFIG["keep_history"]
+    api = window_api()
+    assert api.call("clear_history") == {"cleared": True, "toast": "History cleared"}
+    assert not file.exists() and not (isolated / "history.jsonl").exists()
+    PASTED.clear()
+    one_dictation(tool, "Restart the kubernetis cluster.")
+    assert PASTED == ["Restart the kubernetis cluster."]  # (nothing left to learn from)
+
+
+# ---------------------------------------------------------------------------------------------- another app is using the hold key
+
+CLASH_WORDS = "Another app is using Left Alt. Pick a different hold key in Settings, or close the other app."
+
+
+def clash_cards(tool, monkeypatch):
+    """The cards the tool shows from now on: [(title, body, button labels, buttons)]."""
+    shown = []
+    monkeypatch.setattr(tool, "_card", lambda title, body, seconds=60, speak=False, buttons=None: shown.append(
+        (title, body, [label for label, _ in buttons or []], buttons)))
+    return shown
+
+
+def test_clash_1_another_app_on_the_hold_key_gets_one_plain_card_with_a_button_to_the_key_setting(tool, monkeypatch):
+    shown, opened = clash_cards(tool, monkeypatch), []
+    monkeypatch.setattr(tool, "_open_settings", lambda: opened.append("settings"))
+    tool.clash_probe = lambda: ["another dictation app"]
+    for _ in range(4):
+        tool._clash_check()
+    assert [(title, body) for title, body, *_ in shown] == [("Hold key in use", CLASH_WORDS)]  # (said once, not every look)
+    assert shown[0][2] == ["Open key setting", "Close"]
+    shown[0][3][0][1]()  # (the button opens the settings page)
+    assert opened == ["settings"]
+    assert light_keys.clash_text("alt_l") == CLASH_WORDS and light_keys.clash_text("caps_lock").startswith("Another app is using Caps Lock.")
+
+
+def test_clash_2_nothing_is_said_when_no_other_app_runs_and_a_test_run_reads_nothing_from_the_pc(tool, monkeypatch):
+    shown = clash_cards(tool, monkeypatch)
+    assert tool.clash_probe is None  # (only run() sets the real probe)
+    tool._clash_check()
+    tool.clash_probe = lambda: []
+    tool._clash_check()
+    assert shown == []
+
+
+def test_clash_3_an_app_that_starts_after_chirpy_is_noticed_and_again_when_it_closes_and_comes_back(tool, monkeypatch):
+    shown = clash_cards(tool, monkeypatch)
+    answers = iter([[], [], ["x"], ["x"], [], [], ["x"]])
+
+    def probe():
+        try:
+            return next(answers)
+        except StopIteration:
+            tool._quitting = True  # (the test ends the watch)
+            return ["x"]
+    tool.clash_probe = probe
+    tool._watch_clash(every=0.001)
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS, CLASH_WORDS]
+
+
+def test_clash_4_a_new_hold_key_only_gets_its_own_card_when_there_is_hook_evidence(tool, monkeypatch):
+    shown = clash_cards(tool, monkeypatch)
+    tool.clash_probe = lambda: ["x"]
+    tool._clash_check()
+    vt.CONFIG["dictate_key"] = "f13"  # (what Settings saves)
+    for _ in range(2):
+        vt.WinHost(tool).keys_changed()
+        while not tool.ui.empty():
+            tool.ui.get_nowait()()  # (the window loop does this on its next turn)
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS]
+    trigger = tool.triggers[0x7C]
+    assert trigger.name == "dictate" and not tool.recorder.running
+    for _ in range(2):
+        tool._clash_missed(trigger)
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS]
+    for _ in range(2):
+        tool._clash_missed(trigger)
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS, CLASH_WORDS.replace("Left Alt", "F13")]
+
+
+def test_clash_4b_a_hook_card_suppressed_while_the_other_app_runs_can_be_said_after_it_quits(tool, monkeypatch):
+    shown = clash_cards(tool, monkeypatch)
+    trigger = tool.triggers[ALT]
+    tool.clash_probe = lambda: ["another dictation app"]
+    tool._clash_check()
+    for _ in range(3):
+        tool._clash_missed(trigger)
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS]
+
+    tool.clash_probe = lambda: []
+    tool._clash_check()
+    for _ in range(3):
+        tool._clash_missed(trigger)
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS, CLASH_WORDS]
+
+
+def test_clash_5_a_keyboard_hook_windows_refuses_says_so_once(tool, monkeypatch):
+    shown = clash_cards(tool, monkeypatch)
+
+    class RefusedHook:
+        installed, error = False, 5
+
+        def __init__(self, on_key):
+            pass
+
+        def start(self):
+            pass
+
+        def wait(self, timeout=5):
+            return True
+
+        def is_alive(self):
+            return False
+
+        def stop(self):
+            pass
+    monkeypatch.setattr(vt, "KeyboardHook", RefusedHook)
+    tool._install_hook()
+    tool._install_hook()
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS]
+
+
+def test_clash_5b_a_refused_hook_while_another_dictation_app_runs_does_not_bring_the_card_back_every_two_seconds(tool, monkeypatch):
+    shown = clash_cards(tool, monkeypatch)
+
+    class RefusedHook:
+        installed, error = False, 5
+
+        def __init__(self, on_key):
+            pass
+
+        def start(self):
+            pass
+
+        def wait(self, timeout=5):
+            return True
+
+        def is_alive(self):
+            return False
+
+        def stop(self):
+            pass
+    monkeypatch.setattr(vt, "KeyboardHook", RefusedHook)
+    tool.clash_probe = lambda: ["another dictation app"]
+    for _ in range(4):  # (the watch looks, and the key check re-installs the hook about every 2 seconds, Windows refusing each time)
+        tool._clash_check()
+        tool._install_hook()
+        tool._install_hook()
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS]  # (one card for the key, not one per turn)
+    answers = iter([[], ["x"]])  # the other app quits, then comes back: said once more
+    tool.clash_probe = lambda: next(answers)
+    for _ in range(2):
+        tool._clash_check()
+        tool._install_hook()
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS, CLASH_WORDS]
+
+
+def test_clash_6_a_key_the_hook_keeps_missing_is_said_once_but_a_miss_now_and_then_is_not(tool, monkeypatch):
+    shown = clash_cards(tool, monkeypatch)
+    t = tool.triggers[ALT]
+    tool._clash_missed(t)
+    tool._clash_missed(t)
+    assert shown == []
+    tool._clash_missed(t)
+    tool._clash_missed(t)
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS]
+    spread = light_keys.KeyClash()
+    assert all(spread.missed("alt_l", at) is None for at in (0, 100, 200, 300, 400))  # (never three within a minute)
+    # the watchdog's own path: Windows says the key is down, the hook hasn't heard it (three presses)
+    shown.clear()
+    tool.clash = light_keys.KeyClash()
+    monkeypatch.setattr(tool, "_install_hook", lambda: None)
+    now = 1000.0
+    for press in range(3):
+        for at, down in ((now, True), (now + 0.5, True), (now + 0.6, False)):
+            tool._check_keys(at, lambda vk, down=down: down)
+        now += 5
+    assert [body for _, body, *_ in shown] == [CLASH_WORDS]
+
+
+def test_clash_7_chirpy_only_says_so_it_never_takes_the_key_or_stops_the_other_app(tool, monkeypatch):
+    import inspect
+    quit_ = []
+    monkeypatch.setattr(tool, "_quit", lambda: quit_.append(1))
+    shown = clash_cards(tool, monkeypatch)
+    before = dict(tool.triggers)
+    tool.clash_probe = lambda: ["x"]
+    tool._clash_check()
+    assert shown and quit_ == [] and tool.triggers == before and tool.active is None  # (still listening, still running)
+    key(tool, ALT, True, time.monotonic())
+    assert tool.recorder.running  # (the hold key still works)
+    code = "".join(inspect.getsource(part).lower() for part in (
+        vt.VoiceTool._clash_say, vt.VoiceTool._clash_check, vt.VoiceTool._watch_clash, vt.VoiceTool._clash_missed,
+        vt.other_dictation_apps, light_keys.KeyClash))
+    for word in ("kill", "terminate", "taskkill", "stop-process", "createmutex", "setwindowshook", "unhook"):
+        assert word not in code, word
+
+
+def test_clash_8_the_other_apps_running_marker_is_opened_read_only_and_closed(monkeypatch):
+    calls, answer = [], {"present": False}
+    name = "Local\\VoiceTool.Complete.Running"
+
+    class Marker:
+        pass
+
+    def fake_open(access, inherit, mutex):
+        calls.append(("open", access, mutex))
+        if not answer["present"]:
+            raise OSError(2, "not found")
+        return Marker()
+    monkeypatch.setattr(vt.win32event, "OpenMutex", fake_open)
+    monkeypatch.setattr(vt.win32api, "CloseHandle", lambda handle: calls.append(("close", type(handle).__name__)))
+    assert vt.other_dictation_apps() == []
+    answer["present"] = True
+    assert vt.other_dictation_apps() == ["another dictation app"]
+    assert calls == [("open", 0x00100000, name), ("open", 0x00100000, name), ("close", "Marker")]  # (SYNCHRONIZE only: never made, never changed)

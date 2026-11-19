@@ -182,7 +182,7 @@ class API:
     def api_fixes(self):
         rows = light_files.read_fixes(corrections.FILE)
         return {"fixes": [{"heard": str(d.get("heard", "")), "meant": str(d.get("meant", "")), "added": str(d.get("added", "")),
-                           "source": str(d.get("source", ""))} for d in reversed(rows)]}
+                           "source": str(d.get("source", "")), "context": corrections.context_summary(d)} for d in reversed(rows)]}
 
     def _word_reply(self, out, reason=""):
 
@@ -208,12 +208,13 @@ class API:
         return self._word_reply(light_files.edit_word(WORDS, str(old).strip(), new))
 
     def api_add_fix(self, heard, meant):
-        r = corrections.add_saved(heard, meant, "app window")
+        r = corrections.add_saved(heard, meant, "app window", match=corrections.around(heard, meant))
         return {"added": r["saved"], "failed": r["failed"], "kept": r["kept"], "reason": r["reason"], "toast": light_files.said(r),
                 **self.api_fixes()}
 
-    def api_edit_fix(self, old_heard, heard, meant):
-        r = corrections.edit_saved(old_heard, heard, meant, "edited")
+    def api_edit_fix(self, old_heard, heard, meant, expected_context=None):
+        r = corrections.edit_saved(old_heard, heard, meant, "edited", match=corrections.around(heard, meant),
+                                   expected_context=expected_context)
         return {"saved": r["saved"], "failed": r["failed"], "kept": r["kept"], "reason": r["reason"], "toast": light_files.said(r),
                 **self.api_fixes()}
 
@@ -223,7 +224,7 @@ class API:
 
     def api_clear_history(self):
 
-        return light_files.clear_history(HISTORY)
+        return light_files.clear_history(HISTORY, also=[corrections.USUAL])
 
     def api_open(self, what):
         paths = {"log": HERE / "voicetool.log", "folder": HERE, "words": WORDS, "fixes": corrections.FILE}
